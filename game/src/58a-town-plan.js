@@ -45,6 +45,7 @@ function buildTownPlan() {
   plaza('Jardin du Mellah', JARDIN, 0xc8b898, TX.paving);
   plaza('Quai des Pêcheurs', QUAY, 0xa89c88, TX.paving);
   for (const r of [KASBAH, MOSQUE, TANNERY]) reserve(r, 0.5);
+  TOWN.restricted.push(KASBAH, PALACE);   // no civilian business inside the militia's walls
   plaza('Mosque forecourt', { x0: -44, z0: -29, x1: -30, z1: -14 }, 0xd0c0a0, TX.paving);
   plaza('Minaret steps', { x0: -34, z0: -36.5, x1: -27.5, z1: -30 }, 0xc8b898, TX.paving);
   plaza('Tannery steps', { x0: -106, z0: -112, x1: -102, z1: -96 }, 0xb8a888, TX.cobble);

@@ -129,6 +129,19 @@ function buildRifle(c) {
   };
 }
 
+// ---- variants on the rifle frame, each with its own finish (their own materials, so the operator's gun colours don't touch them) ----
+function refinish(g, map) { g.group.traverse((o) => { if (o.isMesh && map.has(o.material)) o.material = map.get(o.material); }); return g; }
+const FINISH = {
+  wood: new THREE.MeshStandardMaterial({ color: 0x6a3418, roughness: 0.55, metalness: 0.05 }), blued: new THREE.MeshStandardMaterial({ color: 0x24262a, roughness: 0.45, metalness: 0.7 }),
+  black: new THREE.MeshStandardMaterial({ color: 0x141518, roughness: 0.6, metalness: 0.4 }), tan: new THREE.MeshStandardMaterial({ color: 0x9a8662, roughness: 0.7, metalness: 0.1 }),
+};
+// AKM: blued steel and lacquered wood, slant brake, iron sights
+function buildAKM(c) { return refinish(buildRifle({ ...c, optic: 'irons', muzzle: 'brake', grip: 'none' }), new Map([[SLOT.furn, FINISH.wood], [SLOT.gun, FINISH.blued]])); }
+// MP5SD: compact, all black, the integral suppressor — quiet enough that guards a street away don't hear it
+function buildMP5(c) { const g = refinish(buildRifle({ ...c, optic: 'reddot', muzzle: 'suppressor', grip: 'none' }), new Map([[SLOT.furn, FINISH.black], [SLOT.gun, FINISH.black]])); g.group.scale.setScalar(GUN_SCALE * 0.84); return g; }
+// MK14: a long semi-auto battle rifle in tan furniture with a magnified sight
+function buildDMR(c) { const g = refinish(buildRifle({ ...c, optic: 'holo', muzzle: 'flash', grip: 'vertical' }), new Map([[SLOT.furn, FINISH.tan], [SLOT.gun, FINISH.black]])); g.group.scale.setScalar(GUN_SCALE * 1.08); return g; }
+
 // Bolt-action sniper rifle (M24-style): heavy barrel, 10x scope, 5-round box magazine, folded bipod
 const cylX = (r, len, seg = 8) => new THREE.CylinderGeometry(r, r, len, seg).rotateZ(Math.PI / 2);
 const cylY = (r, len, seg = 8) => new THREE.CylinderGeometry(r, r, len, seg);

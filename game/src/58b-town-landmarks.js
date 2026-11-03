@@ -38,15 +38,15 @@ function townWalls() {
   // east (south of the kasbah, behind the Mellah)
   rampartRun([154, -36], [154, 92], 10, 2.6, { inner: 1 });
   for (const [x, z] of [[-156, -136], [-118, -136], [-80, -136], [-40, -136], [30, -136], [-156, -96], [-156, -56], [-156, 40], [-156, 70], [154, 0], [154, 40], [154, 88]]) rampartTower(x, z);
-  townGate(-3, -136, 0, 'Bab Doukkala');
+  townGate(-3, -136, 0, 'Bab Doukkala', true);
   townGate(-156, 3, Math.PI / 2, 'Bab Zerka');
 }
 // a closed town gate: twin towers, horseshoe arch, studded doors, inscription band
-function townGate(x, z, ry, name) {
+function townGate(x, z, ry, name, open = false) {
   W.push(x, 0, z, ry);
   const col = 0xc8a07a, w = 5.2, H = 12;
   for (const s of [-1, 1]) rampartTower(s * 5.4, 0, 5.6, 14, col);
-  wall('x', -2.6, 2.6, 0, 0, H, 3.4, { col, tx: TX.stone, side: -1, ops: [{ at: 0, w: 3.6, h: 6.2, kind: 'archdoor', arch: 'horse', style: 'carved', leaf: 'closed', double: true, zellige: 1, rimCol: 0xe8d8b8 }] });
+  wall('x', -2.6, 2.6, 0, 0, H, 3.4, { col, tx: TX.stone, side: -1, ops: [{ at: 0, w: 3.6, h: 6.2, kind: 'archdoor', arch: 'horse', style: 'carved', leaf: open ? 'open' : 'closed', double: true, zellige: 1, rimCol: 0xe8d8b8 }] });
   W.box(w + 6, 0.8, 0.2, 0, H - 2, 1.8, 0xffffff, { t: TX.zellige, wear: 1, lod: 1 });
   for (let i = -2; i <= 2; i++) W.box(0.8, 0.9, 1.2, i * 1.1, H + 0.45, 0, col, { t: TX.stone, lod: 1 });
   W.pop();
@@ -111,7 +111,7 @@ function climbMinaret(cx, cz) {
     const y0 = b * 3.6, h = Math.min(3.6, top - y0);
     faces.forEach(([ax, a0, a1, c, side], fi) => {
       const ops = [];
-      if (b === 0 && fi === 2) ops.push({ at: 0, w: 1.1, h: 2.4, kind: 'archdoor', arch: 'horse', style: 'carved', leaf: 'open', zellige: 0, rimCol: 0xf2e6cc });
+      if (b === 0 && fi === 2) ops.push({ at: 0, w: 1.7, h: 3.0, kind: 'arch', arch: 'horse', zellige: 0, rimCol: 0xf2e6cc });   // an open archway: you can see the stair from the street
       else if (b > 0 && b % 2 === (fi % 2) && h > 2) ops.push({ at: 0, w: 0.32, h: 1.1, sill: 1.3, kind: 'win', win: 'open' });
       wall(ax, a0, a1, c, y0, h, T, { col, tx: TX.plaster, wear: 3, side, ops, inCol: 0xcab494, inTx: TX.plaster, dimIn: 0.45 });
     });
@@ -131,7 +131,7 @@ function climbMinaret(cx, cz) {
     }
   });
   // interior: central core and a square spiral of short flights and corner landings
-  W.scope({ dim: 0.55 }, () => {
+  W.scope({ dim: 0.85 }, () => {
     W.box(core * 2, Ht + 0.1, core * 2, 0, (Ht + 0.1) / 2, 0, 0xcab494, { t: TX.plaster }); W.solid(core * 2, Ht + 0.1, core * 2, 0, (Ht + 0.1) / 2, 0, 'plaster');
     W.box(I * 2, 0.06, I * 2, 0, 0.03, 0, MC.stone, { t: TX.stone, wear: 5, ao: false });
     const C = [[1, 1], [-1, 1], [-1, -1], [1, -1]].map(([a, b]) => [a * (core + I) / 2, b * (core + I) / 2]), wd = I - core;
@@ -146,9 +146,12 @@ function climbMinaret(cx, cz) {
     }
     // the gallery deck at the top: a ring walk round the core, open where the last flight arrives
     // (the east side and north-east corner stay open: that's the stairwell)
-    for (const [x0, z0, x1, z1] of [[-I, core, I, I], [-I, -core, -core, core], [-I, -I, core, -core]]) { W.box(x1 - x0, 0.2, z1 - z0, (x0 + x1) / 2, Ht - 0.1, (z0 + z1) / 2, 0xc8b49a, { t: TX.terrazzo, ao: false }); W.solid(x1 - x0, 0.2, z1 - z0, (x0 + x1) / 2, Ht - 0.1, (z0 + z1) / 2, 'stone', { walk: true }); }
-    railing(core, -I, core, -core, Ht, 'iron');
+    for (const [x0, z0, x1, z1] of [[-I, core, I, I]]) { W.box(x1 - x0, 0.2, z1 - z0, (x0 + x1) / 2, Ht - 0.1, (z0 + z1) / 2, 0xc8b49a, { t: TX.terrazzo, ao: false }); W.solid(x1 - x0, 0.2, z1 - z0, (x0 + x1) / 2, Ht - 0.1, (z0 + z1) / 2, 'stone', { walk: true }); }
+    railing(-I, core, -core, core, Ht, 'iron');   // the deck is the north side only: everywhere else the stair runs too close under it
     hangLantern(0.0, Ht - 0.4, I - 0.4, 0xffc070, 0.2, true);
+    // lamps up the stairwell, and one at the foot by the archway
+    for (let y = 1.8; y < Ht; y += 3.6) W.lamp(0, y + 1.6, I - 0.2, 0xffc890, 1.6, 6, { halo: 0.3 });
+    W.lamp(I - 0.4, 2.4, 0, 0xffc890, 2.0, 7, { halo: 0.4 }); W.box(0.2, 0.3, 0.2, s / 2 - T - 0.12, 2.6, 0.8, 0xffd8a0, { layer: 'glow' });
   });
   // lantern storey on the core: small tower, green tile pyramid, brass finials
   const ls = 2.2, LH = 4.4;

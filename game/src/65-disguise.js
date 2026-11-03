@@ -8,14 +8,14 @@ const DISGUISE = (() => {
   P.holstered = false; P.disguise = null; P.blownUntil = -99;
   let own = null, t = 0;
   const host = document.getElementById('hud');
-  const tag = document.createElement('div'); tag.style.cssText = 'position:absolute;left:24px;bottom:122px;font-size:12px;letter-spacing:.15em;color:rgba(255,255,255,.6)'; host.appendChild(tag);
+  const tag = document.createElement('div'); tag.style.cssText = 'position:absolute;left:24px;bottom:122px;font-size:12px;letter-spacing:.15em;color:rgba(255,255,255,.6)'; tag.id = 'gearTag'; host.appendChild(tag);
   const prompt = document.createElement('div'); prompt.style.cssText = 'position:absolute;left:50%;top:60%;transform:translateX(-50%);font-size:15px;letter-spacing:.22em;color:#e8dcc4;text-shadow:0 0 8px #000;display:none'; host.appendChild(prompt);
 
-  function wear(kit, type) {
+  function wear(kit, type, team = 'red') {
     if (!own) own = cfg;
     cfg = { ...kit }; rebuild();
-    P.disguise = type; P.blownUntil = -99;
-    audio.pouch(); feed(`<span class="s">${type === 'militia' ? 'MILITIA UNIFORM ON — WALK, DON’T RUN; KEEP YOUR DISTANCE' : 'CIVILIAN CLOTHES ON — HIDE YOUR WEAPONS (H)'}</span>`);
+    P.disguise = type; P.disguiseTeam = team; P.blownUntil = -99;
+    audio.pouch(); feed(`<span class="s">${type === 'militia' ? `${BOTS.FACTIONS[team].name.split(' · ').pop()} CLOTHES ON — THEY FOOL ${BOTS.FACTIONS[team].name.split(' · ').pop()} ONLY · WALK, DON’T RUN` : 'CIVILIAN CLOTHES ON — HIDE YOUR WEAPONS (H)'}</span>`);
   }
   function ownGear() {
     if (!own) return;
@@ -23,12 +23,19 @@ const DISGUISE = (() => {
     feed('<span class="m">BACK IN YOUR OWN GEAR</span>');
   }
   // how much your clothes buy you right now (0 = they see you for what you are)
+  // A disguise holds while you act the part. What gives you away: running, sneaking (crouched), a weapon
+  // raised, and — for a civilian — a weapon out at all, or wandering where civilians have no business.
   function level() {
     if (!P.disguise || t < P.blownUntil) return 0;
-    const running = P.sprintT > 0.5;
-    if (P.disguise === 'militia') return (P.holstered ? 0.97 : WD().scope ? 0.6 : 0.9) * (running ? 0.7 : 1);
-    return P.holstered ? (running ? 0.75 : 0.97) : 0;   // a civilian with a rifle out is no civilian
+    const running = P.sprintT > 0.5, sneaking = P.crouch, aiming = P.ads, restricted = inRestricted();
+    if (P.disguise === 'militia') return (P.holstered ? 0.97 : aiming ? (WD().scope ? 0.25 : 0.4) : 0.92) * (running ? 0.62 : 1) * (sneaking ? 0.55 : 1);
+    if (!P.holstered) return 0;   // a civilian with a rifle out is no civilian
+    return 0.97 * (running ? 0.66 : 1) * (sneaking ? 0.5 : 1) * (restricted ? 0.9 : 1);   // somewhere you shouldn't be: they look harder (and longer)
   }
+  // what one side makes of you: their own men's clothes fool them; a rival's clothes make you a target
+  function levelFor(team) { if (P.disguise === 'militia' && P.disguiseTeam !== team) return 0; return level(); }
+  // places a civilian has no reason to be (each map lists its own)
+  function inRestricted() { for (const r of (TOWN.restricted || [])) if (P.pos.x > r.x0 && P.pos.x < r.x1 && P.pos.z > r.z0 && P.pos.z < r.z1 && (r.y0 === undefined || P.pos.y > r.y0)) return true; return false; }
   function blow(why) {
     if (!P.disguise) return;
     if (t >= P.blownUntil) feed(`<span class="m">COVER BLOWN${why === 'shot' ? ' — THEY HEARD YOU' : ''}</span>`);
@@ -49,9 +56,13 @@ const DISGUISE = (() => {
   function interact() {
     if (SCOOTER.riding) { SCOOTER.interact(); return; }
     if (MISSION.interact()) return;
+    if (JOBS.interact()) return;
     if (SCOOTER.interact()) return;
     const b = nearestBody();
-    if (b && !b.taken) { b.taken = true; b.mark(); wear(b.kit, b.type); }
+    if (b && !b.taken) { b.taken = true; b.mark(); wear(b.kit, b.type, b.team); return; }
+    if (THROW.pickup()) return;
+    if (DOORS.interact()) return;
+    NPCS.talk();
   }
   // silent takedown from behind (militia) / knockout (civilian)
   function takedown() {
@@ -64,15 +75,16 @@ const DISGUISE = (() => {
     t += dt;
     if (mode !== 'range') return;
     const blown = P.disguise && t < P.blownUntil;
-    tag.innerHTML = (P.disguise ? `DISGUISE: <b style="color:${blown ? '#d0503a' : '#c9d4c0'}">${P.disguise === 'militia' ? 'MILITIA' : 'CIVILIAN'}</b>` : 'OWN GEAR')
-      + (SCOOTER.riding ? ` · <b style="color:#e8dcc4">SCOOTER ${Math.round(Math.hypot(SCOOTER.riding.vx, SCOOTER.riding.vz) * 3.6)} KM/H</b>` : P.holstered ? ' · WEAPONS HIDDEN' : '') + (blown ? ` · <b style="color:#d0503a">COVER BLOWN ${Math.ceil(P.blownUntil - t)}</b>` : '');
+    const lv = level(), cover = !P.disguise ? '' : lv > 0.9 ? 'SOLID' : lv > 0.6 ? 'SHAKY' : lv > 0 ? 'THIN' : 'NONE';
+    tag.innerHTML = (P.disguise ? `DISGUISE: <b style="color:${blown ? '#d0503a' : '#c9d4c0'}">${P.disguise === 'militia' ? BOTS.FACTIONS[P.disguiseTeam || 'red'].name.split(' · ').pop() : 'CIVILIAN'}</b> · COVER <b style="color:${lv > 0.9 ? '#9fd08a' : lv > 0.6 ? '#ffcc33' : '#e8432e'}">${cover}</b>` : 'OWN GEAR')
+      + (SCOOTER.riding ? ` · <b style="color:#e8dcc4">${({ jet: 'JETSKI', cart: 'GOLF CART' })[SCOOTER.riding.kind] || 'SCOOTER'} ${Math.round(Math.hypot(SCOOTER.riding.vx, SCOOTER.riding.vz) * 3.6)} KM/H</b>` : P.holstered ? ' · WEAPONS HIDDEN' : '') + (blown ? ` · <b style="color:#d0503a">COVER BLOWN ${Math.ceil(P.blownUntil - t)}</b>` : '');
     let pr = '';
     const b = nearestBody();
     if (b && !b.taken) pr = `[E]  TAKE ${b.type === 'militia' ? 'UNIFORM' : 'CLOTHES'}`;
     else if (BOTS.canTakedown(P.pos, P.yaw) && !SCOOTER.riding) pr = '[F]  SILENT TAKEDOWN';
-    else if (NPCS.canKnockout(P.pos, P.yaw) && !SCOOTER.riding) pr = '[F]  KNOCK OUT';
-    else pr = SCOOTER.prompt();
-    prompt.textContent = pr; prompt.style.display = pr ? 'block' : 'none';
+    else { const talk = SCOOTER.riding ? '' : NPCS.promptTalk(), ko = !SCOOTER.riding && NPCS.canKnockout(P.pos, P.yaw) ? '[F]  KNOCK OUT' : ''; pr = SCOOTER.prompt() || THROW.prompt() || DOORS.prompt() || [talk, ko].filter(Boolean).join('     '); }
+    if (!pr && THROW.held) pr = `[G]  THROW THE ${THROW.held}`;
+    setPrompt(prompt, pr);
   }
-  return { update, interact, takedown, toggleHolster, ownGear, level, blow, get worn() { return !!own; }, get blown() { return !!P.disguise && t < P.blownUntil; } };
+  return { update, interact, takedown, toggleHolster, ownGear, level, levelFor, blow, get worn() { return !!own; }, get blown() { return !!P.disguise && t < P.blownUntil; } };
 })();

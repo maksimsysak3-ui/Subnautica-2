@@ -115,7 +115,7 @@ function opening(ax, c, side, y0, T, op, sp) {
       for (const s of [-1, 1]) W.box(0.07, h, 0.08, s * (w / 2 - 0.035), sill + h / 2, ext - 0.06, MC.iron, { layer: 'metal', lod: 1 });
       W.box(w, 0.08, 0.08, 0, sill + h - 0.04, ext - 0.06, MC.iron, { layer: 'metal', lod: 1 });
       // glazed front with a door in the middle third, left open
-      const dw = Math.min(1.0, w * 0.34), gw = (w - dw) / 2 - 0.07;
+      const dw = op.dw ?? Math.min(1.0, w * 0.34), gw = (w - dw) / 2 - 0.07;   // op.dw: a doorway people actually walk through
       for (const s of [-1, 1]) {
         W.box(gw, h - 0.5, 0.02, s * (dw / 2 + gw / 2), sill + 0.42 + (h - 0.5) / 2, ext - 0.06, PC.glass, { layer: 'glass' });
         W.box(gw, 0.4, 0.08, s * (dw / 2 + gw / 2), sill + 0.2, ext - 0.06, MC.iron, { layer: 'metal' });

@@ -67,7 +67,25 @@ const BOTS = (() => {
     { ...PRESETS['Urban Black'] },
     { ...PRESETS['Desert'], topColor: '#3b3a33', pantsColor: '#4a4436', vestColor: '#2c2e25', hatColor: '#3a3a30', packColor: '#2c2e25' },
     { ...PRESETS['Woodland'], topColor: '#2a2d33', vestColor: '#33352a', pantsColor: '#2f3236' },
+    // Seoul: the Black Dragons (black suits, shades) and the Blue Snakes (navy tracksuits, caps)
+    { ...REFERENCE, top: 'jacket', topColor: '#121214', sleeves: 'full', vest: 'none', pack: 'none', bottom: 'pants', pantsColor: '#141416', headwear: 'none', hair: 'short', hairColor: '#121010', eyewear: 'sunglasses', ears: 'none', gloves: 'none', shoes: 'boots', shoeColor: '#0a0a0a', facialHair: 'none', skin: '#d9a37a' },
+    { ...REFERENCE, top: 'longsleeve', topColor: '#3a1a1e', sleeves: 'full', vest: 'none', pack: 'none', bottom: 'pants', pantsColor: '#18181a', headwear: 'none', hair: 'buzz', hairColor: '#121010', eyewear: 'none', ears: 'none', gloves: 'none', shoes: 'boots', shoeColor: '#0a0a0a', facialHair: 'none', skin: '#e3b48e' },
+    { ...REFERENCE, top: 'hoodie', topColor: '#1e3a6a', vest: 'none', pack: 'none', bottom: 'joggers', pantsColor: '#1a1f2e', headwear: 'cap', hatColor: '#1e3a6a', ears: 'none', gloves: 'none', shoes: 'sneakers', shoeColor: '#e8e8e8', facialHair: 'none', skin: '#d9a37a' },
+    { ...REFERENCE, top: 'jacket', topColor: '#2a5a9a', vest: 'none', pack: 'none', bottom: 'joggers', pantsColor: '#2a5a9a', headwear: 'beanie', hatColor: '#141a2a', ears: 'none', gloves: 'none', shoes: 'sneakers', shoeColor: '#2a2a2a', facialHair: 'stubble', skin: '#c98e62' },
+    // the island's marine security: white polos and navy shorts, and the divers in black wetsuits with their tanks
+    { ...REFERENCE, top: 'tshirt', topColor: '#f0f0ec', vest: 'none', pack: 'none', bottom: 'shorts', pantsColor: '#1a2a4a', headwear: 'cap', hatColor: '#1a2a4a', eyewear: 'sunglasses', ears: 'none', gloves: 'none', shoes: 'sneakers', shoeColor: '#f0f0ec', facialHair: 'none', skin: '#a8714a' },
+    { ...REFERENCE, top: 'longsleeve', topColor: '#111316', sleeves: 'full', vest: 'rig', vestColor: '#e8b020', pack: 'hydration', packColor: '#e8b020', bottom: 'pants', pantsColor: '#111316', headwear: 'none', hair: 'buzz', ears: 'none', gloves: 'full', shoes: 'boots', shoeColor: '#111316', facialHair: 'stubble', skin: '#6b4430', eyewear: 'sunglasses' },
+    // Ravenscroft's private security: dark suits, earpieces, plates under the jackets
+    { ...REFERENCE, top: 'jacket', topColor: '#18191c', sleeves: 'full', vest: 'none', pack: 'none', bottom: 'pants', pantsColor: '#18191c', headwear: 'none', hair: 'short', hairColor: '#1c1612', ears: 'headset', earColor: '#1a1a1a', gloves: 'none', shoes: 'boots', shoeColor: '#0a0a0a', facialHair: 'none', skin: '#e3b48e' },
+    { ...REFERENCE, top: 'jacket', topColor: '#22252a', sleeves: 'full', vest: 'plate', vestColor: '#1a1b1e', pack: 'none', bottom: 'pants', pantsColor: '#1e1f22', headwear: 'none', hair: 'buzz', hairColor: '#2e2018', ears: 'headset', earColor: '#1a1a1a', gloves: 'full', shoes: 'boots', shoeColor: '#0a0a0a', facialHair: 'stubble', skin: '#a8714a' },
   ];
+  // the sides on each map: team id → name and the kits its men wear. Every side fights every other (and you).
+  const FACTIONS = MAP.id === 'seoul'
+    ? { red: { name: '흑룡파 · BLACK DRAGONS', kits: [3, 4] }, gold: { name: '청사파 · BLUE SNAKES', kits: [5, 6] } }
+    : MAP.id === 'bahamas' ? { red: { name: 'MARINE SECURITY', kits: [7, 8] } } : MAP.id === 'manor' ? { red: { name: 'SECURITY', kits: [9, 10] } } : { red: { name: 'MILITIA', kits: [0, 1, 2] } };   // Dar: the militia alone
+  // whose ground is this? (each map says; the militia / Black Dragons by default)
+  const sideAt = (x, z) => (TOWN.factionAt ? TOWN.factionAt(x, z) : 'red');
+  const kitFor = (team) => { const ks = (FACTIONS[team] || FACTIONS.red).kits; return ks[(Math.random() * ks.length) | 0]; };
   let kitMats = null;
   // clone every slot material per kit, coloured for that kit (the player's own materials are untouched)
   function buildKitMats() {
@@ -91,9 +109,9 @@ const BOTS = (() => {
     scene.add(c.root);
     return { ch: c, gun: g, flash, px, k };
   }
-  function takeModel(i) { const m = pool.length ? pool.pop() : makeModel(i); m.ch.root.visible = true; return m; }
+  function takeModel(k) { const i = pool.findIndex((m) => m.k === k); const m = i >= 0 ? pool.splice(i, 1)[0] : makeModel(k); m.ch.root.visible = true; return m; }
   function makeView(agent, i) {
-    const model = takeModel(i);
+    const model = takeModel(agent.kit ?? i);
     const v = { agent, model, y: 0, yaw: agent.look.yaw, phase: Math.random() * 6, gaitW: 0, crouchT: 0, lowT: 0.6, prevU: [0, 0], alive: true, deadT: 0, hits: [] };
     for (const part of ['head', 'torso', 'legs']) { const m = model.px[part]; m.userData.target = { type: 'bot', view: v, part }; hitList.push(m); v.hits.push(m); }
     return v;
@@ -172,6 +190,7 @@ const BOTS = (() => {
     const blood = document.createElement('div'); blood.style.cssText = 'position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 45%,rgba(140,0,0,.85) 100%);opacity:0;transition:opacity .25s;z-index:5';
     const dead = document.createElement('div'); dead.style.cssText = 'position:fixed;inset:0;display:none;place-items:center;pointer-events:none;color:#e8d8c8;font:600 22px Rajdhani,sans-serif;letter-spacing:.3em;background:rgba(40,0,0,.45);z-index:6'; dead.textContent = 'YOU WERE KILLED — REGROUPING…';
     const cnt = document.createElement('div'); cnt.style.cssText = 'position:absolute;left:24px;bottom:104px;font-size:12px;letter-spacing:.15em;color:rgba(255,255,255,.55)';
+    hp.id = 'hpbar'; cnt.id = 'hpcnt';
     const host = document.getElementById('hud'); host.appendChild(hp); host.appendChild(cnt); document.body.appendChild(blood); document.body.appendChild(dead);
     return { fill, blood, dead, cnt };
   })();
@@ -184,6 +203,8 @@ const BOTS = (() => {
     arena = new CityArena(cx, cz);
     me = new Agent(arena, { team: 'blue', controller: 'script', name: 'you', profile: 'player' });
     me.script = (a, dt, w) => { const hid = clock < graceUntil; a.pos = hid ? { x: 1e4, y: 0, z: 1e4 } : { x: P.pos.x - w.ox, y: P.pos.y, z: P.pos.z - w.oz }; a.vel = { x: P.vel.x, y: 0, z: P.vel.z }; a.stance = P.crouch ? 'crouch' : 'stand'; a.look = { yaw: P.yaw, pitch: P.pitch }; a.alive = !P.dead; a.conceal = NPCS.conceal(P.pos); a.disguise = DISGUISE.level(); };
+    me.disguiseFor = (team) => DISGUISE.levelFor(team);
+    Object.defineProperty(me, 'disguiseClose', { get: () => P.disguise === 'civilian' });
     me.integrate = function (dt, w) { // footsteps carry: the AI hears you move
       const sp = Math.hypot(this.vel.x, this.vel.z); this.stepAcc = (this.stepAcc || 0) + sp * dt;
       if (this.stepAcc > 0.75) { this.stepAcc = 0; const H = TUNE.hearing; w.emitSound(this.pos, sp > 4.6 ? H.sprint : this.stance !== 'stand' ? H.crouch : sp > 2.8 ? H.run : H.walk, 'step', this.id); }
@@ -192,7 +213,8 @@ const BOTS = (() => {
     me.onNearMiss = () => { audio.crack(); P.shake = Math.min(1.5, P.shake + 0.35); };
     lastTracer = arena.time;
     // kasbah sentries at their posts (each post stays empty for a while after its man falls)
-    for (const g of TOWN.guards) { if (clock < (g.deadUntil || 0)) continue; if (Math.abs(g.x - arena.ox) > SIZE / 2 - 4 || Math.abs(g.z - arena.oz) > SIZE / 2 - 4) continue; spawnGuard(g); }
+    TOWN.guards.filter((g) => !(g.mission && g.killed) && clock >= (g.deadUntil || 0) && Math.abs(g.x - arena.ox) < SIZE / 2 - 4 && Math.abs(g.z - arena.oz) < SIZE / 2 - 4)
+      .sort((a, b) => Math.hypot(a.x - P.pos.x, a.z - P.pos.z) - Math.hypot(b.x - P.pos.x, b.z - P.pos.z)).slice(0, 14).forEach(spawnGuard);
     for (let i = 0; i < cap(); i++) spawnBot(i);
   }
   // somewhere outdoors, 30–62 m away, out of the player's sight
@@ -215,17 +237,33 @@ const BOTS = (() => {
   const roaming = () => views.filter((v) => v.agent.alive && !v.post).length;
   function spawnGuard(g) {
     const lp = arena.nearestFree(toLocal(g.x, g.z));
-    const a = new Agent(arena, { team: 'red', pos: lp, yaw: g.yaw, profile: 'operator', patrol: [lp, arena.nearestFree(toLocal(g.x - Math.sin(g.yaw) * 5, g.z - Math.cos(g.yaw) * 5))] });
-    a.mission = 'guard';
+    const team = g.team || sideAt(g.x, g.z);
+    const a = new Agent(arena, { team, pos: lp, yaw: g.yaw, profile: g.profile || 'operator', patrol: [lp, arena.nearestFree(toLocal(g.x - Math.sin(g.yaw) * 5, g.z - Math.cos(g.yaw) * 5))] });
+    a.mission = 'guard'; a.kit = g.kit ?? kitFor(team);
     const v = makeView(a, views.length); v.post = g; views.push(v);
   }
   function spawnBot(i) {
     if (roaming() >= cap()) return false;
     const p = spawnPoint(); if (!p) return false;
     const prof = ['recruit', 'recruit', 'operator', 'recruit', 'operator', 'veteran'][i % 6];
-    const a = new Agent(arena, { team: 'red', pos: p, yaw: Math.random() * 6.28, profile: prof });
+    const team = sideAt(p.x + arena.ox, p.z + arena.oz);
+    const a = new Agent(arena, { team, pos: p, yaw: Math.random() * 6.28, profile: prof }); a.kit = kitFor(team);
     views.push(makeView(a, i));
     return true;
+  }
+  // mission squads: armed men posted at given spots (they hold their post and fight when they see you). They're kept
+  // with the town's guard posts, so they're still there if the fight moves on and comes back; clearSquads removes them.
+  const inArena = (g) => arena && Math.abs(g.x - arena.ox) < SIZE / 2 - 4 && Math.abs(g.z - arena.oz) < SIZE / 2 - 4;
+  function squad(points, o = {}) {
+    const gs = points.map(([x, z, yaw = 0]) => ({ x, z, yaw, team: o.team, kit: o.kit, profile: o.profile || 'operator', mission: true, tag: o.tag || 'mission' }));
+    for (const g of gs) { TOWN.guards.push(g); if (enabled && inArena(g)) spawnGuard(g); }
+    return gs;
+  }
+  function clearSquads(tag = 'mission') {
+    for (let i = TOWN.guards.length - 1; i >= 0; i--) {
+      const g = TOWN.guards[i]; if (!g.mission || g.tag !== tag) continue; TOWN.guards.splice(i, 1);
+      const k = views.findIndex((v) => v.post === g); if (k >= 0) { const v = views[k]; dropView(v); views.splice(k, 1); if (arena) arena.agents.splice(arena.agents.indexOf(v.agent), 1); }
+    }
   }
   function hurtPlayer(dmg, part) {
     if (P.dead || clock < graceUntil) return;
@@ -233,16 +271,24 @@ const BOTS = (() => {
     audio.hurt(); P.shake = Math.min(2, P.shake + 0.8); flinch(Math.random() < 0.5 ? -1 : 1, part === 'head' ? 1.6 : 1);
     ui.blood.style.opacity = String(Math.min(1, 0.35 + (100 - P.hp) / 120));
     me.health = P.hp;
-    if (P.hp <= 0) { P.dead = true; P.deadT = 3.2; me.alive = false; ui.dead.style.display = 'grid'; feed(`<span class="m">KILLED${part === 'head' ? ' — HEADSHOT' : ''}</span>`); }
+    if (P.hp <= 0) {
+      P.dead = true; P.deadT = 4.6; P.deathAt = performance.now() / 1000; P.deathSide = Math.random() < 0.5 ? -1 : 1; me.alive = false; P.trigger = false;
+      const inMission = /^\d+:\d+$/.test(MISSION.stage);
+      ui.dead.innerHTML = `<div style="text-align:center"><div style="font-size:42px;letter-spacing:.35em;font-weight:700;color:#e8d8c8">${inMission ? 'MISSION FAILED' : 'YOU WERE KILLED'}</div><div style="margin-top:12px;font-size:14px;letter-spacing:.3em;opacity:.7">${part === 'head' ? 'HEADSHOT · ' : ''}${inMission ? 'RESTARTING THE MISSION' : 'REGROUPING'}</div></div>`;
+      ui.dead.style.display = 'grid'; ui.dead.style.opacity = '0'; requestAnimationFrame(() => { ui.dead.style.transition = 'opacity 1.2s 0.6s'; ui.dead.style.opacity = '1'; });
+      canvas.style.transition = 'filter 1.4s'; canvas.style.filter = 'grayscale(0.85) brightness(0.75) contrast(1.1)';
+      audio.hurt();
+    }
   }
   let clock = 0, graceUntil = GRACE; const time0 = () => clock;
   // player's own shots: the AI hears them, and rounds cracking past make it duck
-  function playerShot(origin, dir) {
+  function playerShot(origin, dir, quiet = false) {
     if (!arena || !enabled) return;
     const lo = toLocal(origin.x, origin.z);
-    me.lastShotT = arena.time; NPCS.alarm(origin.x, origin.z);
-    if (views.some((v) => v.agent.alive && Math.hypot(v.agent.pos.x + arena.ox - origin.x, v.agent.pos.z + arena.oz - origin.z) < 90)) DISGUISE.blow('shot');
-    arena.emitSound({ x: lo.x, y: 0, z: lo.z }, TUNE.hearing.gunshot, 'shot', me.id);
+    // a suppressed shot: no flash, and it carries a quarter as far (guards close by still hear it)
+    me.lastShotT = arena.time; me.suppressed = quiet; if (!quiet) NPCS.alarm(origin.x, origin.z);
+    if (views.some((v) => v.agent.alive && Math.hypot(v.agent.pos.x + arena.ox - origin.x, v.agent.pos.z + arena.oz - origin.z) < (quiet ? 22 : 90))) DISGUISE.blow('shot');
+    arena.emitSound({ x: lo.x, y: 0, z: lo.z }, TUNE.hearing.gunshot * (quiet ? 0.25 : 1), 'shot', me.id);
     for (const v of views) {
       const a = v.agent; if (!a.alive) continue;
       const c = new V3(a.pos.x + arena.ox, (a.pos.y || 0) + a.top() * 0.7, a.pos.z + arena.oz), w = c.clone().sub(origin), t = w.dot(dir);
@@ -266,7 +312,7 @@ const BOTS = (() => {
     const a = v.agent, wx = a.pos.x + arena.ox, wz = a.pos.z + arena.oz, c = v.model.ch;
     v.y = damp(v.y, COL.ground(wx, wz, v.y + 0.3), 12, dt);
     if (!a.alive) {
-      if (v.alive) { v.alive = false; v.deadT = 0; for (const m of v.hits) { const i = hitList.indexOf(m); if (i >= 0) hitList.splice(i, 1); } if (v.post) v.post.deadUntil = clock + 240; else pending.push(extra ? 6 : RESPAWN_S); v.model.flash.visible = false; }
+      if (v.alive) { v.alive = false; v.deadT = 0; for (const m of v.hits) { const i = hitList.indexOf(m); if (i >= 0) hitList.splice(i, 1); } if (v.post) { v.post.deadUntil = clock + 240; v.post.killed = true; } else pending.push(extra ? 6 : RESPAWN_S); v.model.flash.visible = false; }
       v.deadT += dt; const k = Math.min(1, v.deadT / 0.6);
       c.root.position.set(wx, v.y, wz); c.root.rotation.set(-k * k * Math.PI / 2 * 0.92, v.yaw + Math.PI, 0);
       return;
@@ -286,14 +332,43 @@ const BOTS = (() => {
     }
     lastTracer = arena.time;
   }
+  // ---- suspicion: a triangle over each guard who's noticed you, filling yellow as he works out who you are;
+  // red once he has. Guards out of view get theirs pinned to the edge of the screen. ----
+  const marks = [], _mp = new V3();
+  function markEl() {
+    const d = document.createElement('div'); d.style.cssText = 'position:absolute;width:15px;height:13px;transform:translate(-50%,-100%);pointer-events:none;display:none;filter:drop-shadow(0 0 3px rgba(0,0,0,.8))';
+    d.innerHTML = '<svg viewBox="0 0 26 23" width="15" height="13"><defs><clipPath id="tri"><path d="M13 1 L25 22 L1 22 Z"/></clipPath></defs><rect class="f" x="0" y="23" width="26" height="23" clip-path="url(#tri)" fill="#ffcc33"/><path d="M13 1 L25 22 L1 22 Z" fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+    document.getElementById('hud').appendChild(d); return { d, f: d.querySelector('.f'), path: d.querySelector('path') };
+  }
+  function suspicionMarks() {
+    let n = 0;
+    if (!HUD.marks) { for (const m of marks) m.d.style.display = 'none'; return; }
+    for (const v of views) {
+      const a = v.agent; if (!a.alive || !me) continue;
+      const s = a.sus.get(me.id) || 0, known = a.mem.get(me.id)?.visible || s >= 1, wx = a.pos.x + arena.ox, wz = a.pos.z + arena.oz;
+      if (s < 0.04 && !known) continue;
+      if (Math.hypot(wx - P.pos.x, wz - P.pos.z) > 90) continue;
+      const m = marks[n] || (marks[n] = markEl()); n++;
+      _mp.set(wx, v.y + 2.25, wz).project(camera);
+      let x = _mp.x, y = _mp.y; const behind = _mp.z > 1; if (behind) { x = -x; y = -y; }
+      const off = behind || Math.abs(x) > 0.94 || Math.abs(y) > 0.9;
+      if (off) { const k = 1 / Math.max(Math.abs(x) / 0.94, Math.abs(y) / 0.9, 1e-3); x *= k; y *= k; }
+      m.d.style.display = 'block'; m.d.style.left = `${(x * 0.5 + 0.5) * innerWidth}px`; m.d.style.top = `${(-y * 0.5 + 0.5) * innerHeight}px`;
+      m.d.style.transform = `translate(-50%,-100%) scale(${off ? 0.75 : 1})`;
+      const k = Math.min(1, s); m.f.setAttribute('y', String(23 - 23 * k)); m.f.setAttribute('fill', known ? '#e8432e' : '#ffcc33');
+      m.path.setAttribute('stroke', known ? '#ffb0a0' : '#ffffff'); m.d.style.opacity = known ? String(0.75 + 0.25 * Math.sin(clock * 12)) : '1';
+    }
+    for (let i = n; i < marks.length; i++) marks[i].d.style.display = 'none';
+  }
   function update(dt) {
     clock += dt;
-    if (!enabled || !MAP.ready) return;
+    if (!enabled || !MAP.ready) { for (const m of marks) m.d.style.display = 'none'; return; }
     if (!arena) graceUntil = clock + GRACE;
     if (!arena || Math.hypot(P.pos.x - arena.ox, P.pos.z - arena.oz) > RELOCATE) build(P.pos.x, P.pos.z);
     arena.step(Math.min(dt, 0.05));
     if (P.disguise && views.some((v) => v.agent.alive && v.agent.mem.get(me.id)?.visible)) DISGUISE.blow('seen');
     for (const v of views) animate(v, dt);
+    suspicionMarks();
     tracers();
     for (let i = tracersFx.length - 1; i >= 0; i--) { const f = tracersFx[i]; f.t += dt; f.m.position.copy(f.A).addScaledVector(f.d, Math.min(f.L, f.t * 900)); if (f.t > f.L / 900 + 0.02) { scene.remove(f.m); tracersFx.splice(i, 1); } }
     // replacements for the fallen (out of sight), cleanup of old bodies
@@ -304,7 +379,7 @@ const BOTS = (() => {
     if (P.dead) {
       for (const k in keys) keys[k] = false; P.trigger = false; P.vel.set(0, 0, 0);
       P.deadT -= dt;
-      if (P.deadT <= 0) { DISGUISE.ownGear(); DISGUISE.toggleHolster(false); P.dead = false; P.hp = 100; ui.dead.style.display = 'none'; P.pos.set(SPAWN.x, 0, SPAWN.z); P.yaw = SPAWN.yaw; graceUntil = clock + GRACE; build(P.pos.x, P.pos.z); }
+      if (P.deadT <= 0) { DISGUISE.ownGear(); DISGUISE.toggleHolster(false); P.dead = false; P.hp = 100; P.crouch = false; ui.dead.style.display = 'none'; ui.blood.style.opacity = '0'; canvas.style.filter = ''; if (SUBWAY.under || DOORS.inside) { /* surface first */ } P.pos.set(SPAWN.x, 0, SPAWN.z); P.vel.set(0, 0, 0); P.yaw = SPAWN.yaw; graceUntil = clock + GRACE; build(P.pos.x, P.pos.z); if (/^\d+:\d+$/.test(MISSION.stage) || MISSION.stage === 'between') MISSION.retry(); }
     } else if (clock - P.hurtT > 5 && P.hp < 100) P.hp = Math.min(100, P.hp + 8 * dt);
     ui.fill.style.width = `${P.hp}%`; ui.fill.style.background = P.hp < 35 ? '#d0503a' : '#c9d4c0';
     if (clock - P.hurtT > 0.4) ui.blood.style.opacity = String(Math.max(0, (60 - P.hp) / 80));
@@ -319,7 +394,7 @@ const BOTS = (() => {
   const wpos = (v) => ({ x: v.agent.pos.x + arena.ox, z: v.agent.pos.z + arena.oz });
   function bodies() {
     if (!arena) return [];
-    return views.filter((v) => !v.alive && v.deadT < 25).map((v) => { const p = v.model.ch.root.position; return { x: p.x, y: v.y, z: p.z, kit: KITS[v.model.k % KITS.length], type: 'militia', taken: v.taken, mark: () => { v.taken = true; } }; });
+    return views.filter((v) => !v.alive && v.deadT < 25).map((v) => { const p = v.model.ch.root.position; return { x: p.x, y: v.y, z: p.z, kit: KITS[v.model.k % KITS.length], type: 'militia', team: v.agent.team, taken: v.taken, mark: () => { v.taken = true; } }; });
   }
   function takedownTarget(pos) {
     if (!arena || !enabled) return null;
@@ -344,5 +419,7 @@ const BOTS = (() => {
     if (!arena) return;
     for (const v of views) { if (!v.agent.alive) continue; const w = wpos(v); if (Math.hypot(w.x - x, w.z - z) < 1.0 && speed > 4) { v.agent.onHit(speed * 9, 'torso', me, { x: w.x - x, y: 0, z: w.z - z }, arena); if (!v.agent.alive) { P.stats.score += 25; feed('<span class="s">RUN DOWN +25</span>'); } } }
   }
-  return { update, hit, playerShot, bodies, ram, hurt: (d) => hurtPlayer(d, d), setPressure: (n) => { extra = n; }, get clock() { return clock; }, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
+  // a noise you made somewhere else (a thrown bottle): guards who hear it go and look there
+  function noise(x, z, range) { if (!arena || !me) return; arena.emitSound({ x: x - arena.ox, y: 0, z: z - arena.oz }, range, 'noise', me.id); NPCS.alarm(x, z); }
+  return { squad, clearSquads, get spotted() { return !!me && views.some((v) => v.agent.alive && v.agent.mem.get(me.id)?.visible); }, update, hit, playerShot, bodies, ram, noise, FACTIONS, hold: (s) => { graceUntil = Math.max(graceUntil, clock + s); }, hurt: (d) => hurtPlayer(d, d), setPressure: (n) => { extra = n; }, get clock() { return clock; }, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
 })();

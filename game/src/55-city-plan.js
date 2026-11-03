@@ -171,12 +171,15 @@ function fillFree(x0, z0, x1, z1, inside, o = {}) {
 
 // ---------------- ground surfaces ----------------
 // flat paved/cobbled plate split into chunk tiles (keeps culling effective)
-function groundPlate(x0, z0, x1, z1, col, t, wear = 3, y = 0.03, inside = null) {
-  const cs = 32;
+// hole: a rectangle left uncovered (a lake, a pool): tiles that overlap it are cut round it
+function groundPlate(x0, z0, x1, z1, col, t, wear = 3, y = 0.03, inside = null, hole = null) {
+  const cs = 32, tile = (ax, az, bx, bz) => { if (bx - ax > 0.01 && bz - az > 0.01) W.box(bx - ax, 0.06, bz - az, (ax + bx) / 2, y - 0.03, (az + bz) / 2, col, { t, wear, ao: false, jit: 0 }); };
   for (let x = x0; x < x1 - 0.01; x += cs) for (let z = z0; z < z1 - 0.01; z += cs) {
     const a = Math.min(cs, x1 - x), b = Math.min(cs, z1 - z);
     if (inside && !inside(x + a / 2, z + b / 2)) continue;
-    W.box(a, 0.06, b, x + a / 2, y - 0.03, z + b / 2, col, { t, wear, ao: false, jit: 0 });
+    const H = hole; if (!H || x + a <= H.x0 || x >= H.x1 || z + b <= H.z0 || z >= H.z1) { tile(x, z, x + a, z + b); continue; }
+    const hx0 = Math.max(x, H.x0), hx1 = Math.min(x + a, H.x1);
+    tile(x, z, hx0, z + b); tile(hx1, z, x + a, z + b); tile(hx0, z, hx1, Math.max(z, H.z0)); tile(hx0, Math.min(z + b, H.z1), hx1, z + b);
   }
 }
 // ribbon along a polyline: band from offset r0 to r1 (signed, metres from centre line) at height y

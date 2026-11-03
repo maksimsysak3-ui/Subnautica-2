@@ -16,19 +16,31 @@ const WEAPONS = {
   sniper: { name: 'M24 SNIPER', build: buildSniper, hold: 'shoulder', rpm: 50, modes: ['BOLT'], cap: 5, reserve: 40, bolt: true,
     v: 850, drag: 0.32, pellets: 1, choke: 0, mass: 1.6, dmg: 3.2, spread: [0.055, 0.00022], recoil: { z: 3.2, rx: 7.5, ry: 1.0, cam: 1.0, climb: 0.018 },
     reload: 'mag', tracer: 0, zero: 100, ads: [8, 8], casing: 'rifle', scope: true },
+  akm: { name: 'AKM RIFLE', build: buildAKM, hold: 'shoulder', rpm: 600, modes: ['AUTO', 'SEMI'], cap: 30, reserve: 210,
+    v: 715, drag: 0.9, pellets: 1, choke: 0, mass: 1.25, dmg: 1.3, spread: [0.03, 0.0016], recoil: { z: 1.8, rx: 3.5, ry: 1.25, cam: 0.48, climb: 0.006 },
+    reload: 'mag', tracer: 3, zero: 50, ads: [54, 48], casing: 'rifle' },
+  mp5: { name: 'MP5SD', build: buildMP5, hold: 'shoulder', rpm: 800, modes: ['AUTO', 'SEMI', 'BURST'], cap: 30, reserve: 240,
+    v: 285, drag: 1.3, pellets: 1, choke: 0, mass: 0.55, dmg: 0.85, spread: [0.026, 0.0018], recoil: { z: 0.9, rx: 1.6, ry: 0.6, cam: 0.22, climb: 0.003 },
+    reload: 'mag', tracer: 0, zero: 25, ads: [54, 50], casing: 'pistol' },
+  dmr: { name: 'MK14 DMR', build: buildDMR, hold: 'shoulder', rpm: 300, modes: ['SEMI'], cap: 20, reserve: 120,
+    v: 850, drag: 0.4, pellets: 1, choke: 0, mass: 1.4, dmg: 2.0, spread: [0.03, 0.0005], recoil: { z: 2.4, rx: 5.4, ry: 1.0, cam: 0.72, climb: 0.011 },
+    reload: 'mag', tracer: 0, zero: 100, ads: [24, 20], casing: 'rifle' },
 };
-const ORDER = ['rifle', 'shotgun', 'pistol', 'sniper'];
+// what you carry: four slots, chosen on the loadout screen before a mission (stored between sessions)
+const SLOTS = { primary: ['rifle', 'akm', 'mp5'], secondary: ['shotgun', 'mp5', 'akm', 'rifle'], sidearm: ['pistol'], long: ['sniper', 'dmr'] };
+const LOADOUT = (() => { const d = { primary: 'rifle', secondary: 'shotgun', sidearm: 'pistol', long: 'sniper' }; try { const s = JSON.parse(localStorage.getItem('nightrange.loadout') || '{}'); for (const k in d) if (SLOTS[k].includes(s[k])) d[k] = s[k]; } catch (e) { /* ignore */ } if (d.secondary === d.primary) d.secondary = d.primary === 'shotgun' ? 'rifle' : 'shotgun'; return d; })();
+const ORDER = [LOADOUT.primary, LOADOUT.secondary, LOADOUT.sidearm, LOADOUT.long];
 const P = {
   pos: new V3(0, 0, -2.5), vel: new V3(), yaw: 0, pitch: 0,
   crouch: false, crouchT: 0, sprintT: 0, ads: false, adsT: 0, fp: false, fpT: 0, lowT: 0,
   phase: 0, gaitW: 0, prevU: [0, 0], camY: 1.6,
-  w: 'rifle', inv: {}, burst: 0, nextShot: 0, trigger: false, edge: false,
+  w: ORDER[0], inv: {}, burst: 0, nextShot: 0, trigger: false, edge: false,
   reload: null, swap: null, pump: null, boltT: 0, slideT: 0,
   kick: { z: 0, vz: 0, rx: 0, vrx: 0, ry: 0, vry: 0 }, cr: { p: 0, vp: 0, y: 0, vy: 0 }, bloom: 0,
   sway: { x: 0, vx: 0, y: 0, vy: 0 }, feel: { land: 0, vland: 0, hit: 0, vhit: 0, hitSide: 1, yawRate: 0, lastYaw: 0 }, air: false, shake: 0, lean: 0, leanT: 0, stamina: 1, breath: 1, holdBreath: false, winded: 0,
   stats: { shots: 0, hits: 0, score: 0 }, infinite: true, sens: 1, flashT: 0, shotId: 0, lastHitShot: -1,
 };
-function freshInv() { for (const id of ORDER) P.inv[id] = { mag: WEAPONS[id].cap, chamber: 1, reserve: WEAPONS[id].reserve, locked: false, mode: 0 }; }
+function freshInv() { for (const id of Object.keys(WEAPONS)) P.inv[id] = { mag: WEAPONS[id].cap, chamber: 1, reserve: WEAPONS[id].reserve, locked: false, mode: 0 }; }
 freshInv();
 const inv = () => P.inv[P.w];
 const WD = () => WEAPONS[P.w];
@@ -69,6 +81,7 @@ function rebuildGuns() {
   for (let i = props.length - 1; i >= 0; i--) if (props[i].kind === 'mag') { scene.remove(props[i].obj); props.splice(i, 1); }
   guns = {};
   for (const id of ORDER) {
+    if (guns[id]) continue;
     const g = WEAPONS[id].build(cfg);
     g.handItem = g.mag ? g.mag.clone() : shellMesh();
     g.handItem.scale.setScalar(GUN_SCALE); g.handItem.visible = false; scene.add(g.handItem);
@@ -78,11 +91,37 @@ function rebuildGuns() {
   gun = null;
   equip(P.w);
 }
+// weapon light (night maps): L clicks a torch under the barrel on and off — a real spotlight, the lens
+// glowing, and its beam hanging in the rain
+const TORCH = (() => {
+  const light = new THREE.SpotLight(0xfff2dc, 0, 46, 0.34, 0.6, 1.4), tgt = new THREE.Object3D();
+  light.target = tgt; tgt.position.set(0, 0, 10); light.castShadow = false;
+  const body = new THREE.Group(), dark = new THREE.MeshStandardMaterial({ color: 0x18191b, roughness: 0.5, metalness: 0.6 });
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.11, 10), dark); tube.rotation.x = Math.PI / 2; body.add(tube);
+  const bezel = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.018, 0.025, 12), dark); bezel.rotation.x = Math.PI / 2; bezel.position.z = 0.065; body.add(bezel);
+  const lensMat = new THREE.MeshBasicMaterial({ color: 0x404040, toneMapped: false }), lens = new THREE.Mesh(new THREE.CircleGeometry(0.017, 12), lensMat); lens.position.z = 0.0785; body.add(lens);
+  const fadeTex = canvasTex(4, 64, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.75, 'rgba(255,255,255,0.35)'); gr.addColorStop(1, 'rgba(255,255,255,1)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+  const beamGeo = new THREE.ConeGeometry(2.4, 14, 20, 1, true); beamGeo.rotateX(-Math.PI / 2); beamGeo.translate(0, 0, 7.08);
+  const beam = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: 0xfff0d8, alphaMap: fadeTex, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+  beam.renderOrder = 5; body.add(beam, light, tgt);
+  let on = false, k = 0;
+  return {
+    mount(g) { body.position.set(0.034, -0.012, Math.max(0.12, g.muzzle.z - 0.16)); g.group.add(body); },
+    toggle() { if (!MAP.night) return; on = !on; audio.dry(); feed(`<span class="m">WEAPON LIGHT ${on ? 'ON' : 'OFF'}</span>`); },
+    update(dt) {
+      const want = on && mode === 'range' && !P.holstered && !P.dead && !P.vehicle ? 1 : 0;
+      k = want ? 1 : Math.max(0, k - dt * 12);   // clicks on, dies off in a blink
+      light.intensity = k * 70; light.visible = k > 0; beam.visible = k > 0.02; beam.material.opacity = 0.05 * k * (P.fpT > 0.5 && P.adsT > 0.5 ? 0.35 : 1);
+      lensMat.color.setScalar(0.25 + k * 3);
+    },
+    get on() { return on; },
+  };
+})();
 function equip(id) {
   if (gun) { ch.root.remove(gun.group); gun.handItem.visible = false; if (gun.mag) gun.mag.visible = true; }
   P.w = id; gun = guns[id];
   ch.root.add(gun.group);
-  flash.position.copy(gun.muzzle); gun.group.add(flash);
+  flash.position.copy(gun.muzzle); gun.group.add(flash); TORCH.mount(gun);
   if (gun.mag) gun.mag.visible = true;
   P.reload = null; P.burst = 0;
   if (holsterModel) holsterModel.visible = id !== 'pistol';
@@ -440,7 +479,7 @@ function fire() {
   emitPuff(mz.clone().addScaledVector(base, 0.08), 0x8a8a8a, big ? 0.16 : 0.1, 1.3, base.clone().multiplyScalar(sup ? 0.3 : 0.9).add(T.e.set(0, 0.25, 0)), sup ? 0.12 : big ? 0.3 : 0.2, 1.8);
   if (W.casing !== 'shell' && !W.bolt) ejectCasing(W.casing);
   audio.gunshot(g.kind === 'sniper' ? 'shotgun' : g.kind, sup, g.brake);
-  BOTS.playerShot(mz, base);
+  BOTS.playerShot(mz, base, sup);
 
   // recoil: visual gun spring, camera spring, permanent climb, view shake
   const R = W.recoil;
@@ -626,7 +665,7 @@ function updateHud() {
   xhParts[2].style.transform = `translateX(${-gap - 9}px)`; xhParts[3].style.transform = `translateX(${gap}px)`;
   for (const x of xhParts) x.style.opacity = lines;
   hud.vig.style.opacity = (P.fpT * P.adsT * 0.9 + P.winded * 0.35).toFixed(3);
-  hud.stam.style.opacity = P.stamina < 0.98 ? 1 : 0;
+  hud.stam.style.opacity = 1;
   hud.stam.firstElementChild.style.width = `${P.stamina * 100}%`;
 }
 
@@ -649,14 +688,15 @@ function flinch(side, k = 1) { P.feel.vhit -= 6 * k; P.feel.hitSide = side; }
 const aimKey = { down: false, t: 0, toggled: false };
 
 function updateRange(dt, time) {
+  TORCH.update(dt);
   // movement + stamina
   const fwd = T.a.set(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)), right = T.b.set(Math.cos(P.yaw), 0, -Math.sin(P.yaw));
-  const ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
+  const live = !P.dead && !CINEMA.active, ix = live ? (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) : 0, iz = live ? (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) : 0;
   const shift = keys.ShiftLeft || keys.ShiftRight;
   P.ads = (aimKey.down || aimKey.toggled) && !P.holstered && !HANDMAP.open;
   const sprint = !P.vehicle && shift && iz > 0 && !P.ads && !P.reload && P.stamina > 0.05;
   if (sprint && P.crouch) P.crouch = false;
-  P.stamina = clamp(P.stamina + (sprint ? -dt / 6 : dt / (P.vel.lengthSq() > 1 ? 7 : 4)), 0, 1);
+  P.stamina = clamp(P.stamina + (sprint ? -dt / 15 : dt / (P.vel.lengthSq() > 1 ? 9 : 5)), 0, 1);   // ~15 s of sprint from full
   P.winded = damp(P.winded, clamp((0.6 - P.stamina) / 0.6, 0, 1), 1.5, dt);
   if (P.vehicle) SCOOTER.drive(dt); else {
   const spd = sprint ? 5.6 : P.crouch ? 1.5 : P.ads ? 1.8 : 3.1;
@@ -665,9 +705,14 @@ function updateRange(dt, time) {
   P.vel.lerp(wish, 1 - Math.exp(-(wish.lengthSq() > 0 ? 9 : 12) * dt));
   P.pos.addScaledVector(P.vel, dt);
   // world collision: walls push you out, floors/steps lift you, ledges drop you with gravity
-  COL.resolve(P.pos, 0.32, 1.75);
+  const wx0 = P.pos.x - P.vel.x * dt, wz0 = P.pos.z - P.vel.z * dt;
+  // in the water you can haul yourself up onto a dock or a boat landing, not just a kerb-high step
+  const climb = MAP.waterY !== undefined && terrainH(P.pos.x, P.pos.z) < MAP.waterY + 0.35 && P.pos.y < MAP.waterY + 0.9 ? 1.5 : 0.45;   // the water and the wet sand at its edge
+  COL.resolve(P.pos, 0.32, 1.75, climb);
+  // islands: you can wade the shallows, not swim the channel
+  if (MAP.waterY !== undefined && COL.ground(P.pos.x, P.pos.z, P.pos.y + 0.4, climb) < MAP.waterY - 0.9) { P.pos.x = wx0; P.pos.z = wz0; P.vel.x = P.vel.z = 0; }
   P.pos.x = clamp(P.pos.x, -MAP.bounds, MAP.bounds); P.pos.z = clamp(P.pos.z, -MAP.bounds, MAP.bounds);
-  const gy = COL.ground(P.pos.x, P.pos.z, P.pos.y);
+  const gy = COL.ground(P.pos.x, P.pos.z, P.pos.y, climb);
   // jump (Space): a modest hop — enough for a kerb or a low wall, not for rooftops
   if (keys.Space && !P.air && !P.dead && P.stamina > 0.1 && clockJump(time)) { P.vy = 4.3; P.air = true; P.stamina = Math.max(0, P.stamina - 0.08); audio.step(false, 1); }
   if ((P.vy || 0) > 0 || gy < P.pos.y - 0.04) { P.vy = (P.vy || 0) - G * dt; P.pos.y = Math.max(gy, P.pos.y + P.vy * dt); P.air = P.pos.y > gy + 0.02 || P.vy > 0; if (!P.air) land(); }
@@ -735,20 +780,22 @@ function updateRange(dt, time) {
   ch.root.rotation.set(0, P.yaw + Math.PI, 0);
   const lv = T.d.copy(P.vel).applyAxisAngle(UP, -(P.yaw + Math.PI));
   poseBody(dt, time, { localVel: lv, bladed: (1 - P.lowT) * (pistol ? 0.35 : 1), lean: 0.22 * P.sprintT + 0.12 * P.crouchT - 0.3 * pitch * (1 - P.lowT), lookPitch: pitch * (1 - P.lowT * 0.5), crouchT: P.crouchT, sprintT: P.sprintT, side: P.leanT });
-  ch.head.visible = P.fpT < 0.5;
+  ch.head.visible = P.fpT < 0.5 || P.dead;
+  // dying: the knees go, then the body pitches forward onto the ground, a little to one side
+  if (P.dead) { const k = clamp((performance.now() / 1000 - P.deathAt) / 1.1, 0, 1), e = k * k * (3 - 2 * k); P.crouch = true; ch.root.rotation.set(-e * 1.42, P.yaw + Math.PI, P.deathSide * e * 0.3, 'YXZ'); ch.root.position.y = P.pos.y + Math.sin(k * Math.PI) * 0.05; }
   }
 
   // camera base position (third person shoulder cam or the eyes)
   const eyeW = ch.eye.getWorldPosition(T.e);
   if (P.vehicle) eyeW.add(_rideOff.set(-Math.sin(P.vehicle.yaw) * 0.24, 0.06, -Math.cos(P.vehicle.yaw) * 0.24));   // riding: eyes ahead of the chest, over the bars
   P.camY = damp(P.camY, eyeW.y, 12, dt);
-  const off = P.vehicle ? T.a.set(0, 0.7, 3.9) : T.a.set(lerp(0.78, 0.66, P.adsT), lerp(0.24, 0.1, P.adsT), lerp(2.7, 1.5, P.adsT));
+  const off = P.vehicle ? (P.vehicle.kind === 'cart' ? T.a.set(0, 1.5, 5.6) : P.vehicle.kind === 'jet' ? T.a.set(0, 1.25, 5.0) : T.a.set(0, 0.7, 3.9)) : T.a.set(lerp(0.78, 0.66, P.adsT), lerp(0.24, 0.1, P.adsT), lerp(2.7, 1.5, P.adsT));
   _e1.set(pitch, yaw, 0, 'YXZ'); off.applyQuaternion(_q2.setFromEuler(_e1));
   // shoulder camera: pull in when a wall is between you and the camera
   const pivot = T.b.set(P.pos.x, P.camY + 0.05, P.pos.z), offLen = off.length();
   const camHit = COL.ray(pivot, T.c.copy(off).divideScalar(offLen), offLen + 0.3);
   const tp = camHit ? pivot.addScaledVector(T.c, Math.max(0.15, camHit.t - 0.3)) : pivot.add(off);
-  tp.y = Math.max(tp.y, terrainH(tp.x, tp.z) + 0.25);
+  tp.y = Math.max(tp.y, terrainH(tp.x, tp.z) + 0.25, MAP.waterY !== undefined ? MAP.waterY + 0.45 : -1e9);
   T.camBase.copy(tp).lerp(eyeW, P.fpT);
 
   // aim point from the camera centre
@@ -770,9 +817,12 @@ function updateRange(dt, time) {
   if (k > 0.001) camera.position.copy(T.camBase).lerp(gun.group.localToWorld(T.a.copy(gun.eye)), smooth(k));
   else camera.position.copy(T.camBase);
   camera.position.y += P.feel.land * 0.16;
+  // the death camera: pulls up and back over the body, looking down at it
+  if (P.dead) { const k = clamp((performance.now() / 1000 - P.deathAt) / 2.8, 0, 1), e = k * k * (3 - 2 * k), bx = Math.sin(P.yaw + 0.6 * P.deathSide), bz = Math.cos(P.yaw + 0.6 * P.deathSide);
+    camera.position.lerp(T.e.set(P.pos.x + bx * (2.4 + e * 2.2), P.pos.y + 1.4 + e * 3.4, P.pos.z + bz * (2.4 + e * 2.2)), Math.min(1, 0.15 + e)); camera.lookAt(P.pos.x - Math.sin(P.yaw) * 0.8, P.pos.y + 0.25, P.pos.z - Math.cos(P.yaw) * 0.8); }
   SCOPE.update(WD().scope ? smooth(clamp((P.adsT * P.fpT - 0.82) / 0.18, 0, 1)) : 0);
   const W = WD();
-  const fovT = lerp(P.fp ? 74 : 68, P.fp ? W.ads[1] : W.ads[0], smooth(P.adsT)) + P.sprintT * 5 + P.shake * 1.2;
+  const fovT = lerp(P.fp ? 74 : 68, P.fp ? W.ads[1] : W.ads[0], smooth(P.adsT)) + P.sprintT * 5 + P.shake * 1.2 + (P.vehicle ? clamp(Math.hypot(P.vel.x, P.vel.z) / 22, 0, 1) * 8 : 0);
   if (Math.abs(camera.fov - fovT) > 0.01) { camera.fov = fovT; camera.updateProjectionMatrix(); }
 
   trigger(time);

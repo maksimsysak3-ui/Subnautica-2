@@ -3,6 +3,7 @@
 // =====================================================================
 addEventListener('keydown', (e) => {
   if (mode !== 'range' || paused) return;
+  if (CINEMA.active) { if (e.code === 'Space' || e.code === 'KeyE' || e.code === 'Enter') CINEMA.skip(); e.preventDefault(); return; }
   keys[e.code] = true;
   if (e.repeat) return;
   switch (e.code) {
@@ -16,12 +17,16 @@ addEventListener('keydown', (e) => {
     case 'KeyC': case 'ControlLeft': if (!P.vehicle) P.crouch = !P.crouch; break;
     case 'KeyT': resetRange(); break;
     case 'KeyN': BOTS.toggle(); break;
-    case 'KeyE': DISGUISE.interact(); break;
+    case 'KeyE': if (!SUBWAY.interact()) DISGUISE.interact(); break;
     case 'KeyF': DISGUISE.takedown(); break;
     case 'KeyH': DISGUISE.toggleHolster(); break;
     case 'KeyU': DISGUISE.ownGear(); break;
     case 'KeyJ': MISSION.restart(); break;
+    case 'KeyY': MISSION.choose(0); break;
+    case 'KeyK': MISSION.choose(1); break;
     case 'KeyM': HANDMAP.toggle(); break;
+    case 'KeyL': TORCH.toggle(); break;
+    case 'KeyG': THROW.toss(); break;
     case 'Escape': if (lockFallback) setPaused(true); break;
   }
   if (['Space', 'Tab', 'ControlLeft'].includes(e.code)) e.preventDefault();
@@ -42,6 +47,7 @@ canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('mousedown', (e) => {
   audio.init();
   if (mode === 'range') {
+    if (CINEMA.active) return;
     if (!locked && !lockFallback) { requestLock(); return; }
     if (e.button === 0) { if (HANDMAP.open) { HANDMAP.toggle(false); return; } if (P.holstered) { DISGUISE.toggleHolster(false); return; } P.trigger = true; P.edge = true; }
   } else drag = { x: e.clientX, y: e.clientY };
@@ -122,7 +128,9 @@ function enterCustom() {
   aimKey.down = aimKey.toggled = false; P.lean = 0;
   P.fp = false; P.crouch = false;
 }
-$('bEnter').onclick = enterRange;
+$('bEnter').onclick = () => { if (MAP.id) enterRange(); else MENU.open(); };
+$('bCases').onclick = () => { location.search = ''; };
+$('bRestart').onclick = () => { if (!confirm('Restart this campaign from mission 1? Side jobs stay done.')) return; MISSION.start(0); if (lockFallback) setPaused(false); else requestLock(); };
 $('bResume').onclick = () => { if (lockFallback) setPaused(false); else requestLock(); };
 $('bCustom').onclick = enterCustom;
 $('bReset').onclick = () => { resetRange(); };
@@ -175,7 +183,7 @@ function renderControls() {
 function renderPoses() {
   const items = [['ready', 'Low Ready'], ['aim', 'Aim'], ['relaxed', 'Relaxed']];
   const wl = { rifle: 'Rifle', shotgun: 'Shotgun', pistol: 'Pistol' };
-  $('poses').innerHTML = ORDER.map((id) => `<button class="chip${P.w === id ? ' on' : ''}" data-w="${id}">${wl[id]}</button>`).join('') +
+  $('poses').innerHTML = ORDER.map((id) => `<button class="chip${P.w === id ? ' on' : ''}" data-w="${id}">${WEAPONS[id].name}</button>`).join('') +
     items.map(([v, n]) => `<button class="chip${pose === v ? ' on' : ''}" data-pose="${v}">${n}</button>`).join('') +
     `<button class="chip${turntable ? ' on' : ''}" data-tt>Turntable</button><button class="chip" data-face>Face</button><button class="chip" data-full>Full Body</button>`;
   $('poses').querySelectorAll('[data-pose]').forEach((b) => b.onclick = () => { pose = b.dataset.pose; renderPoses(); });
@@ -199,7 +207,7 @@ $('bRef').onclick = () => { cfg = { ...REFERENCE }; rebuild(); saveCfg(); render
 // =====================================================================
 //  Main loop
 // =====================================================================
-buildWorld();
+if (MAP.id) buildWorld(); else MENU.open();
 rebuild();
 renderTabs(); renderControls(); renderPoses();
 
@@ -211,15 +219,17 @@ addEventListener('resize', () => {
 let last = performance.now(), time = 0, first = true;
 // adaptive quality: watches frame time and trades draw distance / resolution for frame rate
 const QUALITY = (() => {
-  let avg = 16, t = 0, dist = 420, pr = Math.min(devicePixelRatio, 1.25);
+  // Seoul keeps its draw distance short: night, rain and fog hide the cut, and the streets are dense
+  const DMIN = MAP.id === 'seoul' ? 130 : 220, DMAX = MAP.id === 'seoul' ? 240 : 520;
+  let avg = 16, t = 0, dist = MAP.id === 'seoul' ? 200 : 420, pr = Math.min(devicePixelRatio, 1.25);
   const maxPR = Math.min(devicePixelRatio, 1.25);
   return {
     update(dt) {
       if (!MAP.ready || MAP.lockDraw) return;
       avg = lerp(avg, dt * 1000, 0.05); t += dt;
       if (t < 1.0) return; t = 0;
-      if (avg > 24) { if (dist > 220) dist -= 50; else if (pr > 0.7) { pr = Math.max(0.7, pr - 0.15); renderer.setPixelRatio(pr); } }
-      else if (avg < 15) { if (pr < maxPR) { pr = Math.min(maxPR, pr + 0.1); renderer.setPixelRatio(pr); } else if (dist < 520) dist += 30; }
+      if (avg > 24) { if (dist > DMIN) dist = Math.max(DMIN, dist - 40); else if (pr > 0.7) { pr = Math.max(0.7, pr - 0.15); renderer.setPixelRatio(pr); } }
+      else if (avg < 15) { if (pr < maxPR) { pr = Math.min(maxPR, pr + 0.1); renderer.setPixelRatio(pr); } else if (dist < DMAX) dist = Math.min(DMAX, dist + 30); }
       W.setDrawDist(dist);
     },
     get fps() { return Math.round(1000 / avg); },
@@ -229,9 +239,10 @@ const DBGCAM = { on: false, pos: new V3(), yaw: 0, pitch: 0, fov: 60 }; // scrip
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (MENU.active) { MENU.frame(dt, now / 1000); return; }
   if (!paused) {
     time += dt;
-    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); DISGUISE.update(dt); HANDMAP.update(dt); SCOOTER.update(dt); } else updateCustom(dt, time);
+    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); JOBS.update(dt); CINEMA.update(dt); SUBWAY.update(dt); HUD.update(dt); THROW.update(dt); TRAFFIC.update(dt); DISGUISE.update(dt); HANDMAP.update(dt); SCOOTER.update(dt); } else updateCustom(dt, time);
     updateTargets(dt, time);
     updateBullets(dt);
     updateSparks(dt);
@@ -245,17 +256,17 @@ function frame(now) {
   fillLight.position.set(P.pos.x - 1.6, py + 1.7, P.pos.z + 2.6);
   if (DBGCAM.on) { camera.position.copy(DBGCAM.pos); camera.rotation.set(DBGCAM.pitch, DBGCAM.yaw, 0, 'YXZ'); camera.fov = DBGCAM.fov; camera.updateProjectionMatrix(); }
   LAMPS.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos, time);
-  SKY.update(camera, DBGCAM.on ? DBGCAM.pos : P.pos); SEA.update(time);
+  SKY.update(camera, DBGCAM.on ? DBGCAM.pos : P.pos); SEA.update(time); RAIN.update(dt, camera); if (MAP.id === 'bahamas') { BSEA.update(time); PATROL.update(dt, time); JET.update(dt); } LAWN.update(dt); if (MAP.id === 'seoul' && MAP.ready) seoulTick(dt, camera);
   STREAM.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos);
   QUALITY.update(dt);
   W.updateLOD(camera);
-  if (mode === 'range' || DBGCAM.on) EYE.update(dt, camera); else renderer.toneMappingExposure = 1.0;
+  if (mode === 'range' || DBGCAM.on) EYE.update(dt, camera, MAP.night ? 1.55 : 1); else renderer.toneMappingExposure = 1.0;
   renderer.render(scene, camera);
-  if (first && MAP.ready) { first = false; $('loading').classList.add('hidden'); }
+  if (first && MAP.ready) { first = false; $('loading').classList.add('hidden'); LOADSCREEN.done(); }
 }
 requestAnimationFrame(frame);
 window.__dbg = { P, get ch() { return ch; }, get gun() { return gun; }, enterRange, enterCustom, setPose: (p) => { pose = p; }, orbit, fire, startReload, setCfg, keys, aimKey, switchTo, equip, inv, setLockFallback: (v) => { lockFallback = v; } };
-window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION; window.__dbg.DISGUISE = DISGUISE; window.__dbg.HANDMAP = HANDMAP; window.__dbg.SCOOTER = SCOOTER; window.__dbg.scene = scene; window.__dbg.SEA = SEA; window.__dbg.TOWN = TOWN; window.__dbg.camera = camera;
+window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION; window.__dbg.DISGUISE = DISGUISE; window.__dbg.HANDMAP = HANDMAP; window.__dbg.SCOOTER = SCOOTER; window.__dbg.MENU = MENU; window.__dbg.scene = scene; window.__dbg.SEA = SEA; window.__dbg.TOWN = TOWN; window.__dbg.camera = camera;
 window.__OPTS = OPTS;
 // scripted walk along waypoints with the real movement + collision code (tests)
 window.__dbg.walk = (path, o = {}) => {
@@ -274,7 +285,7 @@ window.__dbg.walk = (path, o = {}) => {
   return out;
 };
 window.__dbg.step = (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { time += dt; updateRange(dt, time); updateBullets(dt); } return [P.pos.x, P.pos.y, P.pos.z].map((v) => +v.toFixed(2)); };
-window.__dbg.COL = COL; window.__dbg.MAP = MAP; window.__dbg.cam = DBGCAM; window.__dbg.BOTS = BOTS;
+window.__dbg.COL = COL; window.__dbg.JOBS = JOBS; window.__dbg.GR = GR; window.__dbg.ROOMS = ROOMS; window.__dbg.MISSION = MISSION; window.__dbg.JET = JET; window.__dbg.SUBWAY = SUBWAY; window.__dbg.DOORS = DOORS; window.__dbg.CINEMA = CINEMA; window.__dbg.THROW = THROW; window.__dbg.TRAFFIC = TRAFFIC; window.__dbg.MAP = MAP; window.__dbg.cam = DBGCAM; window.__dbg.BOTS = BOTS;
 // debug: the planning grid as an image (2 m per pixel): street, pave, built, reserved, wall
 window.__dbg.gridImage = () => {
   const n = GR.N / 2, cv = document.createElement('canvas'); cv.width = cv.height = n; const g = cv.getContext('2d'), im = g.createImageData(n, n);

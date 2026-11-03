@@ -6,7 +6,9 @@
 // (plaster, ashlar, zellige, asphalt, cobbles, wood…) that a shared shader turns into world-space
 // procedural texture, bump and roughness, so nothing is stretched and nothing needs UVs.
 const MAP = {
-  bounds: 400, debugNaN: 5, poi: [], lamps: [], colliders: [], meshes: [], lampGain: 2.0,
+  // which case is loaded (?map=dar | seoul); none → the case-files menu
+  id: (() => { const m = new URLSearchParams(location.search).get('map'); return ['dar', 'seoul', 'manor', 'bahamas'].includes(m) ? m : null; })(),
+  bounds: 900, debugNaN: 5, poi: [], lamps: [], colliders: [], meshes: [], lampGain: 2.0,
   // batch chunk size per detail level: big chunks for far architecture (few draw calls), small for fine detail (tight culling)
   chunk: [64, 48, 32, 32],
   // max draw distance per detail level: 0 architecture, 1 street props, 2 interior furniture, 3 small clutter
@@ -40,9 +42,10 @@ function vnoise(x, z) {
 }
 function fbm(x, z) { let s = 0, a = 1, f = 1; for (let i = 0; i < 4; i++) { s += a * vnoise(x * f, z * f); a *= 0.5; f *= 2.03; } return s / 1.875; }
 // the walled town sits on a flat coastal shelf: the sea to the south, dry hills rising inland
-const CITY = { x0: -165, x1: 165, z0: -150, z1: 118 };
-const coastZ = (x) => (x < -22 ? 101 : 113.5) + (x < -175 || x > 175 ? (fbm(x * 0.02, 3.1) - 0.5) * 18 : 0);
+const CITY = { x0: -165, x1: 165, z0: -470, z1: 118 };
+const coastZ = (x) => MAP.id !== 'dar' ? 1e9 : (x < -22 ? 101 : 113.5) + (x < -175 || x > 175 ? (fbm(x * 0.02, 3.1) - 0.5) * 18 : 0);
 function rawTerrain(x, z) {
+  if (MAP.id === 'bahamas') return islandH(x, z);
   const cz = coastZ(x);
   if (z > cz) return Math.max(-8, -2.2 - (z - cz) * 0.22) + (fbm(x * 0.05, z * 0.05) - 0.5) * 0.8;   // sea bed
   const out = Math.max(0, Math.max(CITY.x0 - x, x - CITY.x1, CITY.z0 - z) + fbm(x * 0.006, z * 0.006) * 40 - 20);
@@ -481,6 +484,7 @@ const W = (() => {
       MAP.lamps.push({ p, color: new THREE.Color(color), intensity: intensity * MAP.lampGain, range: range * 1.25, flicker: o.flicker || 0, halo: o.halo ?? 0.6 });
     },
     stats: () => ({ tris: Math.round(tris), objects, buckets: buckets.size, lod: lodTris.map(Math.round) }),
+    get mode() { return MODE; },
     // DEFERRED DETAIL: fn runs now for its colliders/lamps; its geometry is generated later, only when
     // the camera comes near (see STREAM). RNG state, frame and drawing state are captured so both runs match.
     defer(fn, cls = 'near', at = null) {
@@ -786,8 +790,47 @@ const SKY = (() => {
   scene.add(sun, sun.target);
   scene.fog.color.copy(HOR); scene.background.copy(HOR);
   const _f = new V3();
+  // night: moonlit sky with the city's sodium-and-neon glow on the horizon; the range behind goes dark
+  // the tropics: a high white sun, a deep blue sky paling to the sea, clean air
+  function tropical() {
+    MAP.tropical = true;
+    const u = dome.material.uniforms;
+    u.zen.value.setRGB(0.12, 0.32, 0.78); u.hor.value.setRGB(0.62, 0.82, 0.96); u.glowc.value.setRGB(1.0, 0.95, 0.85);
+    HOR.copy(u.hor.value);
+    ring.visible = false;   // no mountains in the Bahamas: open sea to the horizon
+    sunDir.set(-0.45, 0.78, 0.42).normalize();
+    sun.color.set(0xfff2dc); sun.intensity = 3.6; sun.shadow.mapSize.set(4096, 4096); sun.shadow.radius = 3;
+    scene.fog.color.setRGB(0.66, 0.82, 0.94); scene.background.copy(scene.fog.color);
+    HEMI.color.setRGB(0.6, 0.78, 1.0); HEMI.groundColor.setRGB(0.9, 0.82, 0.64); HEMI.intensity = 0.9;
+  }
+  // dusk: the sun just over the trees, a long orange light, the sky going violet overhead
+  function dusk() {
+    MAP.dusk = true;
+    const u = dome.material.uniforms;
+    u.zen.value.setRGB(0.07, 0.1, 0.28); u.hor.value.setRGB(0.95, 0.5, 0.3); u.glowc.value.setRGB(1.0, 0.52, 0.22);
+    HOR.copy(u.hor.value);
+    ring.traverse((o) => { if (o.isMesh) o.material.color.setRGB(0.3, 0.22, 0.26); });
+    sunDir.set(0.84, 0.22, -0.48).normalize();
+    sun.color.set(0xffa868); sun.intensity = 2.3; sun.shadow.mapSize.set(4096, 4096); sun.shadow.radius = 3;
+    scene.fog.color.setRGB(0.58, 0.42, 0.4); scene.background.copy(scene.fog.color);
+    HEMI.color.setRGB(0.56, 0.56, 0.78); HEMI.groundColor.setRGB(0.36, 0.28, 0.22); HEMI.intensity = 0.62;
+    MAP.lampGain = 2.6;
+  }
+  function night() {
+    MAP.night = true;
+    const u = dome.material.uniforms;
+    u.zen.value.setRGB(0.003, 0.004, 0.012); u.hor.value.setRGB(0.05, 0.028, 0.05); u.glowc.value.setRGB(0.05, 0.05, 0.07);
+    HOR.copy(u.hor.value);
+    ring.traverse((o) => { if (o.isMesh) o.material.color.setRGB(0.07, 0.06, 0.1); });
+    sunDir.set(0.35, 0.62, -0.7).normalize();
+    sun.color.set(0x8fa4d8); sun.intensity = 0.32;
+    sun.castShadow = false;   // moonlight this faint casts nothing you'd see under the street lamps: skip the whole shadow pass
+    scene.fog.color.setRGB(0.03, 0.022, 0.04); scene.background.copy(scene.fog.color);
+    HEMI.color.setRGB(0.18, 0.2, 0.32); HEMI.groundColor.setRGB(0.12, 0.06, 0.1); HEMI.intensity = 0.35;
+    MAP.lampGain = 3.2;
+  }
   return {
-    sunDir, sun, horizon: HOR,
+    sunDir, sun, horizon: HOR, night, dusk, tropical,
     update(cam, focus) {
       dome.position.copy(cam.position); ring.position.set(cam.position.x, 0, cam.position.z);
       // shadow box biased ahead of the camera (more useful texels where the player looks), snapped to texels
@@ -803,7 +846,7 @@ const SKY = (() => {
 
 // ---------------- lamp pool: hundreds of lamps, only the nearest few are real lights ----------------
 const LAMPS = (() => {
-  const N = 6, pool = [];
+  const N = MAP.id === 'seoul' ? 8 : 6, pool = [];
   for (let i = 0; i < N; i++) { const l = new THREE.PointLight(0xffffff, 0, 10, 2); scene.add(l); pool.push({ l, lamp: null, cur: 0 }); }
   let haloPts = null, timer = 0;
   function buildHalos() {
