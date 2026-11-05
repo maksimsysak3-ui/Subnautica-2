@@ -7,72 +7,178 @@
 <style>
   :root {
     --bg0: #3a3d45; --bg1: #1d1e23; --bg2: #121317;
-    --panel: rgba(22, 24, 30, 0.72); --line: rgba(255,255,255,0.09);
-    --text: #e9ebf1; --muted: #9298a6; --accent: #4f6bff; --accent2: #2b3c9e;
+    --panel: rgba(18, 20, 26, 0.78); --line: rgba(255,255,255,0.1);
+    --text: #eceef4; --muted: #9aa0ae; --accent: #5b76ff; --accent2: #2b3c9e;
+    --power: #ff6a3d; --curl: #b46bff; --pass: #3dd6a0;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; overflow: hidden; }
   body {
     background: radial-gradient(ellipse 80% 70% at 50% 42%, var(--bg0) 0%, var(--bg1) 55%, var(--bg2) 100%);
     color: var(--text); font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    transition: background 0.6s;
     -webkit-user-select: none; user-select: none;
   }
-  body.pitch { --bg0: #24402c; --bg1: #12201a; --bg2: #090f0c; }
   canvas#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  button { font: inherit; color: var(--text); background: transparent; border: 0; cursor: pointer; padding: 6px 10px; border-radius: 7px; white-space: nowrap; transition: background 0.15s, color 0.15s; }
+  button:hover { background: rgba(255,255,255,0.08); }
+  button[aria-pressed="true"] { background: var(--accent2); color: #fff; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .seg { display: flex; background: rgba(255,255,255,0.06); border-radius: 9px; padding: 2px; }
+  .toggle { border: 1px solid var(--line); }
+  .glass { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: 0 10px 40px rgba(0,0,0,0.35); }
 
-  .brand { position: fixed; top: 18px; left: 20px; pointer-events: none; }
+  .brand { position: fixed; top: 16px; left: 18px; pointer-events: none; }
   .brand h1 { margin: 0; font-size: 20px; letter-spacing: 0.06em; font-weight: 800; }
   .brand h1 span { color: var(--accent); }
   .brand p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+  .topbar { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; padding: 4px; }
+  .topbar .seg button { padding: 7px 14px; font-weight: 600; }
 
-  .hint { position: fixed; top: 20px; right: 20px; color: var(--muted); font-size: 12px; text-align: right; pointer-events: none; }
-  .hint kbd { font: 11px ui-monospace, monospace; padding: 1px 5px; border: 1px solid var(--line); border-radius: 4px; color: var(--text); }
+  /* mode visibility */
+  body:not([data-mode="play"]) .play-only, body:not([data-mode="customize"]) .cz-only, body:not([data-mode="showcase"]) .showcase-only { display: none !important; }
 
-  .dock {
-    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
-    display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: center;
-    padding: 10px 14px; max-width: calc(100vw - 32px);
-    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
-    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
-    box-shadow: 0 10px 40px rgba(0,0,0,0.35);
-  }
+  /* Play HUD */
+  #score { position: fixed; top: 16px; right: 18px; padding: 8px 12px; font-variant-numeric: tabular-nums; }
+  #score b { color: #fff; }
+  #toast { position: fixed; top: 22%; left: 50%; transform: translate(-50%, -50%) scale(0.9); opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s; text-align: center; font-weight: 800; letter-spacing: 0.04em; text-shadow: 0 4px 24px rgba(0,0,0,0.5); }
+  #toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  #toast.goal { font-size: clamp(48px, 10vw, 110px); color: #fff; }
+  #toast.goal::after { content: ''; display: block; height: 4px; margin: 6px auto 0; width: 60%; background: linear-gradient(90deg, transparent, var(--accent), transparent); }
+  #toast.stat, #toast.post, #toast.info { font-size: 22px; }
+  #toast.post { color: #ffd166; }
+  #meter { position: fixed; left: 50%; bottom: 44px; transform: translateX(-50%); width: min(320px, 70vw); padding: 8px 12px 10px; opacity: 0; transition: opacity 0.12s; pointer-events: none; }
+  #meter.on { opacity: 1; }
+  #meter .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); display: flex; justify-content: space-between; margin-bottom: 6px; }
+  #meter .bar { height: 10px; border-radius: 6px; background: rgba(255,255,255,0.1); overflow: hidden; }
+  #meter .bar i { display: block; height: 100%; width: 0%; border-radius: 6px; background: var(--power); }
+  #help { position: fixed; left: 16px; bottom: 16px; padding: 10px 14px; max-width: 290px; font-size: 12px; color: var(--muted); }
+  #help summary { cursor: pointer; color: var(--text); font-weight: 600; list-style: none; }
+  #help summary::-webkit-details-marker { display: none; }
+  #help dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 8px 0 0; }
+  #help dt { color: var(--text); white-space: nowrap; }
+  #help dd { margin: 0; }
+  kbd { font: 11px ui-monospace, monospace; padding: 1px 5px; border: 1px solid var(--line); border-radius: 4px; color: var(--text); }
+
+  /* Touch controls */
+  #touch { position: fixed; inset: auto 0 0 0; height: 0; }
+  .touch-only { display: none !important; }
+  @media (pointer: coarse) { #stick.touch-only { display: block !important; } .tbtns.touch-only { display: grid !important; } #help { display: none; } }
+  #stick { position: fixed; left: 22px; bottom: 26px; width: 130px; height: 130px; border-radius: 50%; background: rgba(255,255,255,0.07); border: 1px solid var(--line); touch-action: none; }
+  #stick i { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(255,255,255,0.22); }
+  .tbtns { position: fixed; right: 18px; bottom: 22px; display: grid; grid-template-columns: repeat(2, 72px); gap: 10px; }
+  .tbtns button { width: 72px; height: 72px; border-radius: 50%; font-weight: 700; font-size: 12px; background: rgba(255,255,255,0.1); border: 1px solid var(--line); touch-action: none; }
+  .tbtns button[data-k="power"] { background: color-mix(in srgb, var(--power) 45%, transparent); }
+  .tbtns button[data-k="finesse"] { background: color-mix(in srgb, var(--curl) 45%, transparent); }
+  .tbtns button[data-k="pass"] { background: color-mix(in srgb, var(--pass) 45%, transparent); }
+
+  /* Customizer */
+  #customizer { position: fixed; top: 64px; right: 16px; bottom: 16px; width: 350px; display: flex; flex-direction: column; overflow: hidden; }
+  #customizer header { padding: 12px 14px 8px; border-bottom: 1px solid var(--line); }
+  #customizer header h2 { margin: 0 0 8px; font-size: 15px; }
+  .cz-views { display: flex; gap: 4px; flex-wrap: wrap; }
+  .cz-body { overflow-y: auto; padding: 4px 14px 16px; flex: 1; overscroll-behavior: contain; }
+  .cz-body details { border-bottom: 1px solid var(--line); padding: 8px 0; }
+  .cz-body summary { cursor: pointer; font-weight: 700; font-size: 13px; padding: 4px 0; list-style: none; display: flex; justify-content: space-between; }
+  .cz-body summary::after { content: '+'; color: var(--muted); }
+  .cz-body details[open] summary::after { content: '–'; }
+  .fld { margin: 9px 0; }
+  .fld > .lab { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 5px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chips button { border: 1px solid var(--line); padding: 4px 9px; font-size: 12px; }
+  .colorrow { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+  .colorrow input[type=color] { width: 30px; height: 26px; border: 1px solid var(--line); border-radius: 6px; background: none; padding: 0; cursor: pointer; }
+  .colorrow .sw { width: 20px; height: 20px; border-radius: 5px; padding: 0; border: 1px solid rgba(255,255,255,0.18); }
+  .colorrow .sw[aria-pressed="true"] { outline: 2px solid #fff; outline-offset: 1px; }
+  .fld input[type=text] { width: 100%; background: rgba(255,255,255,0.06); border: 1px solid var(--line); color: var(--text); border-radius: 7px; padding: 6px 8px; font: inherit; }
+  .switch { width: 40px; height: 22px; border-radius: 11px; padding: 0; position: relative; background: rgba(255,255,255,0.14); }
+  .switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.15s; }
+  .switch[aria-pressed="true"] { background: var(--accent); }
+  .switch[aria-pressed="true"]::after { transform: translateX(18px); }
+  .presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin: 10px 0 4px; }
+  .presets button { border: 1px solid var(--line); padding: 6px 4px; font-size: 11.5px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .presets button i { display: block; width: 26px; height: 14px; border-radius: 3px; }
+
+  /* Showcase dock */
+  .dock { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: center; padding: 10px 14px; max-width: calc(100vw - 32px); }
   .group { display: flex; align-items: center; gap: 6px; }
   .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; margin-right: 2px; }
-  .seg { display: flex; background: rgba(255,255,255,0.05); border-radius: 9px; padding: 2px; }
-  button {
-    font: inherit; color: var(--text); background: transparent; border: 0; cursor: pointer;
-    padding: 6px 10px; border-radius: 7px; white-space: nowrap; transition: background 0.15s, color 0.15s;
-  }
-  button:hover { background: rgba(255,255,255,0.08); }
-  button[aria-pressed="true"] { background: var(--accent2); color: #fff; }
-  .toggle { border: 1px solid var(--line); }
   input[type=range] { width: 120px; accent-color: var(--accent); }
   .speedval { color: var(--muted); font-size: 11px; width: 42px; }
   .sep { width: 1px; height: 24px; background: var(--line); }
 
   #err { position: fixed; inset: 0; display: none; place-items: center; text-align: center; padding: 24px; color: var(--muted); }
 
-  @media (max-width: 720px) {
-    .hint { display: none; }
-    .brand { top: 12px; left: 16px; }
+  @media (max-width: 760px) {
+    .brand { display: none; }
+    .topbar { top: auto; bottom: auto; top: 10px; left: auto; right: 10px; transform: none; }
+    .topbar .seg button { padding: 6px 9px; }
+    #score { top: 54px; right: 10px; }
+    #customizer { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; height: 52vh; }
     .dock { bottom: 10px; gap: 8px 10px; padding: 8px 10px; }
     .sep { display: none; }
-    button { padding: 6px 8px; }
     input[type=range] { width: 90px; }
   }
 </style>
 </head>
-<body>
+<body data-mode="play">
 <canvas id="c"></canvas>
 
 <div class="brand">
   <h1>3D <span>FC</span></h1>
   <p>Player model · No. 10</p>
 </div>
-<div class="hint">Drag to orbit · scroll to zoom<br><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> mode · <kbd>Space</kbd> pause · <kbd>W</kbd> wireframe</div>
 
-<div class="dock" role="toolbar" aria-label="Viewer controls">
+<nav class="topbar glass" aria-label="App mode">
+  <div class="seg" data-group="app">
+    <button data-v="play" aria-pressed="true">Play</button>
+    <button data-v="customize" aria-pressed="false">Customize</button>
+    <button data-v="showcase" aria-pressed="false">Showcase</button>
+  </div>
+  <button class="toggle" id="t-hq" aria-pressed="true" title="Ambient occlusion, bloom, colour grade">HQ</button>
+</nav>
+
+<!-- Play HUD -->
+<div id="score" class="glass play-only" aria-live="polite"></div>
+<div id="toast" role="status" aria-live="assertive"></div>
+<div id="meter" class="glass play-only" aria-hidden="true"><div class="lbl"><span id="meter-type">Power shot</span><span id="meter-val">0%</span></div><div class="bar"><i></i></div></div>
+<details id="help" class="glass play-only" open>
+  <summary>Controls</summary>
+  <dl>
+    <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>Move (camera-relative)</dd>
+    <dt><kbd>Shift</kbd></dt><dd>Sprint</dd>
+    <dt><kbd>K</kbd> / <kbd>Space</kbd></dt><dd>Power shot, hold to charge</dd>
+    <dt><kbd>L</kbd> / <kbd>E</kbd></dt><dd>Finesse, curls with the inside of the foot</dd>
+    <dt><kbd>J</kbd> / <kbd>Q</kbd></dt><dd>Pass, hold for distance</dd>
+    <dt>Aim</dt><dd>Hold a direction as you strike. With no direction it goes far post.</dd>
+    <dt><kbd>R</kbd> · <kbd>F</kbd></dt><dd>Ball to feet · Free kick</dd>
+    <dt>Mouse</dt><dd>Drag to orbit, scroll to zoom</dd>
+  </dl>
+</details>
+<div id="touch" class="play-only">
+  <div id="stick" class="touch-only" aria-label="Move"><i></i></div>
+  <div class="tbtns touch-only">
+    <button data-k="finesse">CURL</button><button data-k="power">SHOOT</button>
+    <button data-k="sprint">SPRINT</button><button data-k="pass">PASS</button>
+  </div>
+</div>
+
+<!-- Customizer -->
+<aside id="customizer" class="glass cz-only" aria-label="Customize player">
+  <header>
+    <h2>Customize</h2>
+    <div class="cz-views seg" data-group="czview">
+      <button data-v="cz_full" aria-pressed="true">Full</button>
+      <button data-v="cz_face" aria-pressed="false">Face</button>
+      <button data-v="cz_back" aria-pressed="false">Back</button>
+      <button data-v="cz_boots" aria-pressed="false">Boots</button>
+      <button id="cz-spin" aria-pressed="false">Spin</button>
+    </div>
+  </header>
+  <div class="cz-body" id="cz-body"></div>
+</aside>
+
+<!-- Showcase dock -->
+<div class="dock glass showcase-only" role="toolbar" aria-label="Showcase controls">
   <div class="group">
     <span class="label">Mode</span>
     <div class="seg" data-group="mode">
@@ -106,7 +212,6 @@
     <button class="toggle" id="t-pause" aria-pressed="false">Pause</button>
     <button class="toggle" id="t-wire" aria-pressed="false">Wireframe</button>
     <button class="toggle" id="t-spin" aria-pressed="false">Turntable</button>
-    <button class="toggle" id="t-hq" aria-pressed="true" title="Ambient occlusion, bloom, colour grade">HQ</button>
   </div>
 </div>
 
@@ -164,16 +269,56 @@ function jitter(geo, amount) {
 }
 
 /* =====================================================================
-   1. Palette (sampled from the reference sheet)
+   1. Customization config + colour slots
    ===================================================================== */
-const HEX = {
-  skin: '#d99b6c', skinShade: '#c4835a', hair: '#4e2f1e', brow: '#2c1a11',
-  jersey: '#2b3c9e', trim: '#1a2466', shorts: '#26368f',
-  white: '#f1f1ee', sock: '#ecece8', navyBand: '#24348c',
-  shoe: '#f3f3f1', sole: '#26272b', stud: '#3a3b40', shoeStripe: '#3a3d47',
-  eye: '#141210', sclera: '#f4f1ec', mouth: '#7a3f30', lip: '#c27c62',
+const KIT_PRESETS = {
+  home:    { label: 'Home', kit: { primary: '#2b3c9e', secondary: '#ffffff', trim: '#1a2466', pattern: 'plain', collar: 'v', sleeve: 'primary' }, shorts: { color: '#26368f', stripe: '#ffffff' }, socks: { color: '#ecece8', band: '#24348c', bands: 'double' }, number: { color: '#ffffff', outline: '#1a2466' }, crest: { primary: '#f1f1ee', secondary: '#1a2466' } },
+  away:    { label: 'Away', kit: { primary: '#f2f2ee', secondary: '#c8302c', trim: '#c8302c', pattern: 'sash', collar: 'crew', sleeve: 'primary' }, shorts: { color: '#1d1f26', stripe: '#c8302c' }, socks: { color: '#1d1f26', band: '#c8302c', bands: 'single' }, number: { color: '#1d1f26', outline: '#c8302c' }, crest: { primary: '#c8302c', secondary: '#f2f2ee' } },
+  third:   { label: 'Third', kit: { primary: '#16171c', secondary: '#d6b04c', trim: '#d6b04c', pattern: 'pinstripes', collar: 'polo', sleeve: 'primary' }, shorts: { color: '#16171c', stripe: '#d6b04c' }, socks: { color: '#16171c', band: '#d6b04c', bands: 'hoops' }, number: { color: '#d6b04c', outline: '#16171c' }, crest: { primary: '#d6b04c', secondary: '#16171c' } },
+  stripes: { label: 'Stripes', kit: { primary: '#d42a2a', secondary: '#f4f4f0', trim: '#141414', pattern: 'stripes', collar: 'crew', sleeve: 'primary' }, shorts: { color: '#141414', stripe: '#d42a2a' }, socks: { color: '#141414', band: '#d42a2a', bands: 'single' }, number: { color: '#141414', outline: '#f4f4f0' }, crest: { primary: '#f4f4f0', secondary: '#d42a2a' } },
+  hoops:   { label: 'Hoops', kit: { primary: '#1f7a3e', secondary: '#f4f4f0', trim: '#0f4524', pattern: 'hoops', collar: 'polo', sleeve: 'secondary' }, shorts: { color: '#f4f4f0', stripe: '#1f7a3e' }, socks: { color: '#1f7a3e', band: '#f4f4f0', bands: 'hoops' }, number: { color: '#0f4524', outline: '#f4f4f0' }, crest: { primary: '#1f7a3e', secondary: '#f4f4f0' } },
+  sky:     { label: 'Halves', kit: { primary: '#7cc4ee', secondary: '#1c2f5c', trim: '#1c2f5c', pattern: 'halves', collar: 'v', sleeve: 'primary' }, shorts: { color: '#1c2f5c', stripe: '#7cc4ee' }, socks: { color: '#7cc4ee', band: '#1c2f5c', bands: 'double' }, number: { color: '#ffffff', outline: '#1c2f5c' }, crest: { primary: '#1c2f5c', secondary: '#7cc4ee' } },
+  sunset:  { label: 'Sunset', kit: { primary: '#ff8a3d', secondary: '#5b2a86', trim: '#2a123f', pattern: 'gradient', collar: 'crew', sleeve: 'secondary' }, shorts: { color: '#2a123f', stripe: '#ff8a3d' }, socks: { color: '#2a123f', band: '#ff8a3d', bands: 'double' }, number: { color: '#ffffff', outline: '#2a123f' }, crest: { primary: '#ffd3a8', secondary: '#5b2a86' } },
+  royal:   { label: 'Chevron', kit: { primary: '#5a0f1f', secondary: '#e7c66a', trim: '#e7c66a', pattern: 'chevron', collar: 'v', sleeve: 'primary' }, shorts: { color: '#5a0f1f', stripe: '#e7c66a' }, socks: { color: '#5a0f1f', band: '#e7c66a', bands: 'single' }, number: { color: '#e7c66a', outline: '#2a050c' }, crest: { primary: '#e7c66a', secondary: '#5a0f1f' } },
 };
-const COL = Object.fromEntries(Object.entries(HEX).map(([k, v]) => [k, new THREE.Color(v)]));
+const DEFAULT_CFG = {
+  kit: { primary: '#2b3c9e', secondary: '#ffffff', trim: '#1a2466', pattern: 'plain', collar: 'v', sleeve: 'primary', longSleeves: false, makerMark: true, tonal: true },
+  shorts: { color: '#26368f', stripe: '#ffffff', number: true },
+  socks: { color: '#ecece8', band: '#24348c', bands: 'double' },
+  number: { value: '10', name: '', color: '#ffffff', outline: '#1a2466', outlineOn: false, font: 'block', front: true },
+  crest: { on: true, shape: 'shield', symbol: 'star', text: 'FC', primary: '#f1f1ee', secondary: '#1a2466' },
+  boots: { upper: '#f3f3f1', stripe: '#3a3d47', sole: '#26272b', stud: '#3a3b40', collar: false },
+  player: { skin: '#d99b6c', hairStyle: 'swept', hairColor: '#4e2f1e', facialHair: 'none', eyeColor: '#141210', foot: 'R' },
+  gear: { armband: false, armbandColor: '#ffb533', headband: false, headbandColor: '#ffffff', wristbands: false, wristColor: '#ffffff' },
+  ball: { primary: '#f6f6f2', secondary: '#1a2466' },
+};
+const deepMerge = (a, b) => { const o = structuredClone(a); for (const k in b) o[k] = (b[k] && typeof b[k] === 'object' && !Array.isArray(b[k]) && typeof o[k] === 'object') ? deepMerge(o[k], b[k]) : b[k]; return o; };
+const CFG_KEY = 'fc3d.cfg.v1';
+function loadCfg() {
+  try { const s = localStorage.getItem(CFG_KEY); if (s) return deepMerge(DEFAULT_CFG, JSON.parse(s)); } catch { /* private mode / blocked storage */ }
+  return structuredClone(DEFAULT_CFG);
+}
+let cfg = loadCfg();
+function saveCfg() { try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch { /* ignore */ } }
+
+// Vertex-colour slots: geometry stores a slot id per vertex; colours come from the palette, so a
+// colour change is just a palette rewrite (no rebuild).
+const SLOTS = ['skin', 'skinShade', 'hair', 'brow', 'eye', 'sclera', 'white', 'mouth', 'lip', 'stubble', 'beard',
+  'sock', 'sockBand', 'shoe', 'shoeStripe', 'sole', 'stud', 'armband', 'headband', 'wrist'];
+const SLOT_ID = Object.fromEntries(SLOTS.map((s, i) => [s, i]));
+function paletteFrom(c) {
+  const C = (h) => new THREE.Color(h);
+  const skin = C(c.player.skin), hair = C(c.player.hairColor);
+  return {
+    skin, skinShade: skin.clone().multiplyScalar(0.84), hair, brow: hair.clone().multiplyScalar(0.55),
+    eye: C(c.player.eyeColor), sclera: C('#f4f1ec'), white: C('#f7f7f4'),
+    mouth: skin.clone().lerp(C('#4a1a12'), 0.6), lip: skin.clone().lerp(C('#b8524a'), 0.32),
+    stubble: skin.clone().lerp(hair, 0.42), beard: hair.clone().multiplyScalar(0.92),
+    sock: C(c.socks.color), sockBand: C(c.socks.band),
+    shoe: C(c.boots.upper), shoeStripe: C(c.boots.stripe), sole: C(c.boots.sole), stud: C(c.boots.stud),
+    armband: C(c.gear.armbandColor), headband: C(c.gear.headbandColor), wrist: C(c.gear.wristColor),
+  };
+}
 
 /* =====================================================================
    2. Skeleton (bind pose = the reference A-pose; all bind rotations are identity)
@@ -272,8 +417,8 @@ function loft(rings, { seg = 10, n = 2.2, rot = 0, U = V3(1, 0, 0), A = UP, capS
   g.setIndex(idx);
   return g;
 }
-// Rings from a list along a straight segment: [t, rx, rz, offset?]
-function ringsAlong(start, dir, list, offFn) {
+// Rings from a list along a straight segment: [t, rx, rz, ox?, oy?, oz?]
+function ringsAlong(start, dir, list) {
   return list.map(([t, rx, rz, ox = 0, oy = 0, oz = 0]) => ({ c: start.clone().addScaledVector(dir, t).add(V3(ox, oy, oz)), rx, rz }));
 }
 // Perpendicular frame vector for a limb direction lying in the XY plane.
@@ -293,11 +438,17 @@ function box(c, sx, sy, sz, quat) {
   return g;
 }
 const qEuler = (x, y, z, o = 'XYZ') => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z, o));
+// Quad strip between two point rows (same length) -> triangles; used for bands that hug a surface.
+function bandGeo(rowA, rowB, closed = true) {
+  const tris = [], n = rowA.length, last = closed ? n : n - 1;
+  for (let i = 0; i < last; i++) { const j = (i + 1) % n; tris.push(rowA[i], rowB[i], rowB[j], rowA[i], rowB[j], rowA[j]); }
+  return new THREE.BufferGeometry().setFromPoints(tris);
+}
 
 /* =====================================================================
-   4. Texture atlases (box-projected: front / back / outer sides + flat swatches)
+   4. Kit textures: box-projected atlases (front / back / outer sides + swatches), repaintable
    ===================================================================== */
-function makeAtlas({ X, Y, Z, ppu, swatches, paint }) {
+function makeAtlas({ X, Y, Z, ppu, swatchNames }) {
   const wX = (X[1] - X[0]) * ppu, wZ = (Z[1] - Z[0]) * ppu, swW = 48;
   const W = Math.ceil(2 * wX + 2 * wZ + swW), H = Math.ceil((Y[1] - Y[0]) * ppu);
   // h = horizontal coordinate as seen by a viewer looking at that side.
@@ -310,42 +461,47 @@ function makeAtlas({ X, Y, Z, ppu, swatches, paint }) {
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const ctx = cv.getContext('2d');
   const toPx = (r, h, y) => [regions[r].px0 + (h - regions[r].hmin) * ppu, (Y[1] - y) * ppu];
-  for (const r of Object.keys(regions)) {
-    ctx.save();
-    ctx.beginPath(); ctx.rect(regions[r].px0, 0, regions[r].w, H); ctx.clip();
-    paint(ctx, r, (h, y) => toPx(r, h, y), ppu, H);
-    ctx.restore();
-  }
-  const sw = {}; const names = Object.keys(swatches); const sh = H / names.length;
-  names.forEach((k, i) => {
-    ctx.fillStyle = swatches[k]; ctx.fillRect(W - swW, i * sh, swW, sh + 1);
-    sw[k] = [(W - swW / 2) / W, 1 - ((i + 0.5) * sh) / H];
-  });
+  const sw = {}, sh = H / swatchNames.length;
+  swatchNames.forEach((k, i) => { sw[k] = [(W - swW / 2) / W, 1 - ((i + 0.5) * sh) / H]; });
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
   return {
     tex, swatch: sw,
-    uv(region, p) {
-      const R = regions[region]; const [px, py] = toPx(region, R.h(p), p.y);
-      return [px / W, 1 - py / H];
+    uv(region, p) { const R = regions[region]; const [px, py] = toPx(region, R.h(p), p.y); return [px / W, 1 - py / H]; },
+    repaint(paint, swatchColors) {
+      ctx.clearRect(0, 0, W, H);
+      for (const r of Object.keys(regions)) {
+        ctx.save(); ctx.beginPath(); ctx.rect(regions[r].px0, 0, regions[r].w, H); ctx.clip();
+        paint(ctx, r, (h, y) => toPx(r, h, y), ppu, H);
+        ctx.restore();
+      }
+      swatchNames.forEach((k, i) => { ctx.fillStyle = swatchColors[k]; ctx.fillRect(W - swW, i * sh, swW, sh + 1); });
+      tex.needsUpdate = true;
     },
   };
 }
-function drawNumber(ctx, P, ppu, str, h, y, height, color = HEX.white) {
-  const [px, py] = P(h, y);
-  const size = (height * ppu) / 0.72;
+const NUMBER_FONTS = {
+  block: (s) => `900 ${s}px "Arial Black", "Helvetica Neue", Arial, sans-serif`,
+  classic: (s) => `bold ${s}px Georgia, "Times New Roman", serif`,
+  modern: (s) => `800 ${s}px "Trebuchet MS", Verdana, sans-serif`,
+  condensed: (s) => `bold ${s}px Impact, "Arial Narrow", "Haettenschweiler", sans-serif`,
+};
+// Kit text (numbers, names): centred at (h, y), cap height `height` metres.
+function drawKitText(ctx, P, ppu, str, h, y, height, { color, outline, font = 'block', spacing = 0.02 }) {
+  if (!str) return;
+  const [px, py] = P(h, y), size = (height * ppu) / 0.72;
   ctx.save();
-  ctx.fillStyle = color;
-  ctx.font = `900 ${size}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
+  ctx.font = (NUMBER_FONTS[font] || NUMBER_FONTS.block)(size);
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  if ('letterSpacing' in ctx) ctx.letterSpacing = `${size * 0.02}px`;
-  ctx.fillText(str, px, py + (height * ppu) / 2);
+  if ('letterSpacing' in ctx) ctx.letterSpacing = `${size * spacing}px`;
+  const yy = py + (height * ppu) / 2;
+  if (outline) { ctx.lineJoin = 'round'; ctx.lineWidth = size * 0.12; ctx.strokeStyle = outline; ctx.strokeText(str, px, yy); }
+  ctx.fillStyle = color; ctx.fillText(str, px, yy);
   ctx.restore();
 }
 function tonalStripes(ctx, P, ppu, H) {
-  // Subtle diagonal knit pattern like the reference kit.
   ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,0.02)'; ctx.lineWidth = 0.011 * ppu;
+  ctx.strokeStyle = 'rgba(255,255,255,0.025)'; ctx.lineWidth = 0.011 * ppu;
   const [x0] = P(-1, 0);
   for (let i = -40; i < 80; i++) {
     const x = x0 + i * 0.032 * ppu;
@@ -353,63 +509,145 @@ function tonalStripes(ctx, P, ppu, H) {
   }
   ctx.restore();
 }
+// Shirt patterns, drawn in world metres. Front/back use world x (so halves, sashes and chevrons line up
+// around the body); side panels get the y-based patterns and the matching half colour.
+const PATTERNS = ['plain', 'stripes', 'pinstripes', 'hoops', 'sash', 'halves', 'quarters', 'chevron', 'gradient'];
+function paintPattern(ctx, r, P, ppu, H, k) {
+  const side = r === 'left' || r === 'right', sideX = r === 'right' ? 0.2 : -0.2;
+  const X = (x, y) => P(r === 'back' ? -x : x, y);
+  const W = ctx.canvas.width;
+  const rectY = (y0, y1) => { const [, a] = P(0, y1), [, b] = P(0, y0); ctx.fillRect(0, a, W, b - a); };
+  const poly = (pts) => { ctx.beginPath(); pts.forEach(([x, y], i) => { const [px, py] = X(x, y); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }); ctx.closePath(); ctx.fill(); };
+  ctx.fillStyle = k.secondary;
+  switch (k.pattern) {
+    case 'stripes': for (let i = -10; i <= 10; i++) if (i & 1) { const [a] = P(i * 0.044 - 0.022, 0), [b] = P(i * 0.044 + 0.022, 0); ctx.fillRect(Math.min(a, b), 0, Math.abs(b - a), H); } break;
+    case 'pinstripes': for (let i = -14; i <= 14; i++) { const [a] = P(i * 0.034 - 0.0028, 0), [b] = P(i * 0.034 + 0.0028, 0); ctx.fillRect(Math.min(a, b), 0, Math.abs(b - a), H); } break;
+    case 'hoops': for (let y = 0.84, i = 0; y < 1.44; y += 0.07, i++) if (i & 1) rectY(y, y + 0.07); break;
+    case 'sash': if (!side) poly([[-0.26, 1.33], [-0.15, 1.44], [0.28, 0.95], [0.17, 0.84]]); break;
+    case 'halves': if (side) { if (sideX > 0) ctx.fillRect(0, 0, W, H); } else poly([[0, 1.5], [0.4, 1.5], [0.4, 0.8], [0, 0.8]]); break;
+    case 'quarters':
+      if (side) { if (sideX > 0) rectY(1.15, 1.5); else rectY(0.8, 1.15); }
+      else { poly([[0, 1.5], [0.4, 1.5], [0.4, 1.15], [0, 1.15]]); poly([[-0.4, 1.15], [0, 1.15], [0, 0.8], [-0.4, 0.8]]); }
+      break;
+    case 'chevron':
+      if (!side) poly([[-0.3, 1.36], [0, 1.2], [0.3, 1.36], [0.3, 1.29], [0, 1.13], [-0.3, 1.29]]);
+      break;
+    case 'gradient': {
+      const [, top] = P(0, 1.44), [, bot] = P(0, 0.84);
+      const g = ctx.createLinearGradient(0, top, 0, bot); g.addColorStop(0, k.primary); g.addColorStop(0.35, k.primary); g.addColorStop(1, k.secondary);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); break;
+    }
+  }
+}
+// Club crest: shape + border + inner symbol. (cx, cy) centre in px, s = height in px.
+const CREST_SHAPES = ['shield', 'round', 'diamond', 'hexagon', 'badge'];
+const CREST_SYMBOLS = ['star', 'ball', 'stripes', 'text', 'chevron', 'crown'];
+function crestPath(ctx, cx, cy, s, shape) {
+  const u = s;
+  ctx.beginPath();
+  if (shape === 'round') ctx.arc(cx, cy, u * 0.48, 0, TAU);
+  else if (shape === 'diamond') { ctx.moveTo(cx, cy - u * 0.5); ctx.lineTo(cx + u * 0.42, cy); ctx.lineTo(cx, cy + u * 0.5); ctx.lineTo(cx - u * 0.42, cy); }
+  else if (shape === 'hexagon') { for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * TAU / 6; ctx[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * u * 0.48, cy + Math.sin(a) * u * 0.48); } }
+  else if (shape === 'badge') { const w = u * 0.4, t = cy - u * 0.5; ctx.moveTo(cx - w, t + u * 0.12); ctx.quadraticCurveTo(cx, t - u * 0.06, cx + w, t + u * 0.12); ctx.lineTo(cx + w, cy + u * 0.18); ctx.lineTo(cx, cy + u * 0.5); ctx.lineTo(cx - w, cy + u * 0.18); }
+  else { const w = u * 0.42, t = cy - u * 0.48; ctx.moveTo(cx - w, t); ctx.lineTo(cx + w, t); ctx.lineTo(cx + w, cy + u * 0.02); ctx.quadraticCurveTo(cx + w, cy + u * 0.34, cx, cy + u * 0.5); ctx.quadraticCurveTo(cx - w, cy + u * 0.34, cx - w, cy + u * 0.02); }
+  ctx.closePath();
+}
+function drawCrest(ctx, cx, cy, s, c) {
+  ctx.save();
+  crestPath(ctx, cx, cy, s, c.shape);
+  ctx.fillStyle = c.primary; ctx.fill();
+  ctx.save(); ctx.clip();
+  ctx.fillStyle = c.secondary; ctx.strokeStyle = c.secondary;
+  const sym = c.symbol;
+  if (sym === 'star') {
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) { const r = (i & 1 ? 0.09 : 0.22) * s, a = -Math.PI / 2 + i * Math.PI / 5; ctx[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * r, cy + Math.sin(a) * r + s * 0.02); }
+    ctx.closePath(); ctx.fill();
+  } else if (sym === 'ball') {
+    ctx.lineWidth = s * 0.04; ctx.beginPath(); ctx.arc(cx, cy, s * 0.21, 0, TAU); ctx.stroke();
+    ctx.beginPath(); for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + i * TAU / 5; ctx[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * s * 0.08, cy + Math.sin(a) * s * 0.08); } ctx.closePath(); ctx.fill();
+    for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + i * TAU / 5; ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * s * 0.08, cy + Math.sin(a) * s * 0.08); ctx.lineTo(cx + Math.cos(a) * s * 0.21, cy + Math.sin(a) * s * 0.21); ctx.stroke(); }
+  } else if (sym === 'stripes') {
+    for (let i = -2; i <= 2; i += 2) ctx.fillRect(cx + i * s * 0.1 - s * 0.05, cy - s * 0.6, s * 0.1, s * 1.2);
+  } else if (sym === 'chevron') {
+    for (const dy of [-0.1, 0.1]) { ctx.beginPath(); ctx.moveTo(cx - s * 0.3, cy + dy * s); ctx.lineTo(cx, cy + (dy - 0.18) * s); ctx.lineTo(cx + s * 0.3, cy + dy * s); ctx.lineTo(cx + s * 0.3, cy + (dy + 0.08) * s); ctx.lineTo(cx, cy + (dy - 0.1) * s); ctx.lineTo(cx - s * 0.3, cy + (dy + 0.08) * s); ctx.closePath(); ctx.fill(); }
+  } else if (sym === 'crown') {
+    const b = cy + s * 0.12, t = cy - s * 0.16, w = s * 0.24;
+    ctx.beginPath(); ctx.moveTo(cx - w, b); ctx.lineTo(cx - w, t); ctx.lineTo(cx - w * 0.5, cy - s * 0.02); ctx.lineTo(cx, t - s * 0.04); ctx.lineTo(cx + w * 0.5, cy - s * 0.02); ctx.lineTo(cx + w, t); ctx.lineTo(cx + w, b); ctx.closePath(); ctx.fill();
+  } else {
+    const txt = (c.text || 'FC').slice(0, 3).toUpperCase();
+    ctx.font = `900 ${s * (txt.length > 2 ? 0.27 : 0.36)}px "Arial Black", Arial, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(txt, cx, cy + s * 0.03);
+  }
+  ctx.restore();
+  crestPath(ctx, cx, cy, s, c.shape);
+  ctx.lineWidth = s * 0.07; ctx.strokeStyle = c.secondary; ctx.stroke();
+  ctx.restore();
+}
 
-const jerseyAtlas = makeAtlas({
-  X: [-0.22, 0.22], Y: [0.84, 1.44], Z: [-0.15, 0.16], ppu: 1300,
-  swatches: { base: HEX.jersey, trim: HEX.trim },
-  paint(ctx, r, P, ppu, H) {
-    ctx.fillStyle = HEX.jersey; ctx.fillRect(0, 0, ctx.canvas.width, H);
-    if (r === 'front' || r === 'back') tonalStripes(ctx, P, ppu, H);
+const jerseyAtlas = makeAtlas({ X: [-0.22, 0.22], Y: [0.84, 1.44], Z: [-0.15, 0.16], ppu: 1300, swatchNames: ['base', 'trim', 'sleeve'] });
+const shortsAtlas = makeAtlas({ X: [-0.24, 0.24], Y: [0.6, 1.06], Z: [-0.15, 0.15], ppu: 1300, swatchNames: ['base'] });
+function paintKit() {
+  const k = cfg.kit, num = cfg.number;
+  const sleeveCol = k.sleeve === 'secondary' ? k.secondary : k.sleeve === 'trim' ? k.trim : k.primary;
+  jerseyAtlas.repaint((ctx, r, P, ppu, H) => {
+    ctx.fillStyle = k.primary; ctx.fillRect(0, 0, ctx.canvas.width, H);
+    paintPattern(ctx, r, P, ppu, H, k);
+    if (k.tonal) tonalStripes(ctx, P, ppu, H);
     // collar band (top of both front and back)
-    ctx.fillStyle = HEX.trim;
-    { const [, y] = P(0, 1.4065); ctx.fillRect(0, 0, ctx.canvas.width, y); }
+    ctx.fillStyle = k.trim;
+    { const [, y] = P(0, k.collar === 'crew' ? 1.402 : 1.4065); ctx.fillRect(0, 0, ctx.canvas.width, y); }
     if (r === 'front') {
-      // V-neck: skin inside, dark trim along the V
-      const poly = [[-0.078, 1.45], [0, 1.332], [0.078, 1.45]].map(([h, y]) => P(h, y));
-      ctx.fillStyle = HEX.skin;
-      ctx.beginPath(); ctx.moveTo(...poly[0]); ctx.lineTo(...poly[1]); ctx.lineTo(...poly[2]); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = HEX.trim; ctx.lineWidth = 0.017 * ppu; ctx.lineJoin = 'miter';
-      ctx.beginPath(); ctx.moveTo(...poly[0]); ctx.lineTo(...poly[1]); ctx.lineTo(...poly[2]); ctx.stroke();
-      // small generic kit-maker mark (viewer's left chest)
-      ctx.fillStyle = HEX.white;
-      const [mx, my] = P(-0.088, 1.302), u = 0.0105 * ppu;
-      for (let i = 0; i < 2; i++) {
-        ctx.beginPath();
-        ctx.moveTo(mx - 1.3 * u, my + i * 0.85 * u);
-        ctx.lineTo(mx, my - 0.9 * u + i * 0.85 * u);
-        ctx.lineTo(mx + 1.3 * u, my + i * 0.85 * u);
-        ctx.lineTo(mx + 1.3 * u, my + 0.45 * u + i * 0.85 * u);
-        ctx.lineTo(mx, my - 0.45 * u + i * 0.85 * u);
-        ctx.lineTo(mx - 1.3 * u, my + 0.45 * u + i * 0.85 * u);
-        ctx.closePath(); ctx.fill();
+      if (k.collar === 'v' || k.collar === 'polo') {
+        const depth = k.collar === 'v' ? 1.332 : 1.37, wv = k.collar === 'v' ? 0.078 : 0.03;
+        const poly = [[-wv, 1.45], [0, depth], [wv, 1.45]].map(([h, y]) => P(h, y));
+        ctx.fillStyle = cfg.player.skin;
+        ctx.beginPath(); ctx.moveTo(...poly[0]); ctx.lineTo(...poly[1]); ctx.lineTo(...poly[2]); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = k.trim; ctx.lineWidth = 0.017 * ppu; ctx.lineJoin = 'miter';
+        ctx.beginPath(); ctx.moveTo(...poly[0]); ctx.lineTo(...poly[1]); ctx.lineTo(...poly[2]); ctx.stroke();
+        if (k.collar === 'polo') { // placket with two buttons
+          ctx.fillStyle = k.trim;
+          for (const yb of [1.355, 1.335]) { const [bx, by] = P(0, yb); ctx.beginPath(); ctx.arc(bx, by, 0.0045 * ppu, 0, TAU); ctx.fill(); }
+        }
       }
-      drawNumber(ctx, P, ppu, '10', 0, 1.218, 0.082);
+      if (k.makerMark) { // small generic kit-maker mark (viewer's left chest)
+        ctx.fillStyle = k.pattern === 'plain' || k.pattern === 'gradient' ? k.secondary : '#ffffff';
+        const [mx, my] = P(-0.088, 1.302), u = 0.0105 * ppu;
+        for (let i = 0; i < 2; i++) {
+          ctx.beginPath();
+          ctx.moveTo(mx - 1.3 * u, my + i * 0.85 * u); ctx.lineTo(mx, my - 0.9 * u + i * 0.85 * u); ctx.lineTo(mx + 1.3 * u, my + i * 0.85 * u);
+          ctx.lineTo(mx + 1.3 * u, my + 0.45 * u + i * 0.85 * u); ctx.lineTo(mx, my - 0.45 * u + i * 0.85 * u); ctx.lineTo(mx - 1.3 * u, my + 0.45 * u + i * 0.85 * u);
+          ctx.closePath(); ctx.fill();
+        }
+      }
+      if (cfg.crest.on) { const [cx, cy] = P(0.088, 1.3); drawCrest(ctx, cx, cy, 0.056 * ppu, cfg.crest); }
+      if (num.front) drawKitText(ctx, P, ppu, num.value, 0, 1.208, 0.078, { color: num.color, outline: num.outlineOn && num.outline, font: num.font });
     }
-    if (r === 'back') drawNumber(ctx, P, ppu, '10', 0, 1.165, 0.165);
-  },
-});
-
-const shortsAtlas = makeAtlas({
-  X: [-0.24, 0.24], Y: [0.6, 1.06], Z: [-0.15, 0.15], ppu: 1300,
-  swatches: { base: HEX.shorts },
-  paint(ctx, r, P, ppu, H) {
-    ctx.fillStyle = HEX.shorts; ctx.fillRect(0, 0, ctx.canvas.width, H);
-    if (r === 'front') drawNumber(ctx, P, ppu, '10', 0.122, 0.695, 0.056);
+    if (r === 'back') {
+      const named = !!num.name.trim();
+      if (named) drawKitText(ctx, P, ppu, num.name.trim().toUpperCase(), 0, 1.318, 0.03, { color: num.color, outline: num.outlineOn && num.outline, font: num.font === 'block' ? 'modern' : num.font, spacing: 0.12 });
+      drawKitText(ctx, P, ppu, num.value, 0, named ? 1.16 : 1.168, named ? 0.15 : 0.165, { color: num.color, outline: num.outlineOn && num.outline, font: num.font });
+    }
+  }, { base: k.primary, trim: k.trim, sleeve: sleeveCol });
+  const sh = cfg.shorts;
+  shortsAtlas.repaint((ctx, r, P, ppu, H) => {
+    ctx.fillStyle = sh.color; ctx.fillRect(0, 0, ctx.canvas.width, H);
+    if (r === 'front' && sh.number) drawKitText(ctx, P, ppu, num.value, 0.122, 0.695, 0.052, { color: num.color === sh.color ? sh.stripe : num.color, outline: num.outlineOn && num.outline, font: num.font });
     if (r === 'left' || r === 'right') {
-      ctx.fillStyle = HEX.white;
-      for (const c of [-0.0095, 0.0095]) {
-        const [x0, y0] = P(c - 0.0048, 1.06), [x1, y1] = P(c + 0.0048, 0.6);
-        ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
-      }
+      ctx.fillStyle = sh.stripe;
+      for (const c of [-0.0095, 0.0095]) { const [x0, y0] = P(c - 0.0048, 1.06), [x1, y1] = P(c + 0.0048, 0.6); ctx.fillRect(x0, y0, x1 - x0, y1 - y0); }
     }
-  },
-});
+  }, { base: sh.color });
+}
 
 /* =====================================================================
-   5. Build the character parts
+   5. Character parts. STATIC parts are built once; DYNAMIC parts depend on the config
+      (hair style, facial hair, sleeves, sock bands, gear) and are rebuilt on change.
    ===================================================================== */
-const buckets = { body: [], features: [], jersey: [], shorts: [] };
-const add = (bucket, geo, opts) => buckets[bucket].push({ geo, ...opts });
+const newBuckets = () => ({ body: [], features: [], jersey: [], shorts: [] });
+const STATIC = newBuckets();
+let partTarget = STATIC; // parts are added to whichever bucket set is being built
+const add = (bucket, geo, opts) => partTarget[bucket].push({ geo, ...opts });
 
 /* ---------- Head ---------- */
 const HC = V3(0, 1.615, 0.012);               // head centre
@@ -513,9 +751,10 @@ function sculpt(p, d) {
   p.z += dz * gate;
   return p;
 }
-const headGeo = orientOutward(gridSphere(HEAD_ROWS, HEAD_COLS, (d) => sculpt(headShape(d), d).add(HC)), HC);
+const faceSurface = (d) => sculpt(headShape(d), d); // head-local surface point for a direction
+const headGeo = orientOutward(gridSphere(HEAD_ROWS, HEAD_COLS, (d) => faceSurface(d).add(HC)), HC);
 jitter(headGeo, 0.0004);
-add('body', headGeo, { color: COL.skin, weights: rigid('head') });
+add('body', headGeo, { color: 'skin', weights: rigid('head') });
 
 // Raycast helper to sit facial features exactly on the faceted surface.
 const ray = new THREE.Raycaster();
@@ -532,15 +771,16 @@ const headNormal = (p) => V3((p.x - HC.x) / HR.x ** 2, (p.y - HC.y) / HR.y ** 2,
 const qFromNormal = (n, roll = 0) => new THREE.Quaternion().setFromUnitVectors(FWD, n).multiply(new THREE.Quaternion().setFromAxisAngle(FWD, roll));
 
 // Facial details live in a double-sided bucket, so their winding never matters.
-const feature = (geo, col) => add('features', geo, { color: col, weights: rigid('head') });
-// Eyes sit inside the sculpted sockets: dark lash line, almond white, tall dark iris, catch-light.
+const feature = (geo, slot) => add('features', geo, { color: slot, weights: rigid('head') });
+// Eyes sit inside the sculpted sockets: dark lash line, almond white, tall dark iris, pupil, catch-light.
 for (const m of [1, -1]) {
   const p = frontHit(0.047 * m, -0.011), n = headNormal(p), q = qFromNormal(n);
   const at = (dx, dy, dz) => p.clone().add(V3(dx * m, dy, 0).applyQuaternion(q)).addScaledVector(n, dz);
-  feature(ellipsoid(at(0.0008, 0.0024, 0.0004), 0.0206, 0.0138, 0.0034, 12, 6, q), COL.brow);
-  feature(ellipsoid(at(0, 0, 0.0012), 0.019, 0.0121, 0.0037, 12, 6, q), COL.sclera);
-  feature(ellipsoid(at(-0.0012, -0.0004, 0.0023), 0.0117, 0.0134, 0.0036, 10, 6, q), COL.eye);
-  feature(ellipsoid(at(0.0036, 0.0049, 0.0052), 0.0029, 0.0029, 0.0008, 6, 4, q), COL.white);
+  feature(ellipsoid(at(0.0008, 0.0024, 0.0004), 0.0206, 0.0138, 0.0034, 12, 6, q), 'brow');
+  feature(ellipsoid(at(0, 0, 0.0012), 0.019, 0.0121, 0.0037, 12, 6, q), 'sclera');
+  feature(ellipsoid(at(-0.0012, -0.0004, 0.0023), 0.0117, 0.0134, 0.0036, 10, 6, q), 'eye');
+  feature(ellipsoid(at(-0.0012, -0.0004, 0.0047), 0.0058, 0.0068, 0.0014, 8, 5, q), 'brow');
+  feature(ellipsoid(at(0.0036, 0.0049, 0.0057), 0.0029, 0.0029, 0.0008, 6, 4, q), 'white');
 }
 // A slab that hugs the face: each point = [x, y, half-height] in head-local metres.
 function surfaceStrip(pts, { lift = 0.0012, depth = 0.0035 } = {}) {
@@ -561,60 +801,32 @@ function surfaceStrip(pts, { lift = 0.0012, depth = 0.0035 } = {}) {
 // Thick brows, low and heavier at the inner end (focused look from the reference)
 for (const m of [1, -1]) {
   feature(surfaceStrip([[0.015, 0.0205, 0.0068], [0.028, 0.0265, 0.0075], [0.044, 0.0305, 0.007], [0.06, 0.0305, 0.0058], [0.074, 0.026, 0.0041], [0.083, 0.0205, 0.0022]]
-    .map(([x, y, h]) => [x * m, y, h])), COL.brow);
+    .map(([x, y, h]) => [x * m, y, h])), 'brow');
 }
 // Mouth line + soft lower lip
-feature(surfaceStrip([[-0.02, -0.0805, 0.0011], [-0.011, -0.0822, 0.0019], [0, -0.0827, 0.0021], [0.011, -0.0822, 0.0019], [0.02, -0.0805, 0.0011]], { lift: 0.0003, depth: 0.0012 }), COL.mouth);
-feature(surfaceStrip([[-0.012, -0.0893, 0.0024], [0, -0.0903, 0.0031], [0.012, -0.0893, 0.0024]], { lift: 0.0001, depth: 0.0006 }), COL.lip);
-// Ears
+feature(surfaceStrip([[-0.02, -0.0805, 0.0011], [-0.011, -0.0822, 0.0019], [0, -0.0827, 0.0021], [0.011, -0.0822, 0.0019], [0.02, -0.0805, 0.0011]], { lift: 0.0003, depth: 0.0012 }), 'mouth');
+feature(surfaceStrip([[-0.012, -0.0893, 0.0024], [0, -0.0903, 0.0031], [0.012, -0.0893, 0.0024]], { lift: 0.0001, depth: 0.0006 }), 'lip');
+// Ears (outer shell + inner bowl + lobe)
 for (const m of [1, -1]) {
   const hit = onSurface(headProbe, V3(HC.x + m, HC.y - 0.018, HC.z - 0.008), V3(-m, 0, 0));
   const q = qEuler(0, -14 * DEG * m, 4 * DEG * m);
-  add('body', ellipsoid(hit.clone().add(V3(0.004 * m, 0, 0)), 0.012, 0.031, 0.021, 7, 6, q), { color: COL.skin, weights: rigid('head') });
-  add('body', ellipsoid(hit.clone().add(V3(0.0095 * m, -0.002, 0.002)), 0.006, 0.019, 0.012, 6, 5, q), { color: COL.skinShade, weights: rigid('head') });
+  add('body', ellipsoid(hit.clone().add(V3(0.004 * m, 0, 0)), 0.012, 0.031, 0.021, 8, 7, q), { color: 'skin', weights: rigid('head') });
+  add('body', ellipsoid(hit.clone().add(V3(0.0095 * m, -0.002, 0.002)), 0.006, 0.019, 0.012, 6, 5, q), { color: 'skinShade', weights: rigid('head') });
+  add('body', ellipsoid(hit.clone().add(V3(0.006 * m, -0.025, 0.004)), 0.007, 0.009, 0.008, 6, 4, q), { color: 'skin', weights: rigid('head') });
 }
-
-/* ---------- Hair: shell around the same head shape, pulled inside below an irregular hairline ---------- */
-function hairline(d) {
-  const a = Math.abs(Math.atan2(d.x, d.z)); // 0 = front, PI = back
-  const keys = [[0, 0.42], [0.5, 0.37], [0.9, 0.22], [1.3, 0.08], [1.7, 0.03], [2.2, -0.3], [Math.PI, -0.6]];
-  for (let i = 0; i < keys.length - 1; i++) {
-    const [a0, h0] = keys[i], [a1, h1] = keys[i + 1];
-    if (a <= a1) return lerp(h0, h1, (a - a0) / (a1 - a0));
-  }
-  return -0.6;
-}
-const hairGeo = new THREE.SphereGeometry(1, 20, 16);
-{
-  const p = hairGeo.attributes.position, d = new THREE.Vector3();
-  for (let i = 0; i < p.count; i++) {
-    d.fromBufferAttribute(p, i).normalize();
-    const base = headShape(d), radial = base.clone().normalize();
-    const [n1, n2] = hash3(d.x, d.y, d.z);
-    const front = Math.max(0, d.z);
-    // Fringe gets a jagged, crisp edge; sides and back taper cleanly into the skin.
-    const hl = hairline(d) + n1 * lerp(0.025, 0.07, front);
-    const edge = smoothstep(hl - 0.02, hl + lerp(0.12, 0.04, front), d.y);
-    const thick = lerp(0.011, 0.034, smoothstep(-0.4, 0.9, d.y)) + (n2 * 0.5 + 0.5) * 0.006;
-    const s = base.clone().addScaledVector(radial, thick * edge - (1 - edge) * 0.014);
-    if (edge > 0) s.z -= 0.005 * Math.max(0, d.y) * edge; // swept back a touch
-    s.add(HC); p.setXYZ(i, s.x, s.y, s.z);
-  }
-}
-add('body', hairGeo, { color: COL.hair, weights: rigid('head') });
 
 /* ---------- Neck ---------- */
-add('body', loft(ringsAlong(V3(0, 1.33, -0.006), UP, [[0, 0.062, 0.058], [0.09, 0.059, 0.055, 0, 0, -0.008], [0.16, 0.056, 0.052, 0, 0, -0.016], [0.21, 0.05, 0.046, 0, 0, -0.02]]), { seg: 9 }),
-  { color: COL.skin, weights: chain('chest', [{ bone: 'neck', at: J.neck, dir: UP, w: 0.03 }, { bone: 'head', at: J.head, dir: UP, w: 0.03 }]) });
+add('body', loft(ringsAlong(V3(0, 1.33, -0.006), UP, [[0, 0.062, 0.058], [0.09, 0.059, 0.055, 0, 0, -0.008], [0.16, 0.056, 0.052, 0, 0, -0.016], [0.21, 0.05, 0.046, 0, 0, -0.02]]), { seg: 10 }),
+  { color: 'skin', weights: chain('chest', [{ bone: 'neck', at: J.neck, dir: UP, w: 0.03 }, { bone: 'head', at: J.head, dir: UP, w: 0.03 }]) });
 
 /* ---------- Torso (jersey) ---------- */
 {
-  const R = [ // y, rx, rz, cz
-    [0.85, 0.192, 0.13, 0.002], [0.90, 0.18, 0.121, 0], [0.97, 0.168, 0.112, 0], [1.05, 0.166, 0.11, 0],
+  const R = [ // y, rx, rz, cz  (first ring tucks inward to give the hem a visible thickness)
+    [0.864, 0.19, 0.126, 0.002], [0.85, 0.202, 0.137, 0.002], [0.90, 0.186, 0.126, 0], [0.97, 0.168, 0.112, 0], [1.05, 0.166, 0.11, 0],
     [1.14, 0.176, 0.116, 0.004], [1.23, 0.19, 0.121, 0.008], [1.30, 0.212, 0.118, 0.006], [1.335, 0.245, 0.108, 0.002],
     [1.365, 0.225, 0.1, -0.002], [1.39, 0.17, 0.088, -0.004], [1.405, 0.11, 0.076, -0.006], [1.418, 0.068, 0.062, -0.006], [1.40, 0.06, 0.055, -0.006],
   ].map(([y, rx, rz, cz]) => ({ c: V3(0, y, cz), rx, rz }));
-  const g = jitter(loft(R, { seg: 14, n: 2.6 }), 0.0015);
+  const g = jitter(loft(R, { seg: 16, n: 2.6 }), 0.0013);
   const base = chain('hips', [{ bone: 'spine', at: V3(0, 0.98, 0), dir: UP, w: 0.06 }, { bone: 'chest', at: V3(0, 1.13, 0), dir: UP, w: 0.06 }]);
   // The hem front rides on the thighs a little so high knees push the shirt instead of poking through.
   const weights = (p) => {
@@ -629,44 +841,37 @@ add('body', loft(ringsAlong(V3(0, 1.33, -0.006), UP, [[0, 0.062, 0.058], [0.09, 
   };
   add('jersey', g, { weights, uv: 'atlas' });
 }
-/* ---------- Arms: sleeve, skin, hand ---------- */
+const armChainFor = (s) => chain('chest', [
+  { bone: 'upperArm' + s, at: J['upperArm' + s], dir: ARM_DIR[s], w: 0.06 },
+  { bone: 'foreArm' + s, at: J['foreArm' + s], dir: ARM_DIR[s], w: 0.04 },
+  { bone: 'hand' + s, at: J['hand' + s], dir: ARM_DIR[s], w: 0.02 },
+]);
+/* ---------- Arms: skin, hand ---------- */
 for (const s of ['L', 'R']) {
-  const m = s === 'L' ? 1 : -1, d = ARM_DIR[s], U = perpXY(d), S = J['upperArm' + s];
-  const armChain = chain('chest', [
-    { bone: 'upperArm' + s, at: S, dir: d, w: 0.06 },
-    { bone: 'foreArm' + s, at: J['foreArm' + s], dir: d, w: 0.04 },
-    { bone: 'hand' + s, at: J['hand' + s], dir: d, w: 0.02 },
-  ]);
-  // Sleeve with cuff band
-  const sleeve = jitter(loft(ringsAlong(S, d, [
-    [-0.02, 0.03, 0.045], [0.01, 0.052, 0.06], [0.05, 0.064, 0.065], [0.08, 0.068, 0.066], [0.1, 0.069, 0.065],
-    [0.135, 0.068, 0.064], [0.168, 0.066, 0.062], [0.168, 0.046, 0.046],
-  ]), { seg: 11, U, A: d, n: 2.2, capStart: true }), 0.0012);
-  const sleeveUV = (c) => { const t = c.clone().sub(S).dot(d); return t > 0.134 ? 'trim' : 'base'; };
-  add('jersey', sleeve, { weights: armChain, uv: sleeveUV });
-  // Arm skin
+  const d = ARM_DIR[s], U = perpXY(d), S = J['upperArm' + s];
+  const armChain = armChainFor(s);
   add('body', loft(ringsAlong(S, d, [
     [0.03, 0.046, 0.046], [0.15, 0.043, 0.045], [0.235, 0.037, 0.039], [0.27, 0.036, 0.037], [0.3, 0.038, 0.041],
     [0.37, 0.037, 0.04], [0.46, 0.029, 0.032], [0.505, 0.026, 0.029],
-  ]), { seg: 9, U, A: d }), { color: COL.skin, weights: armChain });
+  ]), { seg: 10, U, A: d }), { color: 'skin', weights: armChain });
   // Hand: palm faces the thigh, so thickness is along U and palm width along Z.
   const W = J['hand' + s], F = J['fingers' + s];
   add('body', jitter(loft(ringsAlong(W, d, [
     [-0.012, 0.021, 0.028], [0.02, 0.024, 0.038], [0.06, 0.022, 0.041], [0.09, 0.019, 0.039],
-  ]), { seg: 8, U, A: d, n: 2.6, capEnd: true }), 0.0008), { color: COL.skin, weights: chain('foreArm' + s, [{ bone: 'hand' + s, at: W, dir: d, w: 0.015 }]) });
+  ]), { seg: 8, U, A: d, n: 2.6, capEnd: true }), 0.0008), { color: 'skin', weights: chain('foreArm' + s, [{ bone: 'hand' + s, at: W, dir: d, w: 0.015 }]) });
   // Four fingers (index at the front), two segments each: knuckle bone + mid-joint bone.
   const fingerChain = chain('hand' + s, [{ bone: 'fingers' + s, at: F, dir: d, w: 0.008 }, { bone: 'tips' + s, at: J['tips' + s], dir: d, w: 0.006 }]);
   for (const [oz, len] of [[0.0265, 0.068], [0.0088, 0.076], [-0.0088, 0.071], [-0.0262, 0.057]]) {
     const base = F.clone().add(V3(0, 0, oz));
     add('body', loft(ringsAlong(base, d, [
       [-0.012, 0.0098, 0.0084], [0.012, 0.0098, 0.0086], [0.036, 0.0088, 0.008], [len * 0.82, 0.0079, 0.0072], [len, 0.0052, 0.0048],
-    ]), { seg: 6, U, A: d, n: 2.4, capEnd: true }), { color: COL.skin, weights: fingerChain });
+    ]), { seg: 6, U, A: d, n: 2.4, capEnd: true }), { color: 'skin', weights: fingerChain });
   }
-  // Thumb: two segments angled forward and slightly across the palm.
+  // Thumb: angled forward and slightly across the palm.
   const td = d.clone().multiplyScalar(0.78).add(V3(0, 0, 0.42)).addScaledVector(U, -0.3).normalize();
   const tStart = W.clone().addScaledVector(d, 0.018).add(V3(0, 0, 0.03)).addScaledVector(U, -0.006);
   add('body', loft(ringsAlong(tStart, td, [[-0.006, 0.013, 0.014], [0.025, 0.0115, 0.012], [0.045, 0.0095, 0.0095], [0.06, 0.006, 0.006]]),
-    { seg: 6, U: perpXY(V3(td.x, td.y, 0).normalize()), A: td, capEnd: true }), { color: COL.skin, weights: rigid('hand' + s) });
+    { seg: 6, U: perpXY(V3(td.x, td.y, 0).normalize()), A: td, capEnd: true }), { color: 'skin', weights: rigid('hand' + s) });
 }
 
 /* ---------- Shorts ---------- */
@@ -677,65 +882,207 @@ for (const s of ['L', 'R']) {
   for (const s of ['L', 'R']) {
     const m = s === 'L' ? 1 : -1;
     const g = jitter(loft([ // y, cx, rx, rz
-      [0.965, 0.085, 0.06, 0.09], [0.92, 0.09, 0.072, 0.102], [0.865, 0.095, 0.084, 0.112], [0.83, 0.099, 0.093, 0.118], [0.79, 0.102, 0.098, 0.121],
+      [0.965, 0.085, 0.058, 0.088], [0.92, 0.09, 0.068, 0.098], [0.865, 0.095, 0.08, 0.108], [0.83, 0.099, 0.093, 0.118], [0.79, 0.102, 0.098, 0.121],
       [0.70, 0.108, 0.102, 0.12], [0.635, 0.112, 0.104, 0.118], [0.633, 0.112, 0.09, 0.104],
-    ].map(([y, cx, rx, rz]) => ({ c: V3(cx * m, y, 0.002), rx, rz })), { seg: 12, A: DOWN, n: 2.3 }), 0.0013);
+    ].map(([y, cx, rx, rz]) => ({ c: V3(cx * m, y, 0.002), rx, rz })), { seg: 14, A: DOWN, n: 2.3 }), 0.0013);
     add('shorts', g, { weights: chain('hips', [{ bone: 'thigh' + s, at: J['thigh' + s], dir: DOWN, w: 0.09 }]), uv: 'atlas' });
   }
 }
 
-/* ---------- Legs (skin + socks), shoes ---------- */
+/* ---------- Legs (skin + socks), boots ---------- */
+const legChainFor = (s) => chain('hips', [
+  { bone: 'thigh' + s, at: J['thigh' + s], dir: DOWN, w: 0.09 },
+  { bone: 'shin' + s, at: J['shin' + s], dir: DOWN, w: 0.05 },
+  { bone: 'foot' + s, at: J['foot' + s], dir: DOWN, w: 0.03 },
+]);
+// Sock band layouts (y ranges in metres) - rings are placed on every boundary so bands stay crisp.
+const SOCK_BANDS = {
+  none: [], single: [[0.37, 0.41]], double: [[0.395, 0.41], [0.37, 0.385]],
+  hoops: [[0.40, 0.43], [0.34, 0.37], [0.28, 0.31], [0.22, 0.25], [0.16, 0.19]],
+};
 for (const s of ['L', 'R']) {
   const m = s === 'L' ? 1 : -1;
-  const legChain = chain('hips', [
-    { bone: 'thigh' + s, at: J['thigh' + s], dir: DOWN, w: 0.09 },
-    { bone: 'shin' + s, at: J['shin' + s], dir: DOWN, w: 0.05 },
-    { bone: 'foot' + s, at: J['foot' + s], dir: DOWN, w: 0.03 },
-  ]);
-  const legRings = [ // y, cx, rx, rz, cz
+  // Leg profile keys: y, cx, rx, rz, cz (interpolated onto a dense ring list)
+  const KEYS = [
     [0.96, 0.09, 0.058, 0.06, 0], [0.89, 0.093, 0.072, 0.075, 0.002], [0.82, 0.096, 0.079, 0.082, 0.003], [0.66, 0.099, 0.071, 0.074, 0.004],
-    [0.56, 0.1, 0.061, 0.064, 0.004], [0.5, 0.1, 0.057, 0.062, 0.006], [0.455, 0.1, 0.058, 0.062, 0.0],
-    [0.43, 0.1, 0.06, 0.064, -0.003], [0.41, 0.1, 0.061, 0.066, -0.005], [0.395, 0.1, 0.062, 0.067, -0.006],
-    [0.385, 0.1, 0.062, 0.067, -0.007], [0.37, 0.1, 0.062, 0.068, -0.008], [0.3, 0.1, 0.06, 0.066, -0.01],
+    [0.56, 0.1, 0.061, 0.064, 0.004], [0.5, 0.1, 0.057, 0.062, 0.007], [0.455, 0.1, 0.058, 0.062, 0.0],
+    [0.43, 0.1, 0.061, 0.065, -0.003], [0.37, 0.1, 0.063, 0.068, -0.008], [0.3, 0.1, 0.06, 0.066, -0.01],
     [0.22, 0.1, 0.049, 0.052, -0.006], [0.14, 0.1, 0.04, 0.044, -0.002], [0.1, 0.1, 0.038, 0.045, 0], [0.065, 0.1, 0.03, 0.04, 0],
-  ].map(([y, cx, rx, rz, cz]) => ({ c: V3(cx * m, y, cz), rx, rz }));
+  ];
+  const ys = [...new Set([...KEYS.map(k => k[0]), 0.43, 0.41, 0.4, 0.395, 0.385, 0.37, 0.34, 0.31, 0.28, 0.25, 0.22, 0.19, 0.16])].sort((a, b) => b - a);
+  const at = (y, col) => { for (let i = 0; i < KEYS.length - 1; i++) if (y <= KEYS[i][0] && y >= KEYS[i + 1][0]) return lerp(KEYS[i][col], KEYS[i + 1][col], (y - KEYS[i][0]) / (KEYS[i + 1][0] - KEYS[i][0])); return KEYS[KEYS.length - 1][col]; };
+  const rings = ys.map(y => ({ c: V3(at(y, 1) * m, y, at(y, 4)), rx: at(y, 2), rz: at(y, 3) }));
   const legColor = (c) => {
-    if (c.y > 0.43) return COL.skin;
-    if ((c.y < 0.41 && c.y > 0.395) || (c.y < 0.385 && c.y > 0.37)) return COL.navyBand;
-    return COL.sock;
+    if (c.y > 0.43) return 'skin';
+    for (const [a, b] of SOCK_BANDS[cfg.socks.bands] || []) if (c.y > a && c.y < b) return 'sockBand';
+    return 'sock';
   };
-  add('body', jitter(loft(legRings, { seg: 11, A: DOWN, n: 2.1 }), 0.001), { color: legColor, weights: legChain });
+  add('body', jitter(loft(rings, { seg: 12, A: DOWN, n: 2.1 }), 0.0009), { color: legColor, weights: legChainFor(s) });
 
-  // Cleat: loft heel -> toe along +Z. V = U x A = x X z = -y, so ring "rz" is vertical half-height.
+  // Boot: loft heel -> toe along +Z. V = U x A = x X z = -y, so ring "rz" is vertical half-height.
   const shoeChain = chain('foot' + s, [{ bone: 'toe' + s, at: V3(0, 0, 0.1), dir: FWD, w: 0.025 }]);
   const shoeRows = [ // z, cy, rx, ry
     [-0.068, 0.062, 0.026, 0.03], [-0.058, 0.07, 0.04, 0.05], [-0.03, 0.074, 0.046, 0.058], [0.01, 0.07, 0.047, 0.054],
     [0.05, 0.058, 0.048, 0.042], [0.09, 0.048, 0.048, 0.033], [0.13, 0.042, 0.044, 0.026], [0.162, 0.04, 0.033, 0.021], [0.178, 0.038, 0.016, 0.013],
   ];
   const sx = 0.1 * m;
-  add('body', jitter(loft(shoeRows.map(([z, cy, rx, ry]) => ({ c: V3(sx, cy, z), rx, rz: ry })), { seg: 12, A: FWD, n: 2.7, capStart: true, capEnd: true }), 0.0008),
-    { color: COL.shoe, weights: shoeChain });
-  // Sole plate
-  add('body', loft(shoeRows.map(([z, , rx]) => ({ c: V3(sx, 0.019, z), rx: rx + 0.004, rz: 0.009 })), { seg: 12, A: FWD, n: 3.2, capStart: true, capEnd: true }),
-    { color: COL.sole, weights: shoeChain });
+  add('body', jitter(loft(shoeRows.map(([z, cy, rx, ry]) => ({ c: V3(sx, cy, z), rx, rz: ry })), { seg: 14, A: FWD, n: 2.7, capStart: true, capEnd: true }), 0.0007),
+    { color: 'shoe', weights: shoeChain });
+  // Sole plate with slight toe spring
+  add('body', loft(shoeRows.map(([z, , rx]) => ({ c: V3(sx, 0.019 + Math.max(0, z - 0.14) * 0.25, z), rx: rx + 0.004, rz: 0.009 })), { seg: 12, A: FWD, n: 3.2, capStart: true, capEnd: true }),
+    { color: 'sole', weights: shoeChain });
   // Studs
   [[-0.045, -0.024], [-0.045, 0.024], [0.06, -0.03], [0.06, 0.03], [0.12, -0.028], [0.12, 0.026], [0.155, 0]].forEach(([z, x]) => {
-    add('body', box(V3(sx + x, 0.006, z), 0.013, 0.013, 0.013), { color: COL.stud, weights: shoeChain });
+    add('body', box(V3(sx + x, 0.006, z), 0.013, 0.013, 0.013), { color: 'stud', weights: shoeChain });
   });
-  // Two dark stripes on the outer side panel
+  // Two stripes on the outer side panel + heel tab
   for (const [z, h] of [[0.022, 0.058], [0.046, 0.05]]) {
-    const outer = V3(sx + m * 0.0485, 0.062, z);
-    add('body', box(outer, 0.004, h, 0.011, qEuler(-28 * DEG, 0, 0)), { color: COL.shoeStripe, weights: shoeChain });
+    add('body', box(V3(sx + m * 0.0485, 0.062, z), 0.004, h, 0.011, qEuler(-28 * DEG, 0, 0)), { color: 'shoeStripe', weights: shoeChain });
   }
-  // Heel tab
-  add('body', box(V3(sx, 0.105, -0.064), 0.03, 0.03, 0.008, qEuler(-12 * DEG, 0, 0)), { color: COL.shoeStripe, weights: shoeChain });
+  add('body', box(V3(sx, 0.105, -0.064), 0.03, 0.03, 0.008, qEuler(-12 * DEG, 0, 0)), { color: 'shoeStripe', weights: shoeChain });
+}
+
+/* ---------- Dynamic parts ---------- */
+// Hair styles: shell over the head shape. thick(d, n, curl) gives thickness (m) above the hairline.
+const HAIR_STYLES = {
+  swept:  { label: 'Swept', thick: (d, n) => lerp(0.011, 0.034, smoothstep(-0.4, 0.9, d.y)) + n * 0.006, sweep: 0.005, jag: 0.07 },
+  crop:   { label: 'Crop', thick: (d, n) => lerp(0.006, 0.02, smoothstep(-0.2, 0.9, d.y)) + n * 0.005, jag: 0.05 },
+  buzz:   { label: 'Buzz', thick: (d, n) => 0.0035 + n * 0.0008, jag: 0.02 },
+  fade:   { label: 'Fade', thick: (d, n) => 0.0018 + smoothstep(0.22, 0.52, d.y) * (0.03 + n * 0.006), jag: 0.05 },
+  curly:  { label: 'Curly', res: [30, 24], thick: (d, n, c) => 0.004 + smoothstep(0.08, 0.5, d.y) * (0.038 + c * 0.018), jag: 0.08 },
+  afro:   { label: 'Afro', res: [30, 24], thick: (d, n, c) => 0.045 + smoothstep(-0.5, 0.6, d.y) * 0.03 + c * 0.012, jag: 0.04, hl: -0.03 },
+  mohawk: { label: 'Mohawk', res: [26, 20], thick: (d, n) => 0.003 + (0.055 + n * 0.008) * G(d.x, 0.17) * smoothstep(0.0, 0.45, d.y), jag: 0.03 },
+  bun:    { label: 'Man bun', thick: (d, n) => 0.008 + n * 0.0015, jag: 0.03, extra: 'bun' },
+  long:   { label: 'Long', thick: (d, n) => lerp(0.014, 0.03, smoothstep(-0.4, 0.9, d.y)) + n * 0.005, jag: 0.06, extra: 'long' },
+  bald:   { label: 'Bald', none: true },
+};
+function hairline(d) {
+  const a = Math.abs(Math.atan2(d.x, d.z)); // 0 = front, PI = back
+  const keys = [[0, 0.42], [0.5, 0.37], [0.9, 0.22], [1.3, 0.08], [1.7, 0.03], [2.2, -0.3], [Math.PI, -0.6]];
+  for (let i = 0; i < keys.length - 1; i++) {
+    const [a0, h0] = keys[i], [a1, h1] = keys[i + 1];
+    if (a <= a1) return lerp(h0, h1, (a - a0) / (a1 - a0));
+  }
+  return -0.6;
+}
+// Outward offset of the hair surface for direction d (shared by the shell and the headband).
+function hairOffset(style, d) {
+  const [n1, n2, n3] = hash3(d.x, d.y, d.z);
+  const front = Math.max(0, d.z);
+  const hl = hairline(d) + (style.hl || 0) + n1 * lerp(0.025, style.jag, front);
+  const edge = smoothstep(hl - 0.02, hl + lerp(0.12, 0.04, front), d.y);
+  return { edge, off: style.thick(d, n2 * 0.5 + 0.5, n3) * edge - (1 - edge) * 0.014 };
+}
+function buildHair(styleKey) {
+  const style = HAIR_STYLES[styleKey] || HAIR_STYLES.swept;
+  if (style.none) return;
+  const [ws, hs] = style.res || [20, 16];
+  const g = new THREE.SphereGeometry(1, ws, hs);
+  const p = g.attributes.position, d = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    d.fromBufferAttribute(p, i).normalize();
+    const base = headShape(d), radial = base.clone().normalize();
+    const { edge, off } = hairOffset(style, d);
+    const s = base.addScaledVector(radial, off);
+    if (style.sweep && edge > 0) s.z -= style.sweep * Math.max(0, d.y) * edge;
+    s.add(HC); p.setXYZ(i, s.x, s.y, s.z);
+  }
+  add('body', g, { color: 'hair', weights: rigid('head') });
+  if (style.extra === 'bun') {
+    add('body', jitter(ellipsoid(HC.clone().add(V3(0, 0.1, -0.135)), 0.042, 0.038, 0.04, 9, 7), 0.003), { color: 'hair', weights: rigid('head') });
+    add('body', loft(ringsAlong(HC.clone().add(V3(0, 0.085, -0.115)), V3(0, 0.45, -0.89).normalize(), [[0, 0.02, 0.02], [0.012, 0.02, 0.02]]), { seg: 8, A: V3(0, 0.45, -0.89).normalize() }), { color: 'headband', weights: rigid('head') });
+  }
+  if (style.extra === 'long') {
+    // Hair falling to the nape and shoulders; the lower part follows the chest so it doesn't swing through the back.
+    const wts = (q) => { const t = smoothstep(1.43, 1.58, q.y); return [[BI.head, t], [BI.chest, 1 - t]]; };
+    add('body', jitter(loft([[1.64, 0.105, 0.05, -0.08], [1.56, 0.118, 0.055, -0.1], [1.48, 0.112, 0.045, -0.11], [1.41, 0.1, 0.035, -0.105], [1.37, 0.085, 0.02, -0.098]]
+      .map(([y, rx, rz, cz]) => ({ c: V3(0, y, cz), rx, rz })), { seg: 12, A: DOWN, capEnd: true }), 0.004), { color: 'hair', weights: wts });
+  }
+}
+// Facial hair: a thin shell on the same head grid, masked to the jaw / chin / moustache.
+function buildFacialHair(kind) {
+  if (!kind || kind === 'none') return;
+  const T = { stubble: 0.0011, beard: 0.0065, goatee: 0.006 }[kind];
+  const mask = (p, d) => {
+    const x = p.x, y = p.y, ax = Math.abs(x);
+    const mouth = ax < 0.024 && y < -0.073 && y > -0.094;
+    const stache = ax < 0.03 && y < -0.064 && y > -0.077;
+    if (kind === 'goatee') return !mouth && (stache || (ax < 0.032 && y < -0.095));
+    if (mouth) return false;
+    const jaw = y < -0.055 && d.z > -0.3;
+    const burns = ax > 0.088 && y < 0.005 && d.z > -0.15 && d.z < 0.55;
+    return jaw || stache || burns;
+  };
+  const g = orientOutward(gridSphere(HEAD_ROWS, HEAD_COLS, (d) => {
+    const s = faceSurface(d), radial = s.clone().normalize();
+    const [n1] = hash3(d.x, d.y, d.z);
+    return s.addScaledVector(radial, mask(s, d) ? T + n1 * T * 0.35 : -0.004).add(HC);
+  }), HC);
+  add('body', g, { color: kind === 'stubble' ? 'stubble' : 'beard', weights: rigid('head') });
+}
+function buildSleeves(long) {
+  for (const s of ['L', 'R']) {
+    const d = ARM_DIR[s], U = perpXY(d), S = J['upperArm' + s];
+    const rows = long
+      ? [[-0.02, 0.03, 0.045], [0.01, 0.052, 0.06], [0.05, 0.064, 0.065], [0.08, 0.066, 0.066], [0.14, 0.058, 0.06], [0.2, 0.053, 0.055], [0.25, 0.048, 0.05],
+        [0.29, 0.049, 0.052], [0.37, 0.047, 0.05], [0.44, 0.04, 0.043], [0.465, 0.038, 0.04], [0.495, 0.036, 0.038], [0.495, 0.028, 0.03]]
+      : [[-0.02, 0.03, 0.045], [0.01, 0.052, 0.06], [0.05, 0.064, 0.065], [0.08, 0.068, 0.066], [0.1, 0.069, 0.065], [0.135, 0.068, 0.064], [0.168, 0.066, 0.062], [0.168, 0.046, 0.046]];
+    const cuff = long ? 0.464 : 0.134;
+    add('jersey', jitter(loft(ringsAlong(S, d, rows), { seg: 12, U, A: d, n: 2.2, capStart: true }), 0.0011),
+      { weights: armChainFor(s), uv: (c) => (c.clone().sub(S).dot(d) > cuff ? 'trim' : 'sleeve') });
+  }
+}
+function buildGear(c) {
+  const g = c.gear;
+  if (g.armband) { // captain's armband on the left upper arm
+    const d = ARM_DIR.L, U = perpXY(d);
+    const r0 = c.kit.longSleeves ? 0.069 : 0.072;
+    add('body', loft(ringsAlong(J.upperArmL, d, [[0.088, r0 - 0.004, r0 - 0.004], [0.092, r0, r0 - 0.002], [0.124, r0 - 0.001, r0 - 0.003], [0.128, r0 - 0.005, r0 - 0.006]]), { seg: 12, U, A: d }),
+      { color: 'armband', weights: armChainFor('L') });
+  }
+  if (g.wristbands) for (const s of ['L', 'R']) {
+    const d = ARM_DIR[s], U = perpXY(d), r = c.kit.longSleeves ? 0.042 : 0.034;
+    add('body', loft(ringsAlong(J['upperArm' + s], d, [[0.43, r - 0.003, r], [0.435, r, r + 0.003], [0.48, r - 0.002, r + 0.001], [0.485, r - 0.005, r - 0.002]]), { seg: 10, U, A: d }),
+      { color: 'wrist', weights: armChainFor(s) });
+  }
+  if (g.headband) { // follows the actual hair surface so it sits snugly on every style
+    const style = HAIR_STYLES[c.player.hairStyle] || HAIR_STYLES.swept, N = 28;
+    const row = (yN, extra) => Array.from({ length: N }, (_, i) => {
+      const a = (i / N) * TAU, r = Math.sqrt(1 - yN * yN), d = V3(Math.sin(a) * r, yN, Math.cos(a) * r);
+      const base = headShape(d), radial = base.clone().normalize();
+      const off = style.none ? 0 : Math.max(0, hairOffset(style, d).off);
+      return base.addScaledVector(radial, off + extra).add(HC);
+    });
+    add('body', bandGeo(row(0.5, 0.004), row(0.3, 0.004)), { color: 'headband', weights: rigid('head') });
+  }
+  if (c.boots.collar) for (const s of ['L', 'R']) { // knitted sock-collar on the boot
+    const m = s === 'L' ? 1 : -1;
+    add('body', loft([[0.07, 0.043, 0.05], [0.1, 0.045, 0.052], [0.135, 0.044, 0.05], [0.14, 0.039, 0.046]].map(([y, rx, rz]) => ({ c: V3(0.1 * m, y, -0.006), rx, rz })), { seg: 12, A: UP }),
+      { color: 'shoeStripe', weights: chain('shin' + s, [{ bone: 'foot' + s, at: J['foot' + s], dir: DOWN, w: 0.02 }]) });
+  }
+  if (c.kit.collar !== 'v') { // ribbed collar ring for crew / polo necks
+    const tall = c.kit.collar === 'polo' ? 0.03 : 0.016;
+    add('jersey', loft([[1.402, 0.071, 0.064], [1.41, 0.073, 0.066], [1.41 + tall, 0.069, 0.063], [1.41 + tall, 0.064, 0.058], [1.402, 0.064, 0.058]]
+      .map(([y, rx, rz]) => ({ c: V3(0, y, -0.007), rx, rz })), { seg: 16, A: UP }),
+      { weights: chain('chest', [{ bone: 'neck', at: J.neck, dir: UP, w: 0.03 }]), uv: 'trim' });
+  }
+}
+function buildDynamic(c) {
+  const out = newBuckets();
+  partTarget = out;
+  buildHair(c.player.hairStyle);
+  buildFacialHair(c.player.facialHair);
+  buildSleeves(c.kit.longSleeves);
+  buildGear(c);
+  partTarget = STATIC;
+  return out;
 }
 
 /* =====================================================================
-   6. Bake parts into skinned buffers (flat-shaded, per-face colour / atlas UV)
+   6. Bake parts into skinned buffers (per-face colour slot / atlas UV, exact face normals)
    ===================================================================== */
 function bake(list, atlas) {
-  const P = [], C = [], UVs = [], SI = [], SW = [];
+  const P = [], S = [], UVs = [], SI = [], SW = [];
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
   const ctr = new THREE.Vector3(), nrm = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), v = new THREE.Vector3();
   for (const part of list) {
@@ -747,7 +1094,7 @@ function bake(list, atlas) {
       nrm.crossVectors(e1.subVectors(b, a), e2.subVectors(c, a));
       if (nrm.lengthSq() < 1e-14) continue; // drop degenerate (pole) triangles
       nrm.normalize();
-      const col = typeof part.color === 'function' ? part.color(ctr, nrm) : part.color;
+      const slot = part.color ? SLOT_ID[typeof part.color === 'function' ? part.color(ctr, nrm) : part.color] : 0;
       let region = null, sw = null;
       if (atlas) {
         const mode = typeof part.uv === 'function' ? part.uv(ctr, nrm) : part.uv;
@@ -761,8 +1108,7 @@ function bake(list, atlas) {
       }
       for (const vi of [f, f + 1, f + 2]) {
         v.fromBufferAttribute(pa, vi);
-        P.push(v.x, v.y, v.z);
-        if (col) C.push(col.r, col.g, col.b);
+        P.push(v.x, v.y, v.z); S.push(slot);
         if (atlas) UVs.push(...(region ? atlas.uv(region, v) : sw));
         const w = part.weights(v).sort((x, y) => y[1] - x[1]).slice(0, 4);
         const sum = w.reduce((s, x) => s + x[1], 0) || 1;
@@ -772,13 +1118,20 @@ function bake(list, atlas) {
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
-  if (C.length) geo.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+  if (!atlas) { geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(P.length), 3)); geo.userData.slots = Uint8Array.from(S); }
   if (UVs.length) geo.setAttribute('uv', new THREE.Float32BufferAttribute(UVs, 2));
   geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(SI, 4));
   geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(SW, 4));
   geo.computeVertexNormals(); // non-indexed -> exact per-face normals (crisp low-poly facets, skinned correctly)
   geo.computeBoundingSphere();
   return geo;
+}
+function recolor(geo, pal) {
+  const col = geo.attributes.color, slots = geo.userData.slots;
+  if (!col) return;
+  const cols = SLOTS.map(s => pal[s] || pal.skin);
+  for (let i = 0; i < slots.length; i++) { const c = cols[slots[i]]; col.setXYZ(i, c.r, c.g, c.b); }
+  col.needsUpdate = true;
 }
 
 /* =====================================================================
@@ -891,19 +1244,33 @@ for (const mat of Object.values(mats)) {
   };
 }
 const wireMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.32, depthWrite: false, fog: false });
-const wireMeshes = [];
+const charMeshes = {}, wireMeshes = [];
 let triCount = 0;
-for (const [name, list] of Object.entries(buckets)) {
-  const geo = bake(list, name === 'jersey' ? jerseyAtlas : name === 'shorts' ? shortsAtlas : null);
-  triCount += geo.attributes.position.count / 3;
-  const mesh = new THREE.SkinnedMesh(geo, mats[name]);
+for (const name of Object.keys(STATIC)) {
+  const mesh = new THREE.SkinnedMesh(new THREE.BufferGeometry(), mats[name]);
   mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
   character.add(mesh); mesh.bind(skeleton);
-  const wire = new THREE.SkinnedMesh(geo, wireMat);
+  const wire = new THREE.SkinnedMesh(mesh.geometry, wireMat);
   wire.frustumCulled = false; wire.visible = false; wire.renderOrder = 2;
   character.add(wire); wire.bind(skeleton);
-  wireMeshes.push(wire);
+  wireMeshes.push(wire); charMeshes[name] = { mesh, wire };
 }
+// Rebuild geometry for the current config (hair, facial hair, sleeves, sock bands, gear).
+function rebuildCharacter() {
+  const dyn = buildDynamic(cfg), pal = paletteFrom(cfg);
+  triCount = 0;
+  for (const name of Object.keys(STATIC)) {
+    const atlas = name === 'jersey' ? jerseyAtlas : name === 'shorts' ? shortsAtlas : null;
+    const geo = bake([...STATIC[name], ...dyn[name]], atlas);
+    recolor(geo, pal);
+    const { mesh, wire } = charMeshes[name], old = mesh.geometry;
+    mesh.geometry = geo; wire.geometry = geo; old.dispose();
+    triCount += geo.attributes.position.count / 3;
+  }
+}
+function recolorCharacter() { const pal = paletteFrom(cfg); for (const n of ['body', 'features']) recolor(charMeshes[n].mesh.geometry, pal); }
+paintKit();
+rebuildCharacter();
 
 // Sole contact markers used for ground-locking (heel on foot bone, ball + tip on toe bone).
 const soleMarkers = [];
@@ -1105,7 +1472,7 @@ function buildGoal(goal) {
     const mesh = new THREE.Mesh(geo, netMat);
     mesh.castShadow = true; mesh.receiveShadow = true;
     goal.add(mesh);
-    netPanels.push({ geo, base: Float32Array.from(pos), dirs: Float32Array.from(dirs) });
+    netPanels.push({ geo, base: Float32Array.from(pos), dirs: Float32Array.from(dirs), gi: goal.userData.gi });
   }
   const env = (u, v) => Math.sin(Math.PI * u) * Math.sin(Math.PI * v); // 0 on every edge: the net is tied to the frame
   const roofEnd = curves.R.getPointAt(ROOF_END);
@@ -1133,15 +1500,26 @@ function buildGoal(goal) {
     });
   }
 }
-for (const [z, ry] of [[0, 0], [FIELD.len, Math.PI]]) {
-  const g = new THREE.Group(); g.position.z = z; g.rotation.y = ry; scene.add(g); buildGoal(g);
+for (const [gi, z, ry] of [[0, 0, 0], [1, FIELD.len, Math.PI]]) {
+  const g = new THREE.Group(); g.position.z = z; g.rotation.y = ry; g.userData.gi = gi; scene.add(g); buildGoal(g);
 }
 function updateNet(t) {
   for (const n of netPanels) {
     const pos = n.geo.attributes.position, b = n.base, d = n.dirs;
+    const hits = netImpacts[n.gi].filter(h => t - h.t0 < 2.5 && t >= h.t0);
     for (let i = 0; i < pos.count; i++) {
-      const k = Math.sin(t * 1.3 + b[i * 3] * 0.9 + b[i * 3 + 1] * 0.6) * 0.6 + Math.sin(t * 2.7 + b[i * 3] * 2.1) * 0.4;
-      pos.setXYZ(i, b[i * 3] + d[i * 3] * k, b[i * 3 + 1] + d[i * 3 + 1] * k, b[i * 3 + 2] + d[i * 3 + 2] * k);
+      const bx = b[i * 3], by = b[i * 3 + 1], bz = b[i * 3 + 2];
+      const k = Math.sin(t * 1.3 + bx * 0.9 + by * 0.6) * 0.6 + Math.sin(t * 2.7 + bx * 2.1) * 0.4;
+      let x = bx + d[i * 3] * k, y = by + d[i * 3 + 1] * k, z = bz + d[i * 3 + 2] * k;
+      // Ball impacts: a local bulge that springs back with a damped wobble.
+      for (const h of hits) {
+        const d2 = (bx - h.p.x) ** 2 + (by - h.p.y) ** 2 + (bz - h.p.z) ** 2;
+        if (d2 > 1.2) continue;
+        const age = t - h.t0, env = Math.exp(-2.6 * age) * Math.cos(8 * age) * Math.min(1, age / 0.035);
+        const a = h.s * Math.exp(-d2 / 0.09) * env;
+        x += h.dir.x * a; y += h.dir.y * a; z += h.dir.z * a;
+      }
+      pos.setXYZ(i, x, y, z);
     }
     pos.needsUpdate = true;
     n.geo.computeVertexNormals();
@@ -1151,7 +1529,7 @@ function updateNet(t) {
 /* =====================================================================
    10. Stadium: stands, seats, animated crowd, LED boards, floodlights, corner flags
    ===================================================================== */
-const stadiumTime = { value: 0 };
+const stadiumTime = { value: 0 }, hype = { value: 0 };
 const ledBoards = [];
 {
   const concrete = new THREE.MeshStandardMaterial({ color: '#8b8f98', roughness: 0.92, metalness: 0 });
@@ -1213,12 +1591,12 @@ const ledBoards = [];
   // Crowd: torso + head share instance order so the bounce shader moves them together.
   const bounce = (mat) => {
     mat.onBeforeCompile = (sh) => {
-      sh.uniforms.uTime = stadiumTime;
-      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;')
+      sh.uniforms.uTime = stadiumTime; sh.uniforms.uHype = hype;
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime; uniform float uHype;')
         .replace('#include <begin_vertex>', `#include <begin_vertex>
           float fid = float(gl_InstanceID);
-          float jumper = step(0.55, fract(fid * 0.6180339));
-          transformed.y += jumper * max(0.0, sin(uTime * 4.2 + fid * 2.399)) * 0.16;
+          float jumper = step(0.55 - uHype * 0.5, fract(fid * 0.6180339));
+          transformed.y += jumper * max(0.0, sin(uTime * (4.2 + uHype * 2.0) + fid * 2.399)) * (0.16 + uHype * 0.22);
           transformed.x += sin(uTime * 1.3 + fid) * 0.02;`);
     };
     return mat;
@@ -1303,9 +1681,12 @@ const bump = (x, a, b) => { for (const o of [0, 1, -1]) { const t = (x + o - a) 
 
 function poseRun(ph, s) {
   const p = {};
-  const amp = lerp(0.85, 1.18, s), armAmp = lerp(0.8, 1.25, s);
+  // Faster running = shorter ground contact (stance ~38 % of the cycle when jogging, ~26 % sprinting),
+  // a bigger hip sweep and a higher stride rate. Stance is time-warped so the keyframes stay valid.
+  const amp = lerp(0.88, 1.42, s), armAmp = lerp(0.8, 1.3, s), sc = lerp(0.38, 0.26, s);
+  const warp = (q) => q < sc ? (q / sc) * 0.38 : 0.38 + ((q - sc) / (1 - sc)) * 0.62;
   for (const [side, off] of [['L', 0], ['R', 0.5]]) {
-    const q = (ph + off) % 1;
+    const q = warp((ph + off) % 1);
     p['thF' + side] = RUN.hip(q) * amp * DEG;
     const kn = RUN.knee(q);
     p['kn' + side] = (kn + Math.max(0, kn - 30) * (lerp(0.9, 1.35, s) - 1)) * DEG;
@@ -1336,7 +1717,7 @@ function poseRun(ph, s) {
   p.neckY = -(p.hipsY + p.spineY + p.chestY) * 0.5; p.headY = -(p.hipsY + p.spineY + p.chestY) * 0.5;
   p.headZ = -(p.hipsZ + p.chestZ) * 0.8;
   p.hipsTx = 0.011 * roll;
-  p.lift = lerp(0.022, 0.05, s) * (bump(ph, 0.37, 0.52) + bump(ph, 0.87, 1.02));
+  p.lift = lerp(0.022, 0.06, s) * (bump(ph % 1, sc, 0.5) + bump((ph + 0.5) % 1, sc, 0.5)); // flight after each toe-off
   return p;
 }
 function poseIdle(t) {
@@ -1413,14 +1794,822 @@ function trackAt(s) {
 const angleDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 
 /* =====================================================================
-   11. UI, state, camera rig
+   11. Ball: model + physics
+       Drag with the "drag crisis" (Cd ~0.45 -> ~0.22 above ~12 m/s), Magnus lift from spin
+       (C_L ~ 0.9 x spin parameter, capped 0.3), bounce + rolling resistance on grass,
+       post / crossbar / net collisions, goal detection.
    ===================================================================== */
+const BALL_R = 0.11, BALL_M = 0.43, AIR_RHO = 1.2, BALL_A = Math.PI * BALL_R * BALL_R;
+const ballMesh = (() => {
+  const g = new THREE.IcosahedronGeometry(BALL_R, 2);
+  const pos = g.attributes.position, phi = (1 + Math.sqrt(5)) / 2;
+  const ico = [[-1, phi, 0], [1, phi, 0], [-1, -phi, 0], [1, -phi, 0], [0, -1, phi], [0, 1, phi], [0, -1, -phi], [0, 1, -phi], [phi, 0, -1], [phi, 0, 1], [-phi, 0, -1], [-phi, 0, 1]]
+    .map(v => V3(...v).normalize());
+  const slots = new Uint8Array(pos.count), c = new THREE.Vector3();
+  for (let f = 0; f < pos.count; f += 3) {
+    c.set(0, 0, 0); for (let k = 0; k < 3; k++) c.add(V3(pos.getX(f + k), pos.getY(f + k), pos.getZ(f + k)));
+    c.normalize();
+    slots[f] = slots[f + 1] = slots[f + 2] = ico.some(v => v.dot(c) > 0.955) ? 1 : 0; // 12 pentagon panels
+  }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(pos.count * 3), 3));
+  g.userData.slots = slots;
+  g.computeVertexNormals();
+  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0, envMapIntensity: 0.8 }));
+  m.castShadow = true; m.receiveShadow = true;
+  scene.add(m);
+  return m;
+})();
+function recolorBall() {
+  const g = ballMesh.geometry, col = g.attributes.color, a = new THREE.Color(cfg.ball.primary), b = new THREE.Color(cfg.ball.secondary);
+  g.userData.slots.forEach((s, i) => { const c = s ? b : a; col.setXYZ(i, c.r, c.g, c.b); });
+  col.needsUpdate = true;
+}
+const ball = { pos: V3(0, BALL_R, 24), vel: V3(), spin: V3(), q: new THREE.Quaternion(), outT: 0, goalT: -10 };
+const GOAL_LINES = [0, FIELD.len];
+const netImpacts = [[], []];
+const _acc = new THREE.Vector3(), _tmp = new THREE.Vector3(), _tmp2 = new THREE.Vector3();
+function ballAccel(v, w, out) {
+  out.set(0, -9.81, 0);
+  const s = v.length();
+  if (s < 0.01) return out;
+  const cd = s < 9 ? 0.45 : s > 15 ? 0.22 : lerp(0.45, 0.22, (s - 9) / 6);
+  out.addScaledVector(v, (-0.5 * AIR_RHO * BALL_A * cd * s) / BALL_M);
+  const wl = w.length();
+  if (wl > 0.5) {
+    const cl = clamp((0.9 * BALL_R * wl) / s, 0, 0.3);
+    _tmp.crossVectors(w, v);
+    const cl2 = _tmp.length();
+    if (cl2 > 1e-6) out.addScaledVector(_tmp, ((0.5 * AIR_RHO * BALL_A * cl * s * s) / BALL_M) / cl2 * (cl2 / (wl * s)));
+  }
+  return out;
+}
+const rollingSpin = (v, out) => out.set(v.z, 0, -v.x).multiplyScalar(1 / BALL_R); // (up x v) / r
+// Integrate one ball state (used for the real ball and for prediction/aim simulations).
+function integrateBall(b, dt, opts = {}) {
+  const onGround = b.pos.y <= BALL_R + 0.002 && Math.abs(b.vel.y) < 0.6;
+  if (onGround) {
+    b.pos.y = BALL_R; b.vel.y = 0;
+    const s = Math.hypot(b.vel.x, b.vel.z);
+    if (s > 0) {
+      const decel = 0.55 + 0.012 * s * s; // grass rolling resistance + air drag
+      const ns = Math.max(0, s - decel * dt);
+      b.vel.x *= ns / s; b.vel.z *= ns / s;
+    }
+    rollingSpin(b.vel, _tmp2);
+    const ys = b.spin.y * Math.exp(-4 * dt);
+    b.spin.lerp(_tmp2, 1 - Math.exp(-14 * dt)); b.spin.y = ys;
+    b.pos.addScaledVector(b.vel, dt);
+  } else {
+    ballAccel(b.vel, b.spin, _acc);
+    b.vel.addScaledVector(_acc, dt);
+    b.pos.addScaledVector(b.vel, dt);
+    b.spin.multiplyScalar(Math.exp(-0.06 * dt));
+    if (b.pos.y < BALL_R) {
+      b.pos.y = BALL_R;
+      if (b.vel.y < 0) {
+        const vy = -b.vel.y;
+        b.vel.y = vy > 0.8 ? vy * (0.62 - Math.min(0.12, vy * 0.008)) : 0;
+        // Grass friction at the bounce bleeds some speed and pulls the spin toward rolling.
+        b.vel.x *= 0.9; b.vel.z *= 0.9;
+        rollingSpin(b.vel, _tmp2);
+        b.spin.lerp(_tmp2, 0.45);
+        if (opts.onBounce) opts.onBounce(vy);
+      }
+    }
+  }
+}
+// Closest point on segment ab to p
+function closestOnSeg(p, a, b, out) {
+  const ab = _tmp.subVectors(b, a), t = clamp(_tmp2.subVectors(p, a).dot(ab) / ab.lengthSq(), 0, 1);
+  return out.copy(a).addScaledVector(ab, t);
+}
+const GOAL_SEGS = [[V3(-GW, 0, 0), V3(-GW, GH, 0)], [V3(GW, 0, 0), V3(GW, GH, 0)], [V3(-GW, GH, 0), V3(GW, GH, 0)]];
+const BACK_A = V3(0, 0.035, -2.0), BACK_N = V3(0, -1.0, 2.285).normalize();
+const zBack = (y) => -2.0 + (clamp(y, 0.035, 2.32) - 0.035) / 2.285;
+const toGoalLocal = (gi, v, isDir) => gi === 0 ? v.clone() : V3(-v.x, v.y, isDir ? -v.z : FIELD.len - v.z);
+const fromGoalLocal = toGoalLocal; // the mapping is its own inverse
+function netHit(gi, lp, dirLocal, strength) {
+  const list = netImpacts[gi];
+  if (list.length > 4) list.shift();
+  list.push({ p: lp.clone(), dir: dirLocal.clone().normalize(), s: clamp(strength, 0, 0.42), t0: state.time });
+}
+// Resolve ball against one goal in goal-local space. Returns event name or null.
+function collideGoal(gi, b, prevPos) {
+  const lp = toGoalLocal(gi, b.pos), lv = toGoalLocal(gi, b.vel, true), pp = toGoalLocal(gi, prevPos);
+  if (lp.z > 1.0 || lp.z < -3 || Math.abs(lp.x) > GW + 1 || lp.y > GH + 1) return null;
+  let event = null;
+  const c = new THREE.Vector3();
+  for (const [a, e] of GOAL_SEGS) {
+    closestOnSeg(lp, a, e, c);
+    const d = lp.clone().sub(c), dist = d.length();
+    if (dist < BALL_R + GR && dist > 1e-6) {
+      const n = d.divideScalar(dist), vn = lv.dot(n);
+      lp.copy(c).addScaledVector(n, BALL_R + GR + 1e-4);
+      if (vn < 0) { lv.addScaledVector(n, -vn * 1.72); lv.multiplyScalar(0.94); b.spin.multiplyScalar(0.6); if (-vn > 2) event = 'post'; }
+    }
+  }
+  const inside = (p) => Math.abs(p.x) < GW && p.y < GH && p.z < 0 && p.z > zBack(p.y);
+  const wasIn = inside(pp) || (pp.z >= 0 && Math.abs(pp.x) < GW && pp.y < GH);
+  if (lp.z < 0.05) {
+    if (wasIn) {
+      if (Math.abs(lp.x) > GW - BALL_R) { const s = Math.sign(lp.x); lp.x = s * (GW - BALL_R); if (lv.x * s > 0) { netHit(gi, lp, V3(s, 0, 0), lv.x * s * 0.03); lv.x *= -0.12; lv.y *= 0.6; lv.z *= 0.6; } }
+      if (lp.z > -1.0 && lp.y > GH - 0.08 - BALL_R) { lp.y = GH - 0.08 - BALL_R; if (lv.y > 0) { netHit(gi, lp, V3(0, 1, 0), lv.y * 0.03); lv.y *= -0.12; lv.x *= 0.6; lv.z *= 0.6; } }
+      const s = _tmp.subVectors(lp, BACK_A).dot(BACK_N);
+      if (s < BALL_R) {
+        lp.addScaledVector(BACK_N, BALL_R - s);
+        const vn = lv.dot(BACK_N);
+        if (vn < 0) { netHit(gi, lp, BACK_N.clone().negate(), -vn * 0.035); lv.addScaledVector(BACK_N, -vn * 1.1); lv.multiplyScalar(0.45); b.spin.multiplyScalar(0.3); }
+      }
+    } else if (lp.z < 0) {
+      // Outside netting: sides, back and roof push the ball away.
+      if (Math.abs(pp.x) >= GW && Math.abs(lp.x) < GW + BALL_R && lp.y < GH && lp.z > zBack(lp.y)) { const s = Math.sign(pp.x); lp.x = s * (GW + BALL_R); if (lv.x * s < 0) { netHit(gi, lp, V3(-s, 0, 0), -lv.x * s * 0.025); lv.x *= -0.2; } }
+      const s = _tmp.subVectors(lp, BACK_A).dot(BACK_N), sp = _tmp.subVectors(pp, BACK_A).dot(BACK_N);
+      if (sp <= 0 && s > -BALL_R && Math.abs(lp.x) < GW && lp.y < GH) { lp.addScaledVector(BACK_N, -BALL_R - s); const vn = lv.dot(BACK_N); if (vn > 0) { netHit(gi, lp, BACK_N, vn * 0.025); lv.addScaledVector(BACK_N, -vn * 1.2); lv.multiplyScalar(0.6); } }
+      if (pp.y >= GH && lp.y < GH + BALL_R && lp.z > -1.0 && Math.abs(lp.x) < GW) { lp.y = GH + BALL_R; if (lv.y < 0) { netHit(gi, lp, V3(0, -1, 0), -lv.y * 0.02); lv.y *= -0.25; lv.x *= 0.7; lv.z *= 0.7; } }
+    }
+  }
+  if (lp.z < -BALL_R && Math.abs(lp.x) < GW - GR && lp.y < GH - GR && wasIn && state.time - ball.goalT > 3) event = 'goal';
+  b.pos.copy(fromGoalLocal(gi, lp)); b.vel.copy(fromGoalLocal(gi, lv, true));
+  return event;
+}
+function stepBall(dt) {
+  const sub = 4, h = dt / sub, prev = new THREE.Vector3();
+  for (let i = 0; i < sub; i++) {
+    prev.copy(ball.pos);
+    integrateBall(ball, h);
+    for (let gi = 0; gi < 2; gi++) {
+      const ev = collideGoal(gi, ball, prev);
+      if (ev === 'goal') onGoal(gi); else if (ev === 'post') toast('Off the woodwork!', 'post');
+    }
+    // Advertising boards (0.9 m tall) bound the playing area
+    if (ball.pos.y < 0.9 + BALL_R) {
+      const bx = FIELD.half + 4.4 - BALL_R;
+      if (Math.abs(ball.pos.x) > bx) { ball.pos.x = Math.sign(ball.pos.x) * bx; ball.vel.x *= -0.35; }
+      const inGoalLane = Math.abs(ball.pos.x) < GW + 0.5;
+      for (const [z, s] of [[-4.4, -1], [FIELD.len + 4.4, 1]]) if ((ball.pos.z - z) * s > -BALL_R && !(inGoalLane && Math.abs(ball.pos.z - z) > 1.5)) { ball.pos.z = z - s * BALL_R; ball.vel.z *= -0.35; }
+    }
+    bodyBlock();
+  }
+  // Lost into the stands: bring it back after a moment
+  const out = Math.abs(ball.pos.x) > FIELD.half + 6 || ball.pos.z < -6 || ball.pos.z > FIELD.len + 6;
+  ball.outT = out ? ball.outT + dt : 0;
+  if (ball.outT > 1.5) resetBall();
+  if (ball.resetAt && state.time > ball.resetAt) { ball.resetAt = 0; if (app.mode === 'play') resetBall(); }
+  // Spin the visible ball
+  const w = ball.spin.length();
+  if (w > 1e-4) ball.q.premultiply(new THREE.Quaternion().setFromAxisAngle(_tmp.copy(ball.spin).divideScalar(w), w * dt));
+  ballMesh.position.copy(ball.pos); ballMesh.quaternion.copy(ball.q);
+}
+// Predict where the ball will be after `t` seconds (no goal collisions; good enough for approach planning).
+function predictBall(t) {
+  const b = { pos: ball.pos.clone(), vel: ball.vel.clone(), spin: ball.spin.clone() };
+  const h = 1 / 60;
+  for (let s = 0; s < t; s += h) integrateBall(b, Math.min(h, t - s));
+  return b.pos;
+}
+// Ball vs player's body (a vertical capsule) so it can't pass through the runner.
+function bodyBlock() {
+  if (app.mode !== 'play' || (player.kick && Math.abs(player.kick.t) < 0.12)) return;
+  const d = _tmp.set(ball.pos.x - player.pos.x, 0, ball.pos.z - player.pos.z), dist = d.length();
+  const r = 0.17 + BALL_R;
+  if (ball.pos.y < 1.7 && dist < r && dist > 1e-4) {
+    d.divideScalar(dist);
+    ball.pos.x = player.pos.x + d.x * r; ball.pos.z = player.pos.z + d.z * r;
+    const rel = _tmp2.copy(ball.vel).sub(player.vel), vn = rel.dot(d);
+    if (vn < 0) ball.vel.addScaledVector(d, -vn * 1.25);
+  }
+}
+
+/* =====================================================================
+   12. Locomotion: walk cycle, stride calibration (no foot skate), speed-driven blending
+   ===================================================================== */
+// Walking gait per leg (phase 0 = heel strike, stance ~60 %, swing ~40 %), joint angles in degrees.
+const WALK = {
+  hip: periodic([[0, 22], [0.15, 16], [0.3, 4], [0.5, -10], [0.6, -6], [0.75, 12], [0.88, 24]]),
+  knee: periodic([[0, 4], [0.12, 16], [0.3, 6], [0.48, 6], [0.62, 38], [0.72, 60], [0.85, 30], [0.95, 6]]),
+  ankle: periodic([[0, -2], [0.08, 6], [0.3, -10], [0.5, -6], [0.62, 16], [0.75, 4], [0.9, -4]]),
+  toe: periodic([[0, 0], [0.45, 6], [0.58, 28], [0.68, 4], [0.8, 0]]),
+};
+function poseWalk(ph) {
+  const p = {};
+  for (const [side, off] of [['L', 0], ['R', 0.5]]) {
+    const q = (ph + off) % 1, c = Math.cos(TAU * (q - 0.5));
+    p['thF' + side] = WALK.hip(q) * DEG; p['kn' + side] = WALK.knee(q) * DEG;
+    p['ank' + side] = WALK.ankle(q) * DEG; p['toe' + side] = WALK.toe(q) * DEG;
+    p['shF' + side] = lerp(-14, 16, (c + 1) / 2) * DEG; p['elb' + side] = (16 + 9 * c) * DEG;
+    p['shAbd' + side] = -6 * DEG; p['shInt' + side] = 6 * DEG; p['fing' + side] = 18 * DEG; p['tip' + side] = 24 * DEG;
+  }
+  const yaw = Math.cos(TAU * (ph - 0.85)), roll = Math.sin(TAU * ph);
+  p.hipsY = -4 * yaw * DEG; p.spineY = 2.5 * yaw * DEG; p.chestY = 3 * yaw * DEG; p.neckY = -0.7 * p.hipsY;
+  p.hipsZ = 2.5 * roll * DEG; p.thAbdL = -p.hipsZ; p.thAbdR = p.hipsZ; p.chestZ = -1 * roll * DEG;
+  p.hipsTx = 0.014 * roll; p.spineX = 2 * DEG; p.headX = -1 * DEG;
+  return p;
+}
+// Sweep one gait cycle at the origin and integrate how far the planted foot slides back: that is the
+// stride length the animation implies. Speed = stride x cadence keeps feet locked to the turf.
+function measureStride(poseFn) {
+  const N = 240; let total = 0, contact = 0, last = -1, lastZ = 0;
+  character.position.set(0, 0, 0); character.rotation.set(0, 0, 0);
+  for (let i = 0; i <= N; i++) {
+    const p = poseFn(i / N); applyPose(p);
+    character.updateMatrixWorld(true);
+    let minY = Infinity, idx = -1;
+    soleMarkers.forEach((o, k) => { const y = markerLocal(o).y; if (y < minY) { minY = y; idx = k; } });
+    B.hips.position.y += -minY + (p.lift || 0); character.updateMatrixWorld(true);
+    const z = markerLocal(soleMarkers[idx]).z;
+    if ((p.lift || 0) < 0.002 && idx === last) { total += Math.max(0, lastZ - z); contact++; }
+    last = idx; lastZ = z;
+  }
+  // Ground speed = slide distance / contact time; per-cycle stride = that speed x one period.
+  return contact ? total / (contact / N) : 0;
+}
+const RUN_CADENCE = (p) => lerp(1.3, 1.95, p);
+const GAIT = (() => {
+  const paces = [0, 0.2, 0.4, 0.6, 0.8, 1];
+  const strides = paces.map(p => measureStride(ph => poseRun(ph, p)));
+  const speeds = strides.map((s, i) => s * RUN_CADENCE(paces[i]));
+  const walkStride = measureStride(poseWalk);
+  return { paces, strides, speeds, walkStride, vWalk: walkStride * 0.95, vJog: lerp(speeds[1], speeds[2], 0.5), vSprint: speeds[5] };
+})();
+function paceForSpeed(v) {
+  const { speeds, paces } = GAIT;
+  if (v <= speeds[0]) return 0;
+  for (let i = 0; i < speeds.length - 1; i++) if (v <= speeds[i + 1]) return lerp(paces[i], paces[i + 1], (v - speeds[i]) / (speeds[i + 1] - speeds[i]));
+  return 1;
+}
+const strideForPace = (p) => { const { paces, strides } = GAIT; const i = Math.min(paces.length - 2, Math.floor(p / 0.2)); return lerp(strides[i], strides[i + 1], (p - paces[i]) / 0.2); };
+function locomotion(v, phase, idleT) {
+  const wIdle = 1 - smoothstep(0.05, 0.55, v);
+  const runStart = GAIT.vWalk * 1.1;
+  const wRun = smoothstep(runStart, runStart + 0.9, v);
+  const pace = paceForSpeed(v);
+  const cadRun = clamp(v / strideForPace(pace), 1.1, 2.0), cadWalk = clamp(v / GAIT.walkStride, 0.5, 1.2);
+  const cadence = lerp(cadWalk, cadRun, wRun);
+  const pose = blendPoses([[poseIdle(idleT), wIdle], [poseWalk(phase), (1 - wIdle) * (1 - wRun)], [poseRun(phase, pace), (1 - wIdle) * wRun]]);
+  return { pose, cadence, pace };
+}
+
+/* =====================================================================
+   13. Kicks. Keyframes in degrees vs time from ball contact (s), for the kicking leg K and support leg S.
+       Built from kicking biomechanics: a lengthened last stride; support foot planted beside the ball
+       ~0.1-0.13 s before contact; maximal hip extension + knee flexion at plant (the "cocked" leg);
+       proximal-to-distal whip (thigh leads, then decelerates while the shank snaps through, knee ~40 deg
+       at contact); ankle locked in plantarflexion for the instep drive; trunk leaning to the support
+       side with the opposite arm abducted for balance; follow-through by hip flexion, often hopping onto
+       the kicking foot. The side-foot pass replaces the whip with hip external rotation (foot turned out
+       ~60-65 deg, ankle dorsiflexed and locked); the finesse uses the inside of the foot, a wider
+       approach and a wrap-around follow-through across the body.
+   ===================================================================== */
+const KICK_DEFS = {
+  power: {
+    pre: 0.5, post: 0.56, plant: -0.12, lockEnd: 0.07, contactSpeed: 2.6, yawOff: 18, strike: 'instep',
+    times: [-0.5, -0.38, -0.25, -0.12, -0.06, -0.02, 0, 0.06, 0.15, 0.28, 0.42, 0.56],
+    ch: {
+      'K.thF': [10, -5, -22, -30, -8, 18, 30, 58, 82, 45, 15, 5],
+      'K.kn': [60, 30, 55, 105, 108, 72, 40, 15, 22, 50, 30, 18],
+      'K.ank': [10, 25, 30, 38, 46, 50, 50, 44, 30, 15, 5, 0],
+      'K.toe': [0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      'K.thAbd': [0, 0, 6, 10, 6, 2, 0, -6, -12, -6, 0, 0],
+      'K.thInt': [0, 0, 0, 2, 4, 4, 3, 0, -4, 0, 0, 0],
+      'S.thF': [-15, 10, 32, 28, 22, 14, 8, -2, -10, -2, 10, 5],
+      'S.kn': [40, 55, 30, 18, 26, 30, 30, 26, 35, 45, 30, 15],
+      'S.ank': [10, -5, -10, -8, -14, -18, -20, -14, 10, 12, 0, 0],
+      'S.thAbd': [0, 0, 4, 6, 6, 5, 4, 2, 0, 0, 0, 0],
+      'S.toe': [0, 0, 0, 0, 0, 0, 0, 10, 25, 0, 0, 0],
+      hipsYk: [-5, -12, -20, -26, -14, 0, 12, 24, 30, 18, 6, 0],
+      hipsZk: [0, 2, 4, 6, 6, 6, 6, 4, 2, 0, 0, 0],
+      hipsX: [4, 4, 2, 0, 2, 4, 6, 8, 10, 6, 4, 2],
+      spineX: [6, 5, 0, -6, -2, 4, 8, 12, 14, 10, 6, 4],
+      chestX: [4, 4, 0, -4, 0, 4, 8, 10, 10, 6, 4, 3],
+      spineYk: [0, 2, 4, 6, 4, 0, -3, -6, -6, -3, 0, 0],
+      chestYk: [0, 2, 5, 7, 5, 0, -4, -7, -6, -3, 0, 0],
+      chestZs: [0, 4, 10, 16, 18, 18, 18, 15, 10, 4, 0, 0],
+      'AS.shF': [10, 20, 30, 35, 35, 30, 25, 15, 5, 0, 5, 5],
+      'AS.shAbd': [-5, 20, 50, 70, 75, 75, 72, 60, 45, 25, 5, -5],
+      'AS.elb': [60, 40, 30, 25, 25, 25, 25, 30, 40, 50, 60, 70],
+      'AS.shInt': [10, 0, -10, -15, -15, -15, -15, -10, 0, 5, 10, 10],
+      'AK.shF': [-20, -30, -35, -40, -25, -5, 10, 25, 30, 15, 0, -5],
+      'AK.shAbd': [-5, 5, 15, 25, 25, 25, 25, 20, 15, 10, 0, -5],
+      'AK.elb': [80, 60, 50, 45, 45, 50, 55, 60, 65, 70, 75, 80],
+      'AK.shInt': [10, 10, 5, 0, 0, 0, 5, 10, 15, 15, 10, 10],
+      neckX: [2, 4, 6, 8, 8, 8, 8, 6, 4, 2, 0, 0],
+      headX: [8, 10, 15, 20, 22, 24, 24, 20, 12, 6, 4, 2],
+      fing: [40, 30, 20, 15, 15, 15, 15, 15, 20, 30, 50, 60],
+      lift: [0, 0.012, 0.03, 0, 0, 0, 0, 0, 0.05, 0.03, 0, 0],
+    },
+  },
+  finesse: {
+    pre: 0.52, post: 0.55, plant: -0.13, lockEnd: 0.12, contactSpeed: 2.0, yawOff: 30, strike: 'inside',
+    times: [-0.52, -0.4, -0.27, -0.13, -0.07, -0.025, 0, 0.07, 0.17, 0.3, 0.44, 0.55],
+    ch: {
+      'K.thF': [10, -5, -18, -24, -6, 15, 26, 45, 62, 40, 15, 5],
+      'K.kn': [60, 30, 50, 92, 95, 65, 38, 22, 25, 45, 28, 18],
+      'K.ank': [10, 22, 25, 25, 22, 20, 18, 18, 15, 10, 5, 0],
+      'K.toe': [0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      'K.thAbd': [0, 2, 12, 18, 14, 8, 4, -8, -24, -14, -4, 0],
+      'K.thInt': [0, -5, -15, -25, -32, -36, -38, -32, -20, -10, -4, 0],
+      'S.thF': [-15, 10, 30, 26, 20, 13, 8, 0, -6, 0, 8, 5],
+      'S.kn': [40, 55, 32, 22, 30, 34, 34, 30, 30, 35, 25, 15],
+      'S.ank': [10, -5, -10, -8, -14, -18, -20, -14, -4, 4, 0, 0],
+      'S.thAbd': [0, 0, 4, 7, 7, 6, 5, 3, 0, 0, 0, 0],
+      hipsYk: [-5, -14, -24, -32, -22, -8, 6, 22, 34, 22, 8, 0],
+      hipsZk: [0, 2, 5, 8, 8, 8, 8, 6, 3, 0, 0, 0],
+      hipsX: [4, 3, 2, 0, 0, 1, 2, 3, 4, 4, 3, 2],
+      spineX: [6, 5, 0, -6, -6, -4, -3, -2, 0, 2, 4, 4],
+      chestX: [4, 4, 0, -4, -4, -3, -2, 0, 2, 3, 4, 3],
+      spineYk: [0, 2, 5, 7, 5, 1, -3, -7, -8, -4, 0, 0],
+      chestYk: [0, 3, 6, 8, 6, 1, -4, -8, -8, -4, 0, 0],
+      chestZs: [0, 4, 12, 20, 22, 22, 22, 18, 12, 5, 0, 0],
+      'AS.shF': [10, 20, 28, 32, 32, 30, 26, 18, 8, 2, 5, 5],
+      'AS.shAbd': [-5, 25, 55, 78, 82, 82, 80, 68, 50, 28, 5, -5],
+      'AS.elb': [60, 40, 30, 22, 22, 22, 24, 30, 40, 50, 60, 70],
+      'AS.shInt': [10, 0, -10, -15, -15, -15, -15, -10, 0, 5, 10, 10],
+      'AK.shF': [-20, -28, -32, -36, -24, -8, 6, 20, 26, 14, 0, -5],
+      'AK.shAbd': [-5, 8, 20, 30, 30, 30, 28, 22, 16, 10, 0, -5],
+      'AK.elb': [80, 60, 50, 45, 45, 48, 52, 58, 64, 70, 75, 80],
+      neckX: [2, 4, 6, 8, 8, 8, 8, 6, 4, 2, 0, 0],
+      headX: [8, 10, 14, 18, 20, 20, 18, 12, 6, 4, 2, 2],
+      fing: [40, 30, 20, 12, 12, 12, 12, 12, 18, 30, 50, 60],
+      lift: [0, 0.012, 0.025, 0, 0, 0, 0, 0, 0.02, 0, 0, 0],
+    },
+  },
+  pass: {
+    pre: 0.4, post: 0.42, plant: -0.12, lockEnd: 0.16, contactSpeed: 1.4, yawOff: 0, strike: 'inside',
+    times: [-0.4, -0.3, -0.2, -0.12, -0.06, -0.02, 0, 0.06, 0.14, 0.24, 0.34, 0.42],
+    ch: {
+      'K.thF': [8, 0, -10, -16, -4, 10, 18, 28, 34, 22, 10, 5],
+      'K.kn': [45, 30, 40, 55, 55, 40, 30, 20, 18, 25, 25, 18],
+      'K.ank': [5, 5, -2, -8, -12, -12, -12, -10, -6, 0, 0, 0],
+      'K.thInt': [0, -10, -35, -55, -62, -65, -66, -62, -50, -30, -10, 0],
+      'K.thAbd': [0, 2, 6, 10, 10, 8, 6, 4, 2, 0, 0, 0],
+      'S.thF': [-10, 12, 26, 22, 16, 12, 8, 4, 2, 4, 6, 4],
+      'S.kn': [35, 45, 26, 20, 26, 28, 28, 26, 24, 25, 20, 12],
+      'S.ank': [5, -4, -8, -8, -12, -14, -15, -12, -8, -4, 0, 0],
+      'S.thAbd': [0, 0, 2, 4, 4, 4, 4, 3, 2, 0, 0, 0],
+      hipsYk: [-4, -8, -14, -18, -10, -2, 4, 10, 12, 8, 3, 0],
+      hipsX: [3, 3, 3, 3, 4, 4, 4, 4, 4, 3, 3, 2],
+      spineX: [5, 6, 7, 8, 9, 10, 10, 10, 9, 7, 5, 4],
+      chestX: [3, 4, 4, 5, 5, 6, 6, 6, 5, 4, 3, 3],
+      chestZs: [0, 2, 4, 6, 6, 6, 6, 5, 4, 2, 0, 0],
+      'AS.shF': [5, 10, 15, 18, 18, 18, 18, 15, 10, 5, 5, 5],
+      'AS.shAbd': [-5, 5, 15, 25, 28, 28, 28, 25, 18, 10, 0, -5],
+      'AS.elb': [60, 50, 45, 40, 40, 40, 40, 45, 50, 55, 60, 65],
+      'AK.shF': [-10, -18, -22, -25, -15, -5, 5, 12, 15, 10, 0, -5],
+      'AK.shAbd': [-5, 0, 8, 12, 12, 12, 12, 10, 8, 4, 0, -5],
+      'AK.elb': [70, 60, 55, 55, 55, 58, 60, 62, 65, 68, 70, 72],
+      neckX: [3, 5, 7, 8, 8, 8, 8, 8, 7, 5, 3, 2],
+      headX: [10, 14, 18, 22, 24, 24, 24, 22, 18, 12, 8, 6],
+      fing: [25, 22, 20, 18, 18, 18, 18, 18, 20, 22, 25, 25],
+    },
+  },
+};
+// Clamped Catmull-Rom through (times, values)
+function curve(times, vals) {
+  const n = times.length;
+  return (t) => {
+    if (t <= times[0]) return vals[0];
+    if (t >= times[n - 1]) return vals[n - 1];
+    let i = 0; while (t > times[i + 1]) i++;
+    const t0 = times[i], t1 = times[i + 1], h = t1 - t0, s = (t - t0) / h;
+    const m = (k) => k <= 0 ? (vals[1] - vals[0]) / (times[1] - times[0]) : k >= n - 1 ? (vals[n - 1] - vals[n - 2]) / (times[n - 1] - times[n - 2]) : (vals[k + 1] - vals[k - 1]) / (times[k + 1] - times[k - 1]);
+    const m0 = m(i) * h, m1 = m(i + 1) * h, s2 = s * s, s3 = s2 * s;
+    return (2 * s3 - 3 * s2 + 1) * vals[i] + (s3 - 2 * s2 + s) * m0 + (-2 * s3 + 3 * s2) * vals[i + 1] + (s3 - s2) * m1;
+  };
+}
+for (const def of Object.values(KICK_DEFS)) def.fn = Object.fromEntries(Object.entries(def.ch).map(([k, v]) => [k, curve(def.times, v)]));
+// Map generic kick channels (K = kicking leg, S = support leg, AK/AS = arms on those sides) to L/R pose channels.
+function kickPose(type, t, K) {
+  const def = KICK_DEFS[type], S = K === 'R' ? 'L' : 'R', fs = K === 'R' ? 1 : -1, p = {};
+  for (const [ch, f] of Object.entries(def.fn)) {
+    const v = f(t), r = v * DEG, dot = ch.indexOf('.');
+    if (dot > 0) { const pre = ch.slice(0, dot), name = ch.slice(dot + 1); p[name + (pre === 'K' || pre === 'AK' ? K : S)] = r; continue; }
+    switch (ch) {
+      case 'hipsYk': p.hipsY = fs * r; break;
+      case 'spineYk': p.spineY = fs * r; break;
+      case 'chestYk': p.chestY = fs * r; break;
+      case 'hipsZk': p.hipsZ = -fs * r; break;
+      case 'chestZs': p.chestZ = -fs * r; break;
+      case 'lift': p.lift = v; break;
+      case 'fing': p.fingL = p.fingR = r; p.tipL = p.tipR = r * 1.2; break;
+      default: p[ch] = r;
+    }
+  }
+  return p;
+}
+// Striking surfaces on each boot: laces (instep) and the medial side (inside of the foot).
+const strikeMarkers = {};
+for (const s of ['L', 'R']) {
+  const m = s === 'L' ? 1 : -1;
+  for (const [kind, p] of [['instep', V3(0.1 * m, 0.068, 0.085)], ['inside', V3(0.1 * m - m * 0.05, 0.045, 0.045)]]) {
+    const o = new THREE.Object3D(); o.position.copy(p).sub(J['foot' + s]); B['foot' + s].add(o); strikeMarkers[kind + s] = o;
+  }
+}
+// Where the striking surface sits (character-local) at the moment of contact, per kick and foot.
+const CONTACT = {};
+function calibrateContacts() {
+  character.position.set(0, 0, 0); character.rotation.set(0, 0, 0);
+  for (const type of Object.keys(KICK_DEFS)) for (const K of ['L', 'R']) {
+    const p = kickPose(type, 0, K); applyPose(p);
+    character.updateMatrixWorld(true);
+    let minY = Infinity; soleMarkers.forEach(o => { minY = Math.min(minY, markerLocal(o).y); });
+    B.hips.position.y += -minY; character.updateMatrixWorld(true);
+    CONTACT[type + K] = markerLocal(strikeMarkers[KICK_DEFS[type].strike + K]).clone();
+  }
+}
+calibrateContacts();
+
+/* ---------- Two-bone leg IK (used to pin the support foot during a kick) ---------- */
+const _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _q3 = new THREE.Quaternion();
+const wpos = (o) => o.getWorldPosition(new THREE.Vector3());
+const wquat = (o) => o.getWorldQuaternion(new THREE.Quaternion());
+function setWorldQuat(bone, q) { bone.quaternion.copy(wquat(bone.parent).invert().multiply(q)); bone.updateMatrixWorld(true); }
+function legIK(s, targetPos, targetQuat, w) {
+  if (w <= 0) return;
+  const thigh = B['thigh' + s], shin = B['shin' + s], foot = B['foot' + s];
+  const H = wpos(thigh), K0 = wpos(shin), A0 = wpos(foot);
+  const L1 = K0.distanceTo(H), L2 = A0.distanceTo(K0);
+  const T = A0.clone().lerp(targetPos, w);
+  const HT = T.clone().sub(H); let d = HT.length(); HT.divideScalar(d);
+  d = clamp(d, Math.abs(L1 - L2) + 1e-3, L1 + L2 - 1e-3);
+  const pole = K0.clone().sub(H); pole.addScaledVector(HT, -pole.dot(HT));
+  if (pole.lengthSq() < 1e-8) pole.copy(V3(0, 0, 1).applyQuaternion(wquat(B.hips)));
+  pole.normalize();
+  const a1 = Math.acos(clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1));
+  const thighDir = HT.clone().multiplyScalar(Math.cos(a1)).addScaledVector(pole, Math.sin(a1));
+  setWorldQuat(thigh, _q1.setFromUnitVectors(K0.clone().sub(H).normalize(), thighDir).multiply(wquat(thigh)));
+  const K1 = wpos(shin), A1 = wpos(foot);
+  setWorldQuat(shin, _q2.setFromUnitVectors(A1.clone().sub(K1).normalize(), T.clone().sub(K1).normalize()).multiply(wquat(shin)));
+  setWorldQuat(foot, wquat(foot).slerp(targetQuat, w));
+}
+
+/* =====================================================================
+   14. Player controller: input, movement, dribbling, kicks, aim
+   ===================================================================== */
+const player = {
+  pos: V3(0, 0, 24), vel: V3(), yaw: Math.PI, speed: 0, yawRate: 0, phase: 0, idleT: 0, lean: 0, fwdLean: 0,
+  kick: null, charge: null, pending: null, touch: null, celebrate: 0, possess: false, lastTouch: -10,
+};
+const stats = { goals: 0, shots: 0 };
+const keys = new Set();
+const touchIn = { x: 0, y: 0, sprint: false };
+const facingVec = (yaw) => V3(Math.sin(yaw), 0, Math.cos(yaw));
+const rightOf = (d) => V3(-d.z, 0, d.x);
+function moveInput() {
+  let x = 0, y = 0;
+  if (keys.has('KeyW') || keys.has('ArrowUp')) y += 1;
+  if (keys.has('KeyS') || keys.has('ArrowDown')) y -= 1;
+  if (keys.has('KeyA') || keys.has('ArrowLeft')) x -= 1;
+  if (keys.has('KeyD') || keys.has('ArrowRight')) x += 1;
+  x += touchIn.x; y += touchIn.y;
+  const mag = Math.min(1, Math.hypot(x, y));
+  if (mag < 0.12) return { dir: null, mag: 0 };
+  const f = controls.target.clone().sub(camera.position); f.y = 0; f.normalize();
+  const r = rightOf(f); // camera right (same convention as a body facing f)
+  const dir = f.multiplyScalar(y).addScaledVector(r, x).normalize();
+  return { dir, mag };
+}
+const sprinting = () => keys.has('ShiftLeft') || keys.has('ShiftRight') || touchIn.sprint;
+function ballRel() {
+  const f = facingVec(player.yaw), d = V3(ball.pos.x - player.pos.x, 0, ball.pos.z - player.pos.z);
+  return { d, dist: d.length(), fwd: d.dot(f), lat: d.dot(rightOf(f)), f };
+}
+// --- Shot aiming: choose a target in the goal the player is attacking, then solve the launch with a
+// small shooting-method search through the full flight model (drag + Magnus), so curl is accounted for.
+function simulateTo(from, v0, spin, dir, dist) {
+  const b = { pos: from.clone(), vel: v0.clone(), spin: spin.clone() }, h = 1 / 120;
+  for (let t = 0; t < 3.5; t += h) {
+    ballAccel(b.vel, b.spin, _acc); b.vel.addScaledVector(_acc, h); b.pos.addScaledVector(b.vel, h);
+    b.spin.multiplyScalar(Math.exp(-0.06 * h));
+    if (_tmp.subVectors(b.pos, from).dot(dir) >= dist) break;
+  }
+  return b.pos;
+}
+function solveLaunch(from, target, speed, spinFn) {
+  const flat = V3(target.x - from.x, 0, target.z - from.z), D = flat.length(); flat.normalize();
+  let yaw = Math.atan2(flat.x, flat.z);
+  let pitch = Math.atan2(target.y - from.y + 0.5 * 9.81 * (D / speed) ** 2, D);
+  for (let i = 0; i < 7; i++) {
+    const dir = V3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
+    const end = simulateTo(from, dir.clone().multiplyScalar(speed), spinFn(dir), flat, D);
+    const err = end.sub(target), lat = err.dot(rightOf(flat));
+    yaw += lat / D; pitch -= (err.y / D) * 0.95;
+  }
+  return { yaw, pitch };
+}
+function attackTarget(dirHint, type, power, lateralIn) {
+  let best = null;
+  for (const gi of [0, 1]) {
+    const gc = V3(0, 0, GOAL_LINES[gi]), to = gc.clone().sub(ball.pos); to.y = 0;
+    const dist = to.length(); to.normalize();
+    const score = to.dot(dirHint);
+    if (dist < 42 && score > 0.25 && (!best || score > best.score)) best = { gi, gc, to, dist, score };
+  }
+  if (!best) return null;
+  const side = Math.abs(lateralIn) > 0.25 ? Math.sign(lateralIn) : 0;
+  // Shooter's right in world space; default to the far post.
+  const r = rightOf(best.to);
+  let aimX = side !== 0 ? side * (0.55 + 0.45 * Math.abs(lateralIn)) * 2.75 : -Math.sign(ball.pos.x - best.gc.x || 1) * Math.sign(r.x || 1) * 2.3;
+  const tgt = best.gc.clone().addScaledVector(r, aimX);
+  tgt.y = type === 'finesse' ? 1.75 : lerp(0.35, 1.85, clamp(power * power * 0.9 + 0.05, 0, 1));
+  tgt.addScaledVector(best.to, 0.25); // a touch inside the goal line
+  return { ...best, tgt };
+}
+const randn = () => (Math.random() + Math.random() + Math.random() - 1.5) / 0.5;
+function launchParams(type, power, dirHint, lateralIn, K) {
+  const fs = K === 'R' ? 1 : -1;
+  if (type === 'pass') {
+    const speed = 6.5 + 14 * power;
+    const yaw = Math.atan2(dirHint.x, dirHint.z) + randn() * 0.4 * DEG, pitch = (power > 0.85 ? 9 : 1.2) * DEG;
+    const v = V3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)).multiplyScalar(speed);
+    return { v, spin: rollingSpin(v, new THREE.Vector3()).multiplyScalar(0.7), speed };
+  }
+  const speed = type === 'power' ? 17 + 17 * power : 14 + 10 * power;
+  const spinFn = type === 'finesse'
+    ? () => V3(0, fs * (34 + 30 * power), 0)                          // sidespin -> curl (right foot curls left)
+    : (dir) => rollingSpin(dir, new THREE.Vector3()).multiplyScalar(-0.1 + Math.random() * 0.05); // near-knuckle drive
+  const aim = attackTarget(dirHint, type, power, lateralIn);
+  let yaw, pitch;
+  const from = ball.pos.clone();
+  if (aim) ({ yaw, pitch } = solveLaunch(from, aim.tgt, speed, spinFn));
+  else { yaw = Math.atan2(dirHint.x, dirHint.z); pitch = (type === 'power' ? 6 + 10 * power : 12) * DEG; }
+  const err = type === 'power' ? 0.4 + 2.4 * power ** 3 : 0.5 + 0.9 * power ** 2; // degrees of scatter (power costs accuracy)
+  yaw += randn() * err * DEG * 0.5; pitch += randn() * err * DEG * 0.5;
+  const dir = V3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
+  return { v: dir.clone().multiplyScalar(speed), spin: spinFn(dir), speed, aim };
+}
+function requestKick(type, power) {
+  if (player.kick || app.mode !== 'play') return;
+  const { dist } = ballRel(), def = KICK_DEFS[type];
+  const reach = clamp(0.9 + def.pre * Math.max(player.speed, 2.0) * 1.05, 1.5, 4.2);
+  if (dist <= reach && ball.pos.y < 0.7 && ball.vel.length() < 14) startKick(type, power);
+  else if (dist < 14) player.pending = { type, power, t: 0 };
+  else toast('Get closer to the ball', 'info');
+}
+function startKick(type, power) {
+  const K = cfg.player.foot === 'L' ? 'L' : 'R', def = KICK_DEFS[type], fs = K === 'R' ? 1 : -1;
+  const { dir: inDir } = moveInput();
+  const toBall = V3(ball.pos.x - player.pos.x, 0, ball.pos.z - player.pos.z).normalize();
+  // Kick direction hint: stick direction if held, otherwise where the player faces / towards the ball.
+  const hint = (inDir || facingVec(player.yaw).add(toBall).normalize()).clone();
+  const pre = launchParams(type, power, hint, 0, K); // provisional, re-solved at contact
+  const flatDir = V3(pre.v.x, 0, pre.v.z).normalize();
+  player.pending = null;
+  player.kick = {
+    type, def, K, fs, power, hint, t: -def.pre, P0: player.pos.clone(), V0: player.vel.clone(), yaw0: player.yaw,
+    dir: flatDir, yawC: Math.atan2(flatDir.x, flatDir.z) - fs * def.yawOff * DEG, released: false, lock: null, Pc: player.pos.clone(), Vc: V3(),
+  };
+  stats.shots += type === 'pass' ? 0 : 1;
+}
+function hermite(p0, m0, p1, m1, s) {
+  const s2 = s * s, s3 = s2 * s;
+  return p0.clone().multiplyScalar(2 * s3 - 3 * s2 + 1).addScaledVector(m0, s3 - 2 * s2 + s).addScaledVector(p1, -2 * s3 + 3 * s2).addScaledVector(m1, s3 - s2);
+}
+// Root motion of a kick: before contact the root follows a Hermite path from where the kick began to the
+// spot that puts the striking surface on the (predicted) ball; afterwards momentum carries it on.
+function kickRoot(k) {
+  const def = k.def;
+  if (k.t < 0) {
+    const bp = predictBall(-k.t); bp.y = BALL_R;
+    const off = CONTACT[k.type + k.K].clone().applyAxisAngle(UP, k.yawC); off.y = 0;
+    const strike = bp.addScaledVector(k.dir, -BALL_R * 0.9);
+    if (k.type === 'finesse') strike.addScaledVector(rightOf(k.dir), -k.fs * 0.03); // strike right of centre for a right-footer
+    k.Pc.copy(strike).sub(off); k.Pc.y = 0;
+    k.Vc.copy(facingVec(k.yawC)).multiplyScalar(def.contactSpeed);
+    const s = clamp((k.t + def.pre) / def.pre, 0, 1);
+    player.pos.copy(hermite(k.P0, k.V0.clone().multiplyScalar(def.pre), k.Pc, k.Vc.clone().multiplyScalar(def.pre), s));
+    const e = smoothstep(0, 1, clamp(s * 1.2, 0, 1));
+    player.yaw = k.yaw0 + angleDiff(k.yawC, k.yaw0) * e;
+  } else {
+    const tau = 0.32;
+    player.pos.copy(k.Pc).addScaledVector(k.Vc, tau * (1 - Math.exp(-k.t / tau)));
+    player.yaw = k.yawC;
+  }
+}
+function releaseBall(k) {
+  k.released = true;
+  // Snap the ball against the actual striking surface (keeps the contact honest if prediction drifted).
+  const mpos = wpos(strikeMarkers[k.def.strike + k.K]);
+  const want = mpos.clone().addScaledVector(k.dir, BALL_R * 0.95); want.y = Math.max(BALL_R, ball.pos.y);
+  if (want.distanceTo(ball.pos) < 0.5) ball.pos.copy(want);
+  const { dir: inDir } = moveInput();
+  const lp = launchParams(k.type, k.power, inDir || k.hint, k.type === 'pass' ? 0 : (inDir ? inDir.dot(rightOf(k.dir)) : 0), k.K);
+  ball.vel.copy(lp.v); ball.spin.copy(lp.spin); ball.pos.y = Math.max(ball.pos.y, BALL_R + 0.003);
+  player.lastTouch = state.time;
+  if (k.type !== 'pass') {
+    const kmh = Math.round(lp.speed * 3.6), rps = (Math.abs(lp.spin.y) / TAU).toFixed(1);
+    toast(k.type === 'power' ? `${kmh} km/h` : `${kmh} km/h · ${rps} rev/s curl`, 'stat');
+    shake = Math.max(shake, k.type === 'power' ? 0.06 * k.power : 0.02);
+  }
+}
+let shake = 0;
+function onGoal(gi) {
+  ball.goalT = state.time; stats.goals++;
+  ball.resetAt = state.time + 3.2; // bring the ball back to the scorer after the celebration
+  toast('GOAL!', 'goal');
+  hype.value = 1;
+  if (app.mode === 'play') player.celebrate = 2.6;
+}
+function resetBall(at) {
+  const f = facingVec(player.yaw);
+  ball.pos.copy(at || player.pos.clone().addScaledVector(f, 0.55)).setY(BALL_R);
+  ball.vel.set(0, 0, 0); ball.spin.set(0, 0, 0); ball.outT = 0;
+}
+function freeKick() {
+  const x = (Math.random() * 2 - 1) * 9, z = 19 + Math.random() * 6;
+  ball.pos.set(x, BALL_R, z); ball.vel.set(0, 0, 0); ball.spin.set(0, 0, 0);
+  const toGoal = V3(-x, 0, -z).normalize();
+  player.pos.set(x, 0, z).addScaledVector(toGoal, -2.6); player.yaw = Math.atan2(toGoal.x, toGoal.z);
+  player.speed = 0; player.vel.set(0, 0, 0); player.kick = null; player.pending = null;
+  toast('Free kick', 'info');
+}
+
+// Additive layers on top of locomotion / kicks
+function addTouchLayer(pose, t) {
+  const tc = player.touch; if (!tc) return;
+  const age = t - tc.t0, dur = 0.24;
+  if (age > dur) { player.touch = null; return; }
+  const w = Math.sin(Math.PI * age / dur), s = tc.side;
+  if (tc.kind === 'receive') { pose['thF' + s] = (pose['thF' + s] || 0) + 16 * DEG * w; pose['kn' + s] = (pose['kn' + s] || 0) + 22 * DEG * w; pose['ank' + s] = (pose['ank' + s] || 0) - 8 * DEG * w; }
+  else { pose['ank' + s] = (pose['ank' + s] || 0) + 16 * DEG * w; pose['kn' + s] = (pose['kn' + s] || 0) - 10 * DEG * w; pose['thF' + s] = (pose['thF' + s] || 0) + 6 * DEG * w; pose['thInt' + s] = (pose['thInt' + s] || 0) + 7 * DEG * w; }
+}
+function addLookLayer(pose, dt) {
+  const r = ballRel(), w = 1 - smoothstep(6, 9, r.dist);
+  const yawTo = Math.atan2(r.lat, Math.max(0.05, r.fwd)) * -1; // +left
+  const pitch = smoothstep(4, 0.4, r.dist) * 0.32;
+  const kickW = player.kick ? 0.3 : 1;
+  pose.headY = (pose.headY || 0) + clamp(yawTo, -0.9, 0.9) * 0.6 * w * kickW;
+  pose.neckY = (pose.neckY || 0) + clamp(yawTo, -0.9, 0.9) * 0.25 * w * kickW;
+  pose.headX = (pose.headX || 0) + pitch * w * kickW;
+}
+function addCelebrateLayer(pose) {
+  if (player.celebrate <= 0) return;
+  const w = smoothstep(0, 0.4, player.celebrate) * smoothstep(2.6, 2.3, player.celebrate);
+  for (const s of ['L', 'R']) {
+    pose['shAbd' + s] = lerp(pose['shAbd' + s] || 0, 125 * DEG, w); pose['shF' + s] = lerp(pose['shF' + s] || 0, 25 * DEG, w);
+    pose['elb' + s] = lerp(pose['elb' + s] || 0, 25 * DEG, w); pose['fing' + s] = lerp(pose['fing' + s] || 0, 80 * DEG, w); pose['tip' + s] = lerp(pose['tip' + s] || 0, 90 * DEG, w);
+  }
+  pose.headX = lerp(pose.headX || 0, -18 * DEG, w); pose.chestX = lerp(pose.chestX || 0, -6 * DEG, w);
+}
+
+function updatePlay(dt) {
+  if (dt <= 0) { applyPlayerTransform(); return; }
+  const { dir: inDir, mag } = moveInput();
+  let pose;
+  player.idleT += dt;
+  player.celebrate = Math.max(0, player.celebrate - dt);
+  // Charge meter
+  if (player.charge) player.charge.t += dt;
+  if (player.kick) {
+    const k = player.kick;
+    k.t += dt;
+    kickRoot(k);
+    const loco = locomotion(Math.min(player.speed, GAIT.vJog), player.phase, player.idleT);
+    player.phase = (player.phase + loco.cadence * dt) % 1;
+    const def = k.def;
+    const w = smoothstep(-def.pre, -def.pre + 0.12, k.t) * (1 - smoothstep(def.post - 0.2, def.post, k.t));
+    const kp = { ...loco.pose, ...kickPose(k.type, k.t, k.K) };
+    pose = blendPoses([[loco.pose, 1 - w], [kp, w]]);
+    player.vel.copy(k.t < 0 ? k.Vc : k.Vc.clone().multiplyScalar(Math.exp(-k.t / 0.32)));
+    if (k.t >= def.post) {
+      player.kick = null;
+      player.speed = player.vel.length();
+      player.phase = k.K === 'L' ? 0.1 : 0.6; // the kicking foot has just landed
+    }
+  } else {
+    // Auto-approach a requested kick
+    let want = inDir, wantMag = mag;
+    if (player.pending) {
+      const pd = player.pending; pd.t += dt;
+      const r = ballRel(), def = KICK_DEFS[pd.type];
+      const reach = clamp(0.9 + def.pre * Math.max(player.speed, 2.0) * 1.05, 1.5, 4.2);
+      if (r.dist <= reach && ball.pos.y < 0.7) startKick(pd.type, pd.power);
+      else if (pd.t > 2.2) player.pending = null;
+      else { want = r.d.clone().normalize(); wantMag = 1; }
+    }
+    if (!player.kick) {
+      const poss = player.possess;
+      const top = (sprinting() ? GAIT.vSprint : GAIT.vJog) * (poss ? 0.93 : 1);
+      const targetSpeed = want ? top * clamp(wantMag, 0, 1) : 0;
+      const accel = targetSpeed > player.speed ? 5.5 + 3 * (1 - player.speed / (GAIT.vSprint * 1.1)) : 9;
+      player.speed = player.speed + clamp(targetSpeed - player.speed, -accel * dt, accel * dt);
+      if (want) {
+        const diff = angleDiff(Math.atan2(want.x, want.z), player.yaw);
+        const maxRate = lerp(11, 4.2, clamp(player.speed / GAIT.vSprint, 0, 1));
+        if (Math.abs(diff) > 2.2 && player.speed > GAIT.vJog * 0.8) player.speed = Math.max(0, player.speed - 9 * dt); // plant & turn
+        player.yawRate = clamp(diff * 9, -maxRate, maxRate);
+      } else player.yawRate = damp(player.yawRate, 0, 10, dt);
+      player.yaw += player.yawRate * dt;
+      player.vel.copy(facingVec(player.yaw)).multiplyScalar(player.speed);
+      player.pos.addScaledVector(player.vel, dt);
+      const loco = locomotion(player.speed, player.phase, player.idleT);
+      const prevPhase = player.phase;
+      player.phase = (player.phase + loco.cadence * dt) % 1;
+      pose = loco.pose;
+      dribble(prevPhase, player.phase, want, dt);
+    } else {
+      pose = locomotion(player.speed, player.phase, player.idleT).pose;
+    }
+  }
+  keepInBounds();
+  // Posture: bank into turns, lean with acceleration
+  const bank = player.kick ? 0 : clamp(-player.yawRate * player.speed * 0.04, -0.32, 0.32);
+  player.lean = damp(player.lean, bank, 6, dt);
+  addTouchLayer(pose, state.time);
+  addLookLayer(pose, dt);
+  if (!player.kick) addCelebrateLayer(pose);
+  receiveBall();
+  applyPlayerTransform();
+  applyPose(pose);
+  groundLock(pose.lift || 0, 0);
+  // Support-foot plant lock during kicks
+  const k = player.kick;
+  if (k) {
+    const S = k.K === 'R' ? 'L' : 'R';
+    if (!k.lock && k.t >= k.def.plant) k.lock = { pos: wpos(B['foot' + S]), quat: wquat(B['foot' + S]) };
+    if (k.lock) {
+      const w = smoothstep(k.def.plant, k.def.plant + 0.03, k.t) * (1 - smoothstep(k.def.lockEnd, k.def.lockEnd + 0.06, k.t));
+      legIK(S, k.lock.pos, k.lock.quat, w);
+    }
+    if (!k.released && k.t >= 0) releaseBall(k);
+  }
+}
+function applyPlayerTransform() {
+  character.position.copy(player.pos);
+  character.rotation.set(0, player.yaw, player.lean, 'YXZ');
+  state.yaw = player.yaw;
+}
+function keepInBounds() {
+  const p = player.pos;
+  p.x = clamp(p.x, -FIELD.half - 3.6, FIELD.half + 3.6);
+  p.z = clamp(p.z, -3.6, FIELD.len + 3.6);
+  for (const z of GOAL_LINES) { // don't run through the goal frame / net
+    const s = z === 0 ? 1 : -1;
+    if (Math.abs(p.x) < GW + 0.35 && (p.z - z) * s < 0.3 && (p.z - z) * s > -2.4) p.z = z + s * 0.3;
+  }
+}
+// Dribbling: a touch is played by whichever foot reaches late swing (~85 % of its cycle) with the ball
+// in front of it. The touch knocks the ball ahead of the runner in the desired direction - softer when
+// walking, longer when sprinting - with a little positional assist so the foot actually meets the ball.
+function dribble(prevPhase, phase, want, dt) {
+  const r = ballRel();
+  const rel = ball.vel.clone().sub(player.vel).length();
+  player.possess = r.dist < 2.6 && r.fwd > -0.25 && ball.pos.y < 0.35 && rel < 4.5 && !player.kick;
+  if (!player.possess) return;
+  const f = r.f, dir = (want ? want.clone() : f.clone());
+  if (player.speed < 0.35) { // standing: settle the ball under the sole, just ahead of the feet
+    if (r.dist < 0.95) {
+      const rest = player.pos.clone().addScaledVector(f, 0.42); rest.y = BALL_R;
+      ball.vel.multiplyScalar(Math.exp(-6 * dt));
+      ball.pos.x = damp(ball.pos.x, rest.x, 3, dt); ball.pos.z = damp(ball.pos.z, rest.z, 3, dt);
+    }
+    return;
+  }
+  for (const [s, off] of [['L', 0], ['R', 0.5]]) {
+    const q0 = (prevPhase + off) % 1, q1 = (phase + off) % 1;
+    const crossed = q0 < 0.84 && (q1 >= 0.84 || q1 < q0);
+    if (!crossed || state.time - player.lastTouch < 0.22) continue;
+    if (r.fwd < 0.12 || r.fwd > 0.78 || Math.abs(r.lat) > 0.45) continue; // only when the swinging foot can reach it
+    const ballSpeedAlong = ball.vel.dot(dir);
+    if (ballSpeedAlong > player.speed + 1.6 && r.fwd > 0.6) continue; // already well ahead
+    const sp = player.speed, sprintK = smoothstep(GAIT.vJog, GAIT.vSprint, sp);
+    // Close control when jogging (ball ~0.9 m/s faster than the player), knock-and-run when sprinting.
+    const knock = sp < GAIT.vWalk * 1.2 ? 0.45 : lerp(0.5, 1.4, clamp(sp / GAIT.vSprint, 0, 1)) + sprintK * 0.6;
+    const footPos = player.pos.clone().addScaledVector(f, 0.36).addScaledVector(rightOf(f), s === 'L' ? -0.08 : 0.08);
+    // Small sideways assist only (no forward/back pop): line the ball up with the touching foot.
+    const side = rightOf(f), latErr = _tmp.subVectors(footPos, ball.pos).dot(side);
+    ball.pos.addScaledVector(side, clamp(latErr, -0.06, 0.06));
+    ball.vel.set(dir.x * (sp + knock), 0, dir.z * (sp + knock));
+    rollingSpin(ball.vel, ball.spin);
+    player.lastTouch = state.time;
+    player.touch = { side: s, t0: state.time, kind: 'dribble' };
+    break;
+  }
+}
+// First touch: cushion a ball arriving at the player's feet.
+function receiveBall() {
+  if (player.kick || state.time - player.lastTouch < 0.3) return;
+  const r = ballRel();
+  if (r.dist > 1.05 || ball.pos.y > 0.75) return;
+  const closing = -ball.vel.clone().sub(player.vel).dot(r.d.clone().normalize());
+  if (closing < 2.2) return;
+  const f = facingVec(player.yaw);
+  ball.vel.copy(player.vel).addScaledVector(f, 0.7 + player.speed * 0.15); ball.vel.y = Math.min(0, ball.vel.y) * 0.2;
+  ball.spin.multiplyScalar(0.2);
+  player.lastTouch = state.time;
+  player.touch = { side: r.lat > 0 ? 'R' : 'L', t0: state.time, kind: 'receive' };
+}
+
+/* =====================================================================
+   15. App state, camera rig
+   ===================================================================== */
+const app = { mode: 'play' };
 const state = {
   mode: 'run', pace: 0.35, slow: false, paused: false,
   phase: 0, idleT: 0, weights: { run: 1, idle: 0, ref: 0 },
-  s: 2 * TRACK.x + Math.PI * TRACK.r * 0.5 - 3, lean: 0, yaw: 0, time: 0,
+  s: 2 * TRACK.x + Math.PI * TRACK.r * 0.5 - 3, lean: 0, yaw: Math.PI, time: 0,
 };
-// Follow views are in the player's frame; TV tracks him from the touchline; Goal is a fixed net close-up.
+// follow: camera rides in the player's frame (position + heading). followPos: rides with position only
+// (play camera - stable while the player turns). track: fixed camera that keeps the player centred.
 const VIEWS = {
   three: { follow: true, pos: V3(2.1, 1.35, 3.2), tgt: V3(0, 0.92, 0) },
   front: { follow: true, pos: V3(0, 1.05, 3.7), tgt: V3(0, 0.92, 0) },
@@ -1428,43 +2617,85 @@ const VIEWS = {
   back: { follow: true, pos: V3(0, 1.05, -3.7), tgt: V3(0, 0.92, 0) },
   face: { follow: true, pos: V3(0.12, 1.66, 0.78), tgt: V3(0, 1.6, 0) },
   tv: { track: true, pos: V3(32, 11, 22) },
-  stadium: { pos: V3(28, 24, 98), tgt: V3(0, 0, 48) },
   goal: { pos: V3(5.2, 1.7, 4.6), tgt: V3(0, 1.15, -0.8) },
+  stadium: { pos: V3(28, 24, 98), tgt: V3(0, 0, 48) },
+  cz_full: { follow: true, pos: V3(2.15, 1.3, 3.75), tgt: V3(0.5, 0.92, -0.2) },
+  cz_face: { follow: true, pos: V3(0.42, 1.64, 0.98), tgt: V3(0.12, 1.6, 0) },
+  cz_back: { follow: true, pos: V3(-1.15, 1.35, -3.0), tgt: V3(-0.35, 1.08, 0.1) },
+  cz_boots: { follow: true, pos: V3(0.95, 0.42, 1.25), tgt: V3(0.18, 0.14, 0.05) },
+  play: { followPos: true, pos: V3(0, 2.8, 6.4), tgt: V3(0, 1.0, -1.2) },
+  // Portrait phones: the customizer is a bottom sheet, so frame the player in the top half.
+  cz_full_m: { follow: true, pos: V3(1.2, 1.1, 5.2), tgt: V3(0, -0.25, 0) },
+  cz_face_m: { follow: true, pos: V3(0.3, 1.5, 1.35), tgt: V3(0.05, 1.22, 0) },
+  cz_back_m: { follow: true, pos: V3(-1.0, 1.1, -5.0), tgt: V3(0, -0.2, 0) },
+  cz_boots_m: { follow: true, pos: V3(0.9, 0.5, 1.7), tgt: V3(0.1, -0.12, 0) },
 };
 const rig = { pos: new THREE.Vector3(), yaw: 0 };
 const toWorld = (v) => v.clone().applyAxisAngle(UP, rig.yaw).add(rig.pos);
 const toLocal = (v) => v.clone().sub(rig.pos).applyAxisAngle(UP, -rig.yaw);
 const trackTarget = () => character.position.clone().add(V3(0, 0.95, 0));
-let view = VIEWS.three, camTween = null;
+let view = VIEWS.play, camTween = null;
 function setView(name, instant = false) {
+  if (name.startsWith('cz_') && innerWidth / innerHeight < 0.8 && VIEWS[name + '_m']) name += '_m';
   view = VIEWS[name];
-  const from = view.follow ? [toLocal(camera.position), toLocal(controls.target)] : [camera.position.clone(), controls.target.clone()];
+  const from = view.follow ? [toLocal(camera.position), toLocal(controls.target)]
+    : view.followPos ? [camera.position.clone().sub(rig.pos), controls.target.clone().sub(rig.pos)]
+      : [camera.position.clone(), controls.target.clone()];
   camTween = { t: instant ? 1 : 0, fromP: from[0], fromT: from[1] };
 }
 function updateCamera(dt, real) {
-  // Carry the camera with the player (position + heading) in follow views.
-  const dyaw = angleDiff(state.yaw, rig.yaw);
+  const dyaw = angleDiff(state.yaw, rig.yaw), dpos = character.position.clone().sub(rig.pos);
   if (view.follow) for (const v of [camera.position, controls.target]) v.sub(rig.pos).applyAxisAngle(UP, dyaw).add(character.position);
+  else if (view.followPos) { camera.position.add(dpos); controls.target.add(dpos); }
   rig.pos.copy(character.position); rig.yaw = state.yaw;
-  const toT = view.tgt ? view.tgt.clone() : trackTarget().sub(view.follow ? rig.pos : V3(0, 0, 0));
+  const toT = view.tgt ? view.tgt.clone() : trackTarget().sub(view.follow || view.followPos ? rig.pos : V3(0, 0, 0));
   if (camTween) {
     camTween.t = Math.min(1, camTween.t + real / 0.9);
     const e = camTween.t < 0.5 ? 4 * camTween.t ** 3 : 1 - (-2 * camTween.t + 2) ** 3 / 2;
     const P = camTween.fromP.clone().lerp(view.pos, e), T = camTween.fromT.clone().lerp(toT, e);
-    camera.position.copy(view.follow ? toWorld(P) : P);
-    controls.target.copy(view.follow ? toWorld(T) : T);
+    if (view.follow) { camera.position.copy(toWorld(P)); controls.target.copy(toWorld(T)); }
+    else if (view.followPos) { camera.position.copy(P.add(rig.pos)); controls.target.copy(T.add(rig.pos)); }
+    else { camera.position.copy(P); controls.target.copy(T); }
     if (camTween.t >= 1) camTween = null;
   } else if (view.track) controls.target.lerp(trackTarget(), 1 - Math.exp(-4 * real));
 }
 
+/* =====================================================================
+   16. UI: mode tabs, showcase dock, play HUD, touch controls, customizer
+   ===================================================================== */
+const $ = (s) => document.querySelector(s);
 function pressGroup(group, value) {
-  document.querySelectorAll(`[data-group="${group}"] button`).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === value)));
+  document.querySelectorAll(`[data-group="${group}"] button[data-v]`).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === value)));
 }
-function setMode(m) { state.mode = m; pressGroup('mode', m); }
 const toggle = (id, on) => document.getElementById(id).setAttribute('aria-pressed', String(on));
+function setMode(m) { state.mode = m; pressGroup('mode', m); }
+function setAppMode(m) {
+  if (app.mode === m) return;
+  app.mode = m;
+  document.body.dataset.mode = m;
+  pressGroup('app', m);
+  keys.clear(); player.charge = null; player.pending = null;
+  controls.autoRotate = false; toggle('t-spin', false); toggle('cz-spin', false);
+  if (m === 'play') {
+    player.pos.copy(character.position).setY(0); player.yaw = state.yaw; player.speed = 0; player.vel.set(0, 0, 0);
+    player.kick = null; player.lean = 0; player.yawRate = 0;
+    if (ball.pos.distanceTo(player.pos) > 25) resetBall();
+    controls.maxDistance = 40;
+    setView('play');
+  } else if (m === 'customize') {
+    player.pos.copy(character.position).setY(0); player.yaw = state.yaw; player.kick = null;
+    pressGroup('czview', 'cz_full'); setView('cz_full');
+  } else {
+    controls.maxDistance = 120;
+    pressGroup('view', 'three'); setView('three');
+  }
+}
+document.querySelector('[data-group="app"]').addEventListener('click', e => { const v = e.target.closest('button')?.dataset.v; if (v) setAppMode(v); });
 document.querySelector('[data-group="mode"]').addEventListener('click', e => { const v = e.target.dataset?.v; if (v) setMode(v); });
 document.querySelector('[data-group="view"]').addEventListener('click', e => { const v = e.target.dataset?.v; if (v) { pressGroup('view', v); setView(v); } });
-const speedEl = document.getElementById('speed'), speedVal = document.getElementById('speedval');
+document.querySelector('[data-group="czview"]').addEventListener('click', e => { const v = e.target.dataset?.v; if (v) { pressGroup('czview', v); setView(v); } });
+$('#cz-spin').addEventListener('click', () => { controls.autoRotate = !controls.autoRotate; toggle('cz-spin', controls.autoRotate); });
+const speedEl = $('#speed'), speedVal = $('#speedval');
 const paceLabel = v => v < 0.3 ? 'Jog' : v < 0.7 ? 'Run' : 'Sprint';
 speedEl.addEventListener('input', () => { state.pace = +speedEl.value; speedVal.textContent = paceLabel(state.pace); });
 speedVal.textContent = paceLabel(state.pace);
@@ -1476,13 +2707,244 @@ const actions = {
   hq: () => { quality.high = !quality.high; toggle('t-hq', quality.high); key.shadow.mapSize.setScalar(quality.high ? 4096 : 2048); key.shadow.map?.dispose(); key.shadow.map = null; resize(); },
 };
 for (const k of Object.keys(actions)) document.getElementById('t-' + k).addEventListener('click', actions[k]);
+controls.addEventListener('start', () => { camTween = null; });
+
+/* ---------- Keyboard ---------- */
+const KICK_KEYS = { KeyK: 'power', Space: 'power', KeyL: 'finesse', KeyE: 'finesse', KeyJ: 'pass', KeyQ: 'pass' };
+const chargePower = (t) => clamp(0.12 + t / 0.85, 0.12, 1);
+function beginCharge(type, src) { if (!player.charge && !player.kick) player.charge = { type, t: 0, src }; }
+function endCharge(src) {
+  const c = player.charge;
+  if (!c || c.src !== src) return;
+  player.charge = null;
+  requestKick(c.type, chargePower(c.t));
+}
 window.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
-  if (e.key === '1') setMode('run'); else if (e.key === '2') setMode('idle'); else if (e.key === '3') setMode('ref');
-  else if (e.key === ' ') { e.preventDefault(); actions.pause(); }
-  else if (e.key.toLowerCase() === 'w') actions.wire();
+  if (app.mode === 'play') {
+    keys.add(e.code);
+    if (KICK_KEYS[e.code]) { e.preventDefault(); if (!e.repeat) beginCharge(KICK_KEYS[e.code], e.code); }
+    if (e.code === 'KeyR') resetBall();
+    if (e.code === 'KeyF') freeKick();
+    if (e.code.startsWith('Arrow')) e.preventDefault();
+  } else if (app.mode === 'showcase') {
+    if (e.key === '1') setMode('run'); else if (e.key === '2') setMode('idle'); else if (e.key === '3') setMode('ref');
+    else if (e.key === ' ') { e.preventDefault(); actions.pause(); }
+    else if (e.key.toLowerCase() === 'w') actions.wire();
+  }
 });
-controls.addEventListener('start', () => { camTween = null; });
+window.addEventListener('keyup', e => { keys.delete(e.code); if (KICK_KEYS[e.code]) endCharge(e.code); });
+window.addEventListener('blur', () => { keys.clear(); player.charge = null; });
+
+/* ---------- Touch: virtual stick + action buttons ---------- */
+{
+  const stick = $('#stick'), knob = stick.querySelector('i');
+  let id = null;
+  const move = (e) => {
+    const r = stick.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    let dx = (e.clientX - cx) / (r.width / 2), dy = (e.clientY - cy) / (r.height / 2);
+    const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; }
+    touchIn.x = dx; touchIn.y = -dy;
+    knob.style.transform = `translate(${dx * 38}px, ${dy * 38}px)`;
+  };
+  stick.addEventListener('pointerdown', e => { id = e.pointerId; stick.setPointerCapture(id); move(e); });
+  stick.addEventListener('pointermove', e => { if (e.pointerId === id) move(e); });
+  const end = (e) => { if (e.pointerId !== id) return; id = null; touchIn.x = touchIn.y = 0; knob.style.transform = ''; };
+  stick.addEventListener('pointerup', end); stick.addEventListener('pointercancel', end);
+  document.querySelectorAll('.tbtns button').forEach(b => {
+    const k = b.dataset.k;
+    b.addEventListener('pointerdown', e => { e.preventDefault(); b.setPointerCapture(e.pointerId); if (k === 'sprint') touchIn.sprint = true; else beginCharge(k, 'touch-' + k); });
+    const up = () => { if (k === 'sprint') touchIn.sprint = false; else endCharge('touch-' + k); };
+    b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
+  });
+}
+
+/* ---------- HUD ---------- */
+let toastTimer = 0;
+function toast(msg, kind = 'info') {
+  const el = $('#toast');
+  el.textContent = msg; el.className = 'show ' + kind;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = kind; }, kind === 'goal' ? 2400 : 1500);
+}
+const METER = { power: ['Power shot', 'var(--power)'], finesse: ['Finesse curl', 'var(--curl)'], pass: ['Pass', 'var(--pass)'] };
+const meterEl = $('#meter'), meterFill = $('#meter i'), meterType = $('#meter-type'), meterVal = $('#meter-val'), scoreEl = $('#score');
+let lastScore = '';
+function updateHud() {
+  const c = player.charge;
+  meterEl.classList.toggle('on', !!c);
+  if (c) {
+    const p = chargePower(c.t);
+    meterType.textContent = METER[c.type][0]; meterFill.style.background = METER[c.type][1];
+    meterFill.style.width = (p * 100).toFixed(0) + '%'; meterVal.textContent = (p * 100).toFixed(0) + '%';
+  }
+  const s = `Goals <b>${stats.goals}</b> · Shots <b>${stats.shots}</b>`;
+  if (s !== lastScore) { scoreEl.innerHTML = s; lastScore = s; }
+}
+
+/* ---------- Customizer (schema-driven) ---------- */
+const SW = {
+  kit: ['#2b3c9e', '#1a2466', '#7cc4ee', '#c8302c', '#5a0f1f', '#ff8a3d', '#e7c66a', '#1f7a3e', '#5b2a86', '#16171c', '#f2f2ee', '#ffffff'],
+  skin: ['#f3d0b0', '#e8b58b', '#d99b6c', '#b97a4f', '#8a5634', '#5e3a22', '#3f2617'],
+  hair: ['#141010', '#2b1a12', '#4e2f1e', '#7a4a2a', '#b07a44', '#d8b26a', '#e8d9b0', '#9a2f1c', '#c7c7c7'],
+  eye: ['#141210', '#4a2c17', '#2f5e8a', '#3d6b3d', '#6b6b6b'],
+};
+const cap = (s) => s[0].toUpperCase() + s.slice(1);
+const SCHEMA = [
+  ['Shirt', true, [
+    { k: 'kit.pattern', label: 'Pattern', type: 'chips', opts: PATTERNS.map(p => [p, cap(p)]), apply: 'kit' },
+    { k: 'kit.primary', label: 'Primary', type: 'color', sw: 'kit', apply: 'kit' },
+    { k: 'kit.secondary', label: 'Secondary', type: 'color', sw: 'kit', apply: 'kit' },
+    { k: 'kit.trim', label: 'Trim & collar', type: 'color', sw: 'kit', apply: 'kit' },
+    { k: 'kit.collar', label: 'Collar', type: 'chips', opts: [['v', 'V-neck'], ['crew', 'Crew'], ['polo', 'Polo']], apply: 'geo kit' },
+    { k: 'kit.sleeve', label: 'Sleeve colour', type: 'chips', opts: [['primary', 'Primary'], ['secondary', 'Secondary'], ['trim', 'Trim']], apply: 'kit' },
+    { k: 'kit.longSleeves', label: 'Long sleeves', type: 'toggle', apply: 'geo' },
+    { k: 'kit.makerMark', label: 'Kit maker mark', type: 'toggle', apply: 'kit' },
+    { k: 'kit.tonal', label: 'Knit texture', type: 'toggle', apply: 'kit' },
+  ]],
+  ['Crest', false, [
+    { k: 'crest.on', label: 'Show crest', type: 'toggle', apply: 'kit' },
+    { k: 'crest.shape', label: 'Shape', type: 'chips', opts: CREST_SHAPES.map(s => [s, cap(s)]), apply: 'kit' },
+    { k: 'crest.symbol', label: 'Emblem', type: 'chips', opts: CREST_SYMBOLS.map(s => [s, s === 'text' ? 'Initials' : cap(s)]), apply: 'kit' },
+    { k: 'crest.text', label: 'Initials', type: 'text', max: 3, apply: 'kit' },
+    { k: 'crest.primary', label: 'Crest colour', type: 'color', sw: 'kit', apply: 'kit' },
+    { k: 'crest.secondary', label: 'Emblem & border', type: 'color', sw: 'kit', apply: 'kit' },
+  ]],
+  ['Number & name', false, [
+    { k: 'number.value', label: 'Number', type: 'text', max: 2, digits: true, apply: 'kit' },
+    { k: 'number.name', label: 'Name on back', type: 'text', max: 12, apply: 'kit' },
+    { k: 'number.font', label: 'Font', type: 'chips', opts: [['block', 'Block'], ['classic', 'Classic'], ['modern', 'Modern'], ['condensed', 'Condensed']], apply: 'kit' },
+    { k: 'number.color', label: 'Colour', type: 'color', sw: 'kit', apply: 'kit' },
+    { k: 'number.outlineOn', label: 'Outline', type: 'toggle', apply: 'kit' },
+    { k: 'number.outline', label: 'Outline colour', type: 'color', sw: 'kit', apply: 'kit' },
+    { k: 'number.front', label: 'Front number', type: 'toggle', apply: 'kit' },
+    { k: 'shorts.number', label: 'Shorts number', type: 'toggle', apply: 'kit' },
+  ]],
+  ['Shorts & socks', false, [
+    { k: 'shorts.color', label: 'Shorts', type: 'color', sw: 'kit', apply: 'kit' },
+    { k: 'shorts.stripe', label: 'Side stripes', type: 'color', sw: 'kit', apply: 'kit' },
+    { k: 'socks.color', label: 'Socks', type: 'color', sw: 'kit', apply: 'color' },
+    { k: 'socks.band', label: 'Sock bands', type: 'color', sw: 'kit', apply: 'color' },
+    { k: 'socks.bands', label: 'Band style', type: 'chips', opts: [['none', 'None'], ['single', 'Single'], ['double', 'Double'], ['hoops', 'Hoops']], apply: 'geo' },
+  ]],
+  ['Boots', false, [
+    { k: 'boots.upper', label: 'Upper', type: 'color', sw: 'kit', apply: 'color' },
+    { k: 'boots.stripe', label: 'Stripes & heel', type: 'color', sw: 'kit', apply: 'color' },
+    { k: 'boots.sole', label: 'Soleplate', type: 'color', sw: 'kit', apply: 'color' },
+    { k: 'boots.stud', label: 'Studs', type: 'color', sw: 'kit', apply: 'color' },
+    { k: 'boots.collar', label: 'Sock collar', type: 'toggle', apply: 'geo' },
+  ]],
+  ['Player', false, [
+    { k: 'player.skin', label: 'Skin tone', type: 'color', sw: 'skin', apply: 'color kit' },
+    { k: 'player.hairStyle', label: 'Hair style', type: 'chips', opts: Object.entries(HAIR_STYLES).map(([k, v]) => [k, v.label]), apply: 'geo' },
+    { k: 'player.hairColor', label: 'Hair colour', type: 'color', sw: 'hair', apply: 'color' },
+    { k: 'player.facialHair', label: 'Facial hair', type: 'chips', opts: [['none', 'None'], ['stubble', 'Stubble'], ['beard', 'Beard'], ['goatee', 'Goatee']], apply: 'geo' },
+    { k: 'player.eyeColor', label: 'Eyes', type: 'color', sw: 'eye', apply: 'color' },
+    { k: 'player.foot', label: 'Strong foot', type: 'chips', opts: [['R', 'Right'], ['L', 'Left']], apply: '' },
+  ]],
+  ['Gear', false, [
+    { k: 'gear.armband', label: "Captain's armband", type: 'toggle', apply: 'geo' },
+    { k: 'gear.armbandColor', label: 'Armband colour', type: 'color', sw: 'kit', apply: 'color' },
+    { k: 'gear.headband', label: 'Headband', type: 'toggle', apply: 'geo' },
+    { k: 'gear.headbandColor', label: 'Headband colour', type: 'color', sw: 'kit', apply: 'color' },
+    { k: 'gear.wristbands', label: 'Wristbands', type: 'toggle', apply: 'geo' },
+    { k: 'gear.wristColor', label: 'Wristband colour', type: 'color', sw: 'kit', apply: 'color' },
+  ]],
+  ['Ball', false, [
+    { k: 'ball.primary', label: 'Ball base', type: 'color', sw: 'kit', apply: 'ball' },
+    { k: 'ball.secondary', label: 'Ball panels', type: 'color', sw: 'kit', apply: 'ball' },
+  ]],
+];
+const getPath = (o, p) => p.split('.').reduce((a, k) => a[k], o);
+const setPath = (o, p, v) => { const ks = p.split('.'), last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; };
+const pendingApply = new Set();
+let applyQueued = false;
+function scheduleApply(kinds) {
+  kinds.split(' ').filter(Boolean).forEach(k => pendingApply.add(k));
+  saveCfg();
+  if (applyQueued) return;
+  applyQueued = true;
+  requestAnimationFrame(() => {
+    applyQueued = false;
+    if (pendingApply.has('geo')) rebuildCharacter();
+    else if (pendingApply.has('color')) recolorCharacter();
+    if (pendingApply.has('kit')) paintKit();
+    if (pendingApply.has('ball')) recolorBall();
+    pendingApply.clear();
+  });
+}
+function applyAll() { pendingApply.add('geo'); pendingApply.add('kit'); scheduleApply('ball'); }
+function buildCustomizer() {
+  const body = $('#cz-body');
+  body.innerHTML = '';
+  // Presets
+  const pre = document.createElement('div'); pre.className = 'presets';
+  for (const [key, p] of Object.entries(KIT_PRESETS)) {
+    const b = document.createElement('button');
+    b.innerHTML = `<i style="background:linear-gradient(90deg, ${p.kit.primary} 60%, ${p.kit.secondary} 60%)"></i>${p.label}`;
+    b.addEventListener('click', () => { cfg = deepMerge(cfg, { kit: p.kit, shorts: p.shorts, socks: p.socks, number: p.number, crest: p.crest }); applyAll(); buildCustomizer(); });
+    pre.appendChild(b);
+  }
+  const rnd = document.createElement('button'); rnd.innerHTML = '<i style="background:conic-gradient(#f55,#fd5,#5f8,#5af,#c5f,#f55)"></i>Random';
+  rnd.addEventListener('click', () => { randomKit(); applyAll(); buildCustomizer(); });
+  const rst = document.createElement('button'); rst.innerHTML = '<i style="background:#555"></i>Reset';
+  rst.addEventListener('click', () => { cfg = structuredClone(DEFAULT_CFG); applyAll(); buildCustomizer(); });
+  pre.append(rnd, rst);
+  body.appendChild(pre);
+  for (const [title, open, fields] of SCHEMA) {
+    const det = document.createElement('details'); det.open = open;
+    det.innerHTML = `<summary>${title}</summary>`;
+    for (const f of fields) det.appendChild(fieldEl(f));
+    body.appendChild(det);
+  }
+}
+function fieldEl(f) {
+  const wrap = document.createElement('div'); wrap.className = 'fld';
+  const val = getPath(cfg, f.k);
+  const set = (v) => { setPath(cfg, f.k, v); scheduleApply(f.apply); };
+  if (f.type === 'toggle') {
+    wrap.innerHTML = `<div class="lab"><span>${f.label}</span><button class="switch" aria-pressed="${!!val}" aria-label="${f.label}"></button></div>`;
+    const b = wrap.querySelector('button');
+    b.addEventListener('click', () => { const on = b.getAttribute('aria-pressed') !== 'true'; b.setAttribute('aria-pressed', on); set(on); });
+    return wrap;
+  }
+  wrap.innerHTML = `<div class="lab"><span>${f.label}</span></div>`;
+  if (f.type === 'chips') {
+    const row = document.createElement('div'); row.className = 'chips';
+    for (const [v, l] of f.opts) {
+      const b = document.createElement('button'); b.textContent = l; b.setAttribute('aria-pressed', v === val);
+      b.addEventListener('click', () => { row.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); set(v); });
+      row.appendChild(b);
+    }
+    wrap.appendChild(row);
+  } else if (f.type === 'color') {
+    const row = document.createElement('div'); row.className = 'colorrow';
+    const inp = document.createElement('input'); inp.type = 'color'; inp.value = val; inp.setAttribute('aria-label', f.label);
+    const sws = (SW[f.sw] || []).map(c => { const b = document.createElement('button'); b.className = 'sw'; b.style.background = c; b.title = c; b.dataset.c = c; b.setAttribute('aria-pressed', c.toLowerCase() === val.toLowerCase()); return b; });
+    const mark = (c) => sws.forEach(b => b.setAttribute('aria-pressed', b.dataset.c.toLowerCase() === c.toLowerCase()));
+    inp.addEventListener('input', () => { mark(inp.value); set(inp.value); });
+    sws.forEach(b => b.addEventListener('click', () => { inp.value = b.dataset.c; mark(b.dataset.c); set(b.dataset.c); }));
+    row.append(inp, ...sws);
+    wrap.appendChild(row);
+  } else if (f.type === 'text') {
+    const inp = document.createElement('input'); inp.type = 'text'; inp.maxLength = f.max; inp.value = val; inp.setAttribute('aria-label', f.label);
+    if (f.digits) inp.inputMode = 'numeric';
+    inp.addEventListener('input', () => { let v = inp.value; if (f.digits) { v = v.replace(/\D/g, '').slice(0, 2); inp.value = v; } set(v); });
+    wrap.appendChild(inp);
+  }
+  return wrap;
+}
+function randomKit() {
+  const pick = (a) => a[(Math.random() * a.length) | 0];
+  const pairs = [['#2b3c9e', '#ffffff'], ['#c8302c', '#f2f2ee'], ['#16171c', '#d6b04c'], ['#1f7a3e', '#f4f4f0'], ['#7cc4ee', '#1c2f5c'], ['#ff8a3d', '#5b2a86'], ['#5a0f1f', '#e7c66a'], ['#f2f2ee', '#2b3c9e'], ['#ffd400', '#141414'], ['#0f6b6b', '#ff7aa2']];
+  const [a, b] = pick(pairs), trim = Math.random() < 0.5 ? b : '#' + new THREE.Color(a).multiplyScalar(0.55).getHexString();
+  Object.assign(cfg.kit, { primary: a, secondary: b, trim, pattern: pick(PATTERNS), collar: pick(['v', 'crew', 'polo']), sleeve: pick(['primary', 'primary', 'secondary', 'trim']) });
+  Object.assign(cfg.shorts, { color: Math.random() < 0.6 ? a : b, stripe: b });
+  Object.assign(cfg.socks, { color: pick([a, b, '#ecece8']), band: b, bands: pick(['none', 'single', 'double', 'hoops']) });
+  Object.assign(cfg.number, { value: String(1 + ((Math.random() * 99) | 0)), color: b === '#ffffff' || b === '#f2f2ee' || b === '#f4f4f0' ? b : '#ffffff', font: pick(Object.keys(NUMBER_FONTS)) });
+  Object.assign(cfg.crest, { shape: pick(CREST_SHAPES), symbol: pick(CREST_SYMBOLS), primary: b, secondary: a });
+}
+buildCustomizer();
 
 /* ---------- Post-processing: GTAO, bloom, tone mapping, grade/vignette/grain ---------- */
 const quality = { high: !matchMedia('(pointer: coarse)').matches };
@@ -1492,8 +2954,8 @@ const gtao = new GTAOPass(scene, camera, 1, 1);
 gtao.blendIntensity = 0.9;
 gtao.updateGtaoMaterial({ radius: 0.45, distanceExponent: 1.4, thickness: 1.2, scale: 1.25, samples: 12 });
 gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
-// Objects whose shading is done in custom vertex/alpha code would be wrong in GTAO's override pass.
-const aoHidden = [sky, ...scene.children.filter(o => o.isMesh && (o.material === netMat || o.geometry?.isInstancedBufferGeometry))];
+// Objects whose shape comes from custom vertex/alpha code would be wrong in GTAO's override pass.
+const aoHidden = [sky, ...scene.children.filter(o => o.isMesh && o.geometry?.isInstancedBufferGeometry)];
 scene.traverse(o => { if (o.isMesh && o.material === netMat) aoHidden.push(o); });
 {
   const base = gtao.render.bind(gtao);
@@ -1545,6 +3007,9 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
+/* =====================================================================
+   17. Per-mode updates + loop
+   ===================================================================== */
 function placeCharacter(dt) {
   const tr = trackAt(state.s);
   state.yaw = Math.atan2(tr.h.x, tr.h.z);
@@ -1553,28 +3018,11 @@ function placeCharacter(dt) {
   character.position.copy(tr.p);
   character.rotation.set(0, state.yaw, state.lean, 'YXZ');
 }
-placeCharacter(0);
-rig.pos.copy(character.position); rig.yaw = state.yaw;
-setView('three', true);
-updateCamera(0, 0);
-toggle('t-hq', quality.high);
-if (!quality.high) key.shadow.mapSize.setScalar(2048);
-
-/* =====================================================================
-   12. Loop
-   ===================================================================== */
-const clock = new THREE.Clock();
-function frame() {
-  const real = Math.min(clock.getDelta(), 0.05);
-  const dt = state.paused ? 0 : real * (state.slow ? 0.25 : 1);
-  state.time += dt;
-
+function updateShowcase(dt) {
   for (const k of ['run', 'idle', 'ref']) state.weights[k] = damp(state.weights[k], state.mode === k ? 1 : 0, 6, dt);
   const sum = state.weights.run + state.weights.idle + state.weights.ref;
-  const cadence = lerp(1.32, 1.62, state.pace); // strides per second (one stride = two steps)
-  state.phase = (state.phase + dt * cadence) % 1;
+  state.phase = (state.phase + dt * RUN_CADENCE(state.pace)) % 1;
   state.idleT += dt;
-
   const pose = blendPoses([
     [poseRun(state.phase, state.pace), state.weights.run / sum],
     [poseIdle(state.idleT), state.weights.idle / sum],
@@ -1582,11 +3030,38 @@ function frame() {
   ]);
   applyPose(pose);
   groundLock(pose.lift || 0, dt);
-
-  // Root motion: advance along the track exactly as fast as the planted foot pushes back.
-  state.s += groundSpeed * dt;
+  state.s += groundSpeed * dt; // root motion: exactly as fast as the planted foot pushes back
   placeCharacter(dt);
+}
+function updateCustomize(dt) {
+  state.idleT += dt;
+  character.position.copy(player.pos); character.rotation.set(0, player.yaw, 0, 'YXZ'); state.yaw = player.yaw;
+  const pose = poseIdle(state.idleT);
+  applyPose(pose);
+  groundLock(0, 0);
+}
+
+// Initial placement: player on the edge of the box facing the goal, ball at his feet.
+player.pos.set(0, 0, 24); player.yaw = Math.PI; state.yaw = Math.PI;
+resetBall();
+applyPlayerTransform();
+rig.pos.copy(character.position); rig.yaw = state.yaw;
+camera.position.copy(player.pos).add(VIEWS.play.pos); controls.target.copy(player.pos).add(VIEWS.play.tgt);
+toggle('t-hq', quality.high);
+if (!quality.high) key.shadow.mapSize.setScalar(2048);
+
+const clock = new THREE.Clock();
+function frame() {
+  const real = Math.min(clock.getDelta(), 0.05);
+  const dt = state.paused ? 0 : real * (state.slow ? 0.25 : 1);
+  state.time += dt;
+  if (app.mode === 'play') updatePlay(dt);
+  else if (app.mode === 'customize') updateCustomize(dt);
+  else updateShowcase(dt);
+  if (dt > 0) stepBall(dt);
   updateCamera(dt, real);
+  if (shake > 0) { camera.position.add(V3((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake, 0)); shake = Math.max(0, shake - real * 0.4); }
+  updateHud();
 
   grassUniforms.uCenter.value.set(character.position.x, character.position.z);
   grassUniforms.uTime.value = state.time;
@@ -1595,15 +3070,19 @@ function frame() {
   key.target.position.copy(character.position);
   sky.position.copy(camera.position);
   skyUniforms.uTime.value = state.time;
+  stadiumTime.value = state.time;
+  hype.value = Math.max(0, hype.value - real * 0.12);
+  for (const t of ledBoards) t.offset.x = (state.time * 0.04) % 1;
 
   controls.update(real);
-  stadiumTime.value = state.time;
-  for (const t of ledBoards) t.offset.x = (state.time * 0.04) % 1;
   if (quality.high) { grade.uniforms.uTime.value = state.time; composer.render(real); } else renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-// Test hook: lets automated checks freeze specific poses/views.
-window.__fc = { quality, composer, state, setMode, setView, camera, controls, character, triCount, placeCharacter, updateCamera };
+// Test hook: lets automated checks drive specific states.
+window.__fc = {
+  // Deterministic stepping for automated checks (pause first so the loop only renders).
+  step(dt, n = 1) { for (let i = 0; i < n; i++) { state.time += dt; if (app.mode === 'play') updatePlay(dt); else if (app.mode === 'customize') updateCustomize(dt); else updateShowcase(dt); stepBall(dt); } },
+  app, state, player, ball, stats, strikeMarkers, CONTACT, wpos, character, applyPose, kickPose, cfg: () => cfg, setCfg: (c) => { cfg = deepMerge(cfg, c); applyAll(); buildCustomizer(); }, setAppMode, setMode, setView, camera, controls, character, quality, composer, requestKick, startKick, freeKick, resetBall, GAIT, KICK_DEFS, keys, get triCount() { return triCount; } };
 requestAnimationFrame(frame);
 </script>
 </body>
