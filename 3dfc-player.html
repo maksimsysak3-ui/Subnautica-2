@@ -2495,10 +2495,19 @@ function updatePlay(dt) {
       else if (pd.t > 2.2) player.pending = null;
       else { want = r.d.clone().normalize(); wantMag = 1; }
     }
+    // Released the stick while on the ball: trap it, then walk up to it if it is out of reach.
+    player.stopping = !inDir && player.possess && !player.pending;
+    if (player.stopping) {
+      const r = ballRel(), ballSlow = ball.vel.length() < 1.2;
+      if (r.dist > 0.6 && r.dist < 3 && (ballSlow || player.speed < 1.5)) { want = r.d.clone().normalize(); wantMag = r.dist > 1.4 ? 0.45 : 0.28; }
+    }
     if (!player.kick) {
       const poss = player.possess;
       const top = (sprinting() ? GAIT.vSprint : GAIT.vJog) * (poss ? 0.93 : 1);
-      const targetSpeed = want ? top * clamp(wantMag, 0, 1) : 0;
+      // Turning sharply (and especially reversing) sheds speed first: plant, turn, then go.
+      const diff0 = want ? angleDiff(Math.atan2(want.x, want.z), player.yaw) : 0;
+      const turnK = smoothstep(2.5, 0.9, Math.abs(diff0));
+      const targetSpeed = want ? top * clamp(wantMag, 0, 1) * lerp(0.12, 1, turnK) : 0;
       const accel = targetSpeed > player.speed ? 5.5 + 3 * (1 - player.speed / (GAIT.vSprint * 1.1)) : 9;
       player.speed = player.speed + clamp(targetSpeed - player.speed, -accel * dt, accel * dt);
       if (want) {
@@ -2571,20 +2580,44 @@ function dribble(prevPhase, phase, want, dt) {
   if (r.dist < 1.5) player.possess = true;
   if (!player.possess) return;
   const f = r.f, side = rightOf(f), sp = player.speed, dir = want ? want.clone() : f.clone();
-  const wFast = smoothstep(4.4, 5.4, sp);
+  // Close control at pace; it lingers ~0.7 s after slowing so a sprinting ball slows down with you.
+  const wPace = smoothstep(4.4, 5.4, sp);
+  if (wPace > 0.5) player.pullUntil = state.time + 0.7;
+  const wFast = Math.max(wPace, state.time < (player.pullUntil || 0) ? 0.85 : 0);
   for (const [s, off] of [['L', 0], ['R', 0.5]]) {
     const q0 = (prevPhase + off) % 1, q1 = (phase + off) % 1;
-    if (!(sp > 1.8 && q0 < 0.84 && (q1 >= 0.84 || q1 < q0) && state.time - player.lastTouch > 0.2)) continue;
+    if (!(sp > 1.2 && q0 < 0.84 && (q1 >= 0.84 || q1 < q0) && state.time - player.lastTouch > 0.2)) continue;
     if (wFast > 0.5) { player.pulse = 1; player.touchSide = s; }
     else {
       if (r.fwd < 0.05 || r.fwd > 0.85 || Math.abs(r.lat) > 0.45) continue; // only when the swinging foot can reach it
-      const knock = lerp(0.7, 1.3, clamp((sp - 1.8) / 3, 0, 1));
+      const knock = lerp(0.7, 1.3, clamp((sp - 1.2) / 3.6, 0, 1));
       const footLat = s === 'L' ? -0.08 : 0.08;
       ball.vel.set(dir.x * (sp + knock), 0, dir.z * (sp + knock));
       ball.vel.addScaledVector(side, clamp((footLat - r.lat) * 3, -0.6, 0.6));
     }
     player.lastTouch = state.time;
     player.touch = { side: s, t0: state.time, kind: 'dribble' };
+  }
+  // Moving off / turning with the ball beside or behind you: the nearest foot takes it with you.
+  const facingWant = want ? f.dot(want) : 1;
+  if (want && facingWant < 0.75 && r.dist < 1.6 && r.fwd > -0.5) {
+    // Turning on the ball: the sole drags it round with the body, so it keeps its place in front.
+    const d = V3(r.d.x, 0, r.d.z).applyAxisAngle(UP, player.yawRate * dt);
+    if (d.length() > 0.55) d.setLength(lerp(d.length(), 0.55, 0.15)); // and draws it in a little
+    ball.pos.x = player.pos.x + d.x; ball.pos.z = player.pos.z + d.z;
+    ball.vel.set(player.vel.x, 0, player.vel.z);
+    player.skillGrace = state.time + 0.15; // boots don't fight the drag
+    if (!player.touch) player.touch = { side: r.lat > 0 ? 'R' : 'L', t0: state.time, kind: 'receive' };
+  }
+  if (want && facingWant >= 0.5 && sp > 0.35 && r.dist < 0.95 && state.time - player.lastTouch > 0.25) {
+    const along = r.d.dot(want), across = r.d.dot(rightOf(want));
+    if (along < 0.2 || Math.abs(across) > 0.32) {
+      const v = Math.max(sp, 1.2) + 0.9;
+      ball.vel.set(want.x * v, 0, want.z * v);
+      ball.vel.addScaledVector(rightOf(want), clamp(-across * 2.5, -1.2, 1.2));
+      player.lastTouch = state.time;
+      player.touch = { side: r.lat > 0 ? 'R' : 'L', t0: state.time, kind: 'dribble' };
+    }
   }
   if (wFast > 0) {
     player.pulse = Math.max(0, (player.pulse || 0) - dt * 2.4);
@@ -2594,9 +2627,12 @@ function dribble(prevPhase, phase, want, dt) {
     if (corr.length() > 7) corr.setLength(7);
     ball.vel.x = lerp(ball.vel.x, player.vel.x + corr.x, wFast); ball.vel.z = lerp(ball.vel.z, player.vel.z + corr.z, wFast);
   }
-  // Stopping with the ball: if you let go of the stick it is trapped under the sole.
-  if (!want && sp < 2.5 && r.dist < 1.0 && r.fwd > -0.1) {
-    ball.vel.x = damp(ball.vel.x, player.vel.x, 5, dt); ball.vel.z = damp(ball.vel.z, player.vel.z, 5, dt);
+  // Stopping with the ball: let go of the stick and a stopping touch kills its roll; if it ends up out
+  // of reach the player steps up to it (see updatePlay) and settles it under the sole.
+  if (player.stopping && r.dist < 3 && r.fwd > -0.3) {
+    const k = r.dist < 0.9 ? 6 : 4.5;
+    ball.vel.x = damp(ball.vel.x, player.vel.x * (r.dist < 0.9 ? 1 : 0), k, dt);
+    ball.vel.z = damp(ball.vel.z, player.vel.z * (r.dist < 0.9 ? 1 : 0), k, dt);
   }
   if (ball.pos.y <= BALL_R + 0.01) ball.vel.y = 0;
   rollingSpin(ball.vel, ball.spin);
