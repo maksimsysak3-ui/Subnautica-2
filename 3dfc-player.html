@@ -1824,6 +1824,7 @@ function recolorBall() {
   g.userData.slots.forEach((s, i) => { const c = s ? b : a; col.setXYZ(i, c.r, c.g, c.b); });
   col.needsUpdate = true;
 }
+recolorBall();
 const ball = { pos: V3(0, BALL_R, 24), vel: V3(), spin: V3(), q: new THREE.Quaternion(), outT: 0, goalT: -10 };
 const GOAL_LINES = [0, FIELD.len];
 const netImpacts = [[], []];
