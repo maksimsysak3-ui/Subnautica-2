@@ -650,8 +650,8 @@ let partTarget = STATIC; // parts are added to whichever bucket set is being bui
 const add = (bucket, geo, opts) => partTarget[bucket].push({ geo, ...opts });
 
 /* ---------- Head ---------- */
-const HC = V3(0, 1.615, 0.012);               // head centre
-const HR = V3(0.126, 0.152, 0.133);            // head radii
+const HC = V3(0, 1.59, 0.012);                // head centre
+const HR = V3(0.113, 0.129, 0.123);            // head radii (reference: ~6.3 heads tall, face slightly taller than wide)
 // Side/front profile of the skull, sampled by latitude (y on the unit sphere).
 // W = half-width, Df/Db = front/back depth, Yv = vertical position. The kink at y=-0.62 is the jaw corner.
 const HEAD_PROFILE = [
@@ -664,8 +664,8 @@ const HEAD_PROFILE = [
   [-0.22, 0.98, 1.00, 0.90, -0.22],
   [-0.43, 0.95, 0.98, 0.58, -0.44],
   [-0.62, 0.90, 0.95, 0.22, -0.66],
-  [-0.78, 0.60, 0.93, 0.05, -0.83],
-  [-0.90, 0.38, 0.85, 0.0, -0.935],
+  [-0.78, 0.63, 0.93, 0.05, -0.83],
+  [-0.90, 0.43, 0.86, 0.0, -0.935],
   [-1.00, 0.00, 0.40, 0.00, -0.955],
 ];
 function headProfile(y) {
@@ -689,9 +689,9 @@ function headShape(d) {
 }
 // Parametric head grid: columns bunch up across the front of the face and rows bunch up
 // through brow / eyes / nose / mouth, so the sculpted features below have geometry to live on.
-const HEAD_COLS = 30;
-const HEAD_ROWS = [0.97, 0.9, 0.8, 0.68, 0.55, 0.43, 0.33, 0.25, 0.18, 0.12, 0.06, 0.0, -0.06, -0.12, -0.18, -0.235,
-  -0.29, -0.34, -0.395, -0.45, -0.5, -0.555, -0.61, -0.67, -0.73, -0.79, -0.85, -0.9, -0.95];
+const HEAD_COLS = 26;
+const HEAD_ROWS = [0.95, 0.83, 0.68, 0.53, 0.4, 0.28, 0.18, 0.09, 0.0, -0.09, -0.17, -0.24, -0.31, -0.38, -0.45,
+  -0.52, -0.59, -0.66, -0.74, -0.82, -0.89, -0.95];
 function headDir(y, k) {
   const s = (k / HEAD_COLS) * 2 - 1, th = Math.PI * Math.sign(s) * Math.abs(s) ** 1.35, r = Math.sqrt(Math.max(0, 1 - y * y));
   return V3(Math.sin(th) * r, y, Math.cos(th) * r);
@@ -730,31 +730,30 @@ function piecewise(keys, x) {
   return keys[keys.length - 1][1];
 }
 // Nose height profile (forward offset in metres) from below the tip up to the bridge.
-const NOSE = [[-0.064, 0], [-0.057, 0.003], [-0.051, 0.013], [-0.044, 0.021], [-0.034, 0.018], [-0.015, 0.0095], [0.006, 0.0035], [0.02, 0]];
+const NOSE = [[-0.056, 0], [-0.05, 0.003], [-0.045, 0.01], [-0.039, 0.015], [-0.03, 0.013], [-0.013, 0.0068], [0.006, 0.0025], [0.018, 0]];
 // Facial sculpt layered on the skull (head-local metres): brow ridge, sockets, nose, cheekbones, lips, chin.
 function sculpt(p, d) {
   const gate = smoothstep(0.15, 0.55, d.z);
   if (gate <= 0) return p;
   const x = p.x, y = p.y, ax = Math.abs(x);
   let dz = 0;
-  dz += 0.0065 * G(y - 0.03, 0.011) * G(ax - 0.045, 0.028);   // brow ridge
+  dz += 0.006 * G(y - 0.026, 0.01) * G(ax - 0.042, 0.026);    // brow ridge
   dz += 0.003 * G(y - 0.02, 0.01) * G(x, 0.014);              // glabella
-  dz -= 0.008 * G(ax - 0.047, 0.019) * G(y + 0.01, 0.013);    // eye sockets
+  dz -= 0.007 * G(ax - 0.043, 0.017) * G(y + 0.01, 0.012);    // eye sockets
   dz += piecewise(NOSE, y) * G(x, lerp(0.0075, 0.0125, smoothstep(0.005, -0.045, y))); // nose
-  dz += 0.005 * G(ax - 0.0135, 0.0055) * G(y + 0.049, 0.0065); // nostril wings
-  dz += 0.0045 * G(ax - 0.063, 0.02) * G(y + 0.034, 0.018);   // cheekbones
+  dz += 0.0045 * G(ax - 0.012, 0.005) * G(y + 0.044, 0.006);  // nostril wings
+  dz += 0.004 * G(ax - 0.057, 0.018) * G(y + 0.03, 0.016);    // cheekbones
   dz -= 0.0025 * G(ax - 0.058, 0.02) * G(y + 0.075, 0.02);    // flat plane under the cheekbone
-  dz += 0.0035 * G(x, 0.02) * G(y + 0.072, 0.007);            // upper lip
-  dz += 0.0028 * G(x, 0.017) * G(y + 0.091, 0.006);           // lower lip
-  dz -= 0.0022 * G(x, 0.02) * G(y + 0.103, 0.005);            // chin groove
-  dz += 0.0055 * G(x, 0.026) * G(y + 0.122, 0.013);           // chin
+  dz += 0.003 * G(x, 0.018) * G(y + 0.065, 0.006);            // upper lip
+  dz += 0.0025 * G(x, 0.015) * G(y + 0.081, 0.005);           // lower lip
+  dz -= 0.002 * G(x, 0.02) * G(y + 0.094, 0.005);             // chin groove
+  dz += 0.005 * G(x, 0.024) * G(y + 0.108, 0.012);            // chin
   p.z += dz * gate;
   return p;
 }
 const faceSurface = (d) => sculpt(headShape(d), d); // head-local surface point for a direction
 const headGeo = orientOutward(gridSphere(HEAD_ROWS, HEAD_COLS, (d) => faceSurface(d).add(HC)), HC);
-jitter(headGeo, 0.0004);
-add('body', headGeo, { color: 'skin', weights: rigid('head') });
+add('body', headGeo, { color: 'skin', weights: rigid('head'), smooth: true });
 
 // Raycast helper to sit facial features exactly on the faceted surface.
 const ray = new THREE.Raycaster();
@@ -774,13 +773,12 @@ const qFromNormal = (n, roll = 0) => new THREE.Quaternion().setFromUnitVectors(F
 const feature = (geo, slot) => add('features', geo, { color: slot, weights: rigid('head') });
 // Eyes sit inside the sculpted sockets: dark lash line, almond white, tall dark iris, pupil, catch-light.
 for (const m of [1, -1]) {
-  const p = frontHit(0.047 * m, -0.011), n = headNormal(p), q = qFromNormal(n);
+  const p = frontHit(0.043 * m, -0.012), n = headNormal(p), q = qFromNormal(n);
   const at = (dx, dy, dz) => p.clone().add(V3(dx * m, dy, 0).applyQuaternion(q)).addScaledVector(n, dz);
-  feature(ellipsoid(at(0.0008, 0.0024, 0.0004), 0.0206, 0.0138, 0.0034, 12, 6, q), 'brow');
-  feature(ellipsoid(at(0, 0, 0.0012), 0.019, 0.0121, 0.0037, 12, 6, q), 'sclera');
-  feature(ellipsoid(at(-0.0012, -0.0004, 0.0023), 0.0117, 0.0134, 0.0036, 10, 6, q), 'eye');
-  feature(ellipsoid(at(-0.0012, -0.0004, 0.0047), 0.0058, 0.0068, 0.0014, 8, 5, q), 'brow');
-  feature(ellipsoid(at(0.0036, 0.0049, 0.0057), 0.0029, 0.0029, 0.0008, 6, 4, q), 'white');
+  feature(ellipsoid(at(0.0005, 0.0026, 0.0004), 0.0175, 0.0136, 0.0032, 12, 6, q), 'brow');
+  feature(ellipsoid(at(0, 0, 0.0012), 0.015, 0.0108, 0.0035, 12, 6, q), 'sclera');
+  feature(ellipsoid(at(-0.0004, -0.0006, 0.0022), 0.0122, 0.0162, 0.0034, 12, 6, q), 'eye');
+  feature(ellipsoid(at(0.0032, 0.0046, 0.0052), 0.0022, 0.0022, 0.0007, 6, 4, q), 'white');
 }
 // A slab that hugs the face: each point = [x, y, half-height] in head-local metres.
 function surfaceStrip(pts, { lift = 0.0012, depth = 0.0035 } = {}) {
@@ -800,23 +798,21 @@ function surfaceStrip(pts, { lift = 0.0012, depth = 0.0035 } = {}) {
 }
 // Thick brows, low and heavier at the inner end (focused look from the reference)
 for (const m of [1, -1]) {
-  feature(surfaceStrip([[0.015, 0.0205, 0.0068], [0.028, 0.0265, 0.0075], [0.044, 0.0305, 0.007], [0.06, 0.0305, 0.0058], [0.074, 0.026, 0.0041], [0.083, 0.0205, 0.0022]]
+  feature(surfaceStrip([[0.013, 0.0105, 0.0064], [0.024, 0.0155, 0.007], [0.039, 0.0195, 0.0066], [0.054, 0.022, 0.0056], [0.066, 0.0205, 0.004], [0.074, 0.0165, 0.0022]]
     .map(([x, y, h]) => [x * m, y, h])), 'brow');
 }
 // Mouth line + soft lower lip
-feature(surfaceStrip([[-0.02, -0.0805, 0.0011], [-0.011, -0.0822, 0.0019], [0, -0.0827, 0.0021], [0.011, -0.0822, 0.0019], [0.02, -0.0805, 0.0011]], { lift: 0.0003, depth: 0.0012 }), 'mouth');
-feature(surfaceStrip([[-0.012, -0.0893, 0.0024], [0, -0.0903, 0.0031], [0.012, -0.0893, 0.0024]], { lift: 0.0001, depth: 0.0006 }), 'lip');
+feature(surfaceStrip([[-0.014, -0.0725, 0.0009], [-0.007, -0.0733, 0.0015], [0, -0.0736, 0.0016], [0.007, -0.0733, 0.0015], [0.014, -0.0725, 0.0009]], { lift: 0.0003, depth: 0.0012 }), 'mouth');
 // Ears (outer shell + inner bowl + lobe)
 for (const m of [1, -1]) {
-  const hit = onSurface(headProbe, V3(HC.x + m, HC.y - 0.018, HC.z - 0.008), V3(-m, 0, 0));
-  const q = qEuler(0, -14 * DEG * m, 4 * DEG * m);
-  add('body', ellipsoid(hit.clone().add(V3(0.004 * m, 0, 0)), 0.012, 0.031, 0.021, 8, 7, q), { color: 'skin', weights: rigid('head') });
-  add('body', ellipsoid(hit.clone().add(V3(0.0095 * m, -0.002, 0.002)), 0.006, 0.019, 0.012, 6, 5, q), { color: 'skinShade', weights: rigid('head') });
-  add('body', ellipsoid(hit.clone().add(V3(0.006 * m, -0.025, 0.004)), 0.007, 0.009, 0.008, 6, 4, q), { color: 'skin', weights: rigid('head') });
+  const hit = onSurface(headProbe, V3(HC.x + m, HC.y - 0.022, HC.z - 0.012), V3(-m, 0, 0));
+  const q = qEuler(0, 18 * DEG * m, -6 * DEG * m); // faces slightly forward, top leaning back
+  add('body', ellipsoid(hit.clone().add(V3(0.001 * m, 0.002, -0.004)), 0.009, 0.028, 0.019, 8, 6, q), { color: 'skin', weights: rigid('head'), smooth: true });
+  add('body', ellipsoid(hit.clone().add(V3(0.006 * m, 0.002, -0.003)), 0.0035, 0.017, 0.011, 8, 5, q), { color: 'skinShade', weights: rigid('head'), smooth: true });
 }
 
 /* ---------- Neck ---------- */
-add('body', loft(ringsAlong(V3(0, 1.33, -0.006), UP, [[0, 0.062, 0.058], [0.09, 0.059, 0.055, 0, 0, -0.008], [0.16, 0.056, 0.052, 0, 0, -0.016], [0.21, 0.05, 0.046, 0, 0, -0.02]]), { seg: 10 }),
+add('body', loft(ringsAlong(V3(0, 1.33, -0.006), UP, [[0, 0.064, 0.06], [0.09, 0.061, 0.057, 0, 0, -0.008], [0.16, 0.058, 0.054, 0, 0, -0.016], [0.21, 0.052, 0.048, 0, 0, -0.02]]), { seg: 10 }),
   { color: 'skin', weights: chain('chest', [{ bone: 'neck', at: J.neck, dir: UP, w: 0.03 }, { bone: 'head', at: J.head, dir: UP, w: 0.03 }]) });
 
 /* ---------- Torso (jersey) ---------- */
@@ -945,7 +941,7 @@ for (const s of ['L', 'R']) {
 /* ---------- Dynamic parts ---------- */
 // Hair styles: shell over the head shape. thick(d, n, curl) gives thickness (m) above the hairline.
 const HAIR_STYLES = {
-  swept:  { label: 'Swept', thick: (d, n) => lerp(0.011, 0.034, smoothstep(-0.4, 0.9, d.y)) + n * 0.006, sweep: 0.005, jag: 0.07 },
+  swept:  { label: 'Swept', thick: (d, n) => lerp(0.011, 0.042, smoothstep(-0.4, 0.9, d.y)) + n * 0.006, sweep: 0.004, jag: 0.07 },
   crop:   { label: 'Crop', thick: (d, n) => lerp(0.006, 0.02, smoothstep(-0.2, 0.9, d.y)) + n * 0.005, jag: 0.05 },
   buzz:   { label: 'Buzz', thick: (d, n) => 0.0035 + n * 0.0008, jag: 0.02 },
   fade:   { label: 'Fade', thick: (d, n) => 0.0018 + smoothstep(0.22, 0.52, d.y) * (0.03 + n * 0.006), jag: 0.05 },
@@ -1018,7 +1014,7 @@ function buildFacialHair(kind) {
     const [n1] = hash3(d.x, d.y, d.z);
     return s.addScaledVector(radial, mask(s, d) ? T + n1 * T * 0.35 : -0.004).add(HC);
   }), HC);
-  add('body', g, { color: kind === 'stubble' ? 'stubble' : 'beard', weights: rigid('head') });
+  add('body', g, { color: kind === 'stubble' ? 'stubble' : 'beard', weights: rigid('head'), smooth: true });
 }
 function buildSleeves(long) {
   for (const s of ['L', 'R']) {
@@ -1082,12 +1078,13 @@ function buildDynamic(c) {
    6. Bake parts into skinned buffers (per-face colour slot / atlas UV, exact face normals)
    ===================================================================== */
 function bake(list, atlas) {
-  const P = [], S = [], UVs = [], SI = [], SW = [];
+  const P = [], N = [], S = [], UVs = [], SI = [], SW = [];
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
   const ctr = new THREE.Vector3(), nrm = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), v = new THREE.Vector3();
   for (const part of list) {
+    if (part.smooth) part.geo.computeVertexNormals();
     const g = part.geo.index ? part.geo.toNonIndexed() : part.geo;
-    const pa = g.attributes.position;
+    const pa = g.attributes.position, na = part.smooth ? g.attributes.normal : null;
     for (let f = 0; f < pa.count; f += 3) {
       a.fromBufferAttribute(pa, f); b.fromBufferAttribute(pa, f + 1); c.fromBufferAttribute(pa, f + 2);
       ctr.copy(a).add(b).add(c).divideScalar(3);
@@ -1109,6 +1106,7 @@ function bake(list, atlas) {
       for (const vi of [f, f + 1, f + 2]) {
         v.fromBufferAttribute(pa, vi);
         P.push(v.x, v.y, v.z); S.push(slot);
+        if (na) N.push(na.getX(vi), na.getY(vi), na.getZ(vi)); else N.push(nrm.x, nrm.y, nrm.z);
         if (atlas) UVs.push(...(region ? atlas.uv(region, v) : sw));
         const w = part.weights(v).sort((x, y) => y[1] - x[1]).slice(0, 4);
         const sum = w.reduce((s, x) => s + x[1], 0) || 1;
@@ -1122,7 +1120,7 @@ function bake(list, atlas) {
   if (UVs.length) geo.setAttribute('uv', new THREE.Float32BufferAttribute(UVs, 2));
   geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(SI, 4));
   geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(SW, 4));
-  geo.computeVertexNormals(); // non-indexed -> exact per-face normals (crisp low-poly facets, skinned correctly)
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3)); // per-face (crisp facets) or smooth (skin)
   geo.computeBoundingSphere();
   return geo;
 }
@@ -1213,7 +1211,7 @@ scene.add(new THREE.HemisphereLight(0xa9c1ff, 0x3d4a2c, 0.85));
 const KEY_OFFSET = SUN_DIR.clone().multiplyScalar(8);
 const key = new THREE.DirectionalLight(0xffd6a6, 3.0);
 key.castShadow = true;
-key.shadow.mapSize.set(4096, 4096);
+key.shadow.mapSize.set(2048, 2048);
 Object.assign(key.shadow.camera, { left: -2.2, right: 2.2, top: 3.0, bottom: -3.0, near: 1, far: 18 });
 key.shadow.bias = -0.0004; key.shadow.normalBias = 0.015; key.shadow.radius = 3;
 scene.add(key, key.target);
@@ -1349,7 +1347,7 @@ scene.add(turf);
 
 // 3D grass: instanced blades in a patch that travels with the player (blades stay fixed in the
 // world and are wrapped on the GPU), shrinking to nothing at the patch edge.
-const GRASS = { half: 7, count: 42000 };
+const GRASS = { half: 7, count: 28000 };
 const grassUniforms = {
   uCenter: { value: new THREE.Vector2() }, uHalf: { value: GRASS.half }, uTime: { value: 0 },
   uRoot: { value: new THREE.Color('#1d4519') }, uTip: { value: new THREE.Color('#71ad4c') },
@@ -1522,7 +1520,7 @@ function updateNet(t) {
       pos.setXYZ(i, x, y, z);
     }
     pos.needsUpdate = true;
-    n.geo.computeVertexNormals();
+    if (hits.length) n.geo.computeVertexNormals();
   }
 }
 
@@ -1578,13 +1576,13 @@ const ledBoards = [];
     for (let i = 0; i < st.rows; i++) for (let z = -st.len / 2 + 0.5; z < st.len / 2 - 0.4; z += SEAT) {
       const p = V3(i * ROW_D + 0.42, BASE + (i + 1) * RISE, z).applyMatrix4(g.matrixWorld);
       seatM.push(m4.clone().compose(p, face, sc));
-      if (rnd() < 0.8) {
+      if (rnd() < 0.62) {
         fanM.push(m4.clone().compose(p.clone().add(V3((rnd() - 0.5) * 0.08, 0, (rnd() - 0.5) * 0.08)), face, sc));
         fanC.push(kit[(rnd() * kit.length) | 0]); headC.push(skins[(rnd() * skins.length) | 0]);
       }
     }
   }
-  const seatGeo = new THREE.BoxGeometry(0.46, 0.14, 0.42); seatGeo.translate(0, 0.07, 0.04);
+  const seatGeo = new THREE.PlaneGeometry(0.44, 0.36); seatGeo.translate(0, 0.2, -0.12); // seat back only: 2 triangles each
   const seats = new THREE.InstancedMesh(seatGeo, new THREE.MeshStandardMaterial({ color: '#25348a', roughness: 0.6 }), seatM.length);
   seatM.forEach((m, i) => seats.setMatrixAt(i, m));
   scene.add(seats);
@@ -1602,7 +1600,7 @@ const ledBoards = [];
     return mat;
   };
   const torsoGeo = new THREE.BoxGeometry(0.4, 0.5, 0.26); torsoGeo.translate(0, 0.42, 0.02);
-  const headGeo = new THREE.IcosahedronGeometry(0.115, 0); headGeo.translate(0, 0.79, 0.02); headGeo.computeVertexNormals();
+  const headGeo = new THREE.OctahedronGeometry(0.12, 0); headGeo.translate(0, 0.79, 0.02); headGeo.computeVertexNormals();
   const fans = new THREE.InstancedMesh(torsoGeo, bounce(new THREE.MeshStandardMaterial({ roughness: 0.8 })), fanM.length);
   const heads = new THREE.InstancedMesh(headGeo, bounce(new THREE.MeshStandardMaterial({ roughness: 0.7 })), fanM.length);
   const c = new THREE.Color();
@@ -1970,7 +1968,7 @@ function predictBall(t) {
 }
 // Ball vs player's body (a vertical capsule) so it can't pass through the runner.
 function bodyBlock() {
-  if (app.mode !== 'play' || (player.kick && Math.abs(player.kick.t) < 0.12)) return;
+  if (app.mode !== 'play' || player.possess || (player.kick && Math.abs(player.kick.t) < 0.12)) return;
   const d = _tmp.set(ball.pos.x - player.pos.x, 0, ball.pos.z - player.pos.z), dist = d.length();
   const r = 0.17 + BALL_R;
   if (ball.pos.y < 1.7 && dist < r && dist > 1e-4) {
@@ -2354,7 +2352,7 @@ function startKick(type, power) {
   const hint = (inDir || facingVec(player.yaw).add(toBall).normalize()).clone();
   const pre = launchParams(type, power, hint, 0, K); // provisional, re-solved at contact
   const flatDir = V3(pre.v.x, 0, pre.v.z).normalize();
-  player.pending = null;
+  player.pending = null; player.possess = false;
   player.kick = {
     type, def, K, fs, power, hint, t: -def.pre, P0: player.pos.clone(), V0: player.vel.clone(), yaw0: player.yaw,
     dir: flatDir, yawC: Math.atan2(flatDir.x, flatDir.z) - fs * def.yawOff * DEG, released: false, lock: null, Pc: player.pos.clone(), Vc: V3(),
@@ -2411,6 +2409,7 @@ function onGoal(gi) {
   if (app.mode === 'play') player.celebrate = 2.6;
 }
 function resetBall(at) {
+  player.possess = false;
   const f = facingVec(player.yaw);
   ball.pos.copy(at || player.pos.clone().addScaledVector(f, 0.55)).setY(BALL_R);
   ball.vel.set(0, 0, 0); ball.spin.set(0, 0, 0); ball.outT = 0;
@@ -2518,7 +2517,6 @@ function updatePlay(dt) {
   addTouchLayer(pose, state.time);
   addLookLayer(pose, dt);
   if (!player.kick) addCelebrateLayer(pose);
-  receiveBall();
   applyPlayerTransform();
   applyPose(pose);
   groundLock(pose.lift || 0, 0);
@@ -2551,53 +2549,37 @@ function keepInBounds() {
 // Dribbling: a touch is played by whichever foot reaches late swing (~85 % of its cycle) with the ball
 // in front of it. The touch knocks the ball ahead of the runner in the desired direction - softer when
 // walking, longer when sprinting - with a little positional assist so the foot actually meets the ball.
+// Close control, FC-style: once the ball reaches the player's feet it is "owned". Every stride-timed
+// touch pushes it out a little and a damped pull reels it back to a spot just ahead of the feet, so it
+// stays with you through turns, stops and sprints (further ahead when sprinting).
 function dribble(prevPhase, phase, want, dt) {
   const r = ballRel();
-  const rel = ball.vel.clone().sub(player.vel).length();
-  player.possess = r.dist < 2.6 && r.fwd > -0.25 && ball.pos.y < 0.35 && rel < 4.5 && !player.kick;
-  if (!player.possess) return;
-  const f = r.f, dir = (want ? want.clone() : f.clone());
-  if (player.speed < 0.35) { // standing: settle the ball under the sole, just ahead of the feet
-    if (r.dist < 0.95) {
-      const rest = player.pos.clone().addScaledVector(f, 0.42); rest.y = BALL_R;
-      ball.vel.multiplyScalar(Math.exp(-6 * dt));
-      ball.pos.x = damp(ball.pos.x, rest.x, 3, dt); ball.pos.z = damp(ball.pos.z, rest.z, 3, dt);
-    }
-    return;
+  if (!player.possess) {
+    const rel = ball.vel.clone().sub(player.vel).length();
+    if (player.kick || r.dist > 1.15 || r.fwd < -0.25 || ball.pos.y > 0.45 || rel > 9 || state.time - player.lastTouch < 0.35) return;
+    player.possess = true; player.pulse = 0.4; player.lastTouch = state.time;
+    player.touch = { side: r.lat > 0 ? 'R' : 'L', t0: state.time, kind: 'receive' };
+    ball.spin.multiplyScalar(0.2);
   }
+  if (r.dist > 2.6 || ball.pos.y > 0.7) { player.possess = false; return; }
+  const f = r.f, side = rightOf(f), sp = player.speed, k = clamp(sp / GAIT.vSprint, 0, 1);
   for (const [s, off] of [['L', 0], ['R', 0.5]]) {
     const q0 = (prevPhase + off) % 1, q1 = (phase + off) % 1;
-    const crossed = q0 < 0.84 && (q1 >= 0.84 || q1 < q0);
-    if (!crossed || state.time - player.lastTouch < 0.22) continue;
-    if (r.fwd < 0.12 || r.fwd > 0.78 || Math.abs(r.lat) > 0.45) continue; // only when the swinging foot can reach it
-    const ballSpeedAlong = ball.vel.dot(dir);
-    if (ballSpeedAlong > player.speed + 1.6 && r.fwd > 0.6) continue; // already well ahead
-    const sp = player.speed, sprintK = smoothstep(GAIT.vJog, GAIT.vSprint, sp);
-    // Close control when jogging (ball ~0.9 m/s faster than the player), knock-and-run when sprinting.
-    const knock = sp < GAIT.vWalk * 1.2 ? 0.45 : lerp(0.5, 1.4, clamp(sp / GAIT.vSprint, 0, 1)) + sprintK * 0.6;
-    const footPos = player.pos.clone().addScaledVector(f, 0.36).addScaledVector(rightOf(f), s === 'L' ? -0.08 : 0.08);
-    // Small sideways assist only (no forward/back pop): line the ball up with the touching foot.
-    const side = rightOf(f), latErr = _tmp.subVectors(footPos, ball.pos).dot(side);
-    ball.pos.addScaledVector(side, clamp(latErr, -0.06, 0.06));
-    ball.vel.set(dir.x * (sp + knock), 0, dir.z * (sp + knock));
-    rollingSpin(ball.vel, ball.spin);
-    player.lastTouch = state.time;
-    player.touch = { side: s, t0: state.time, kind: 'dribble' };
-    break;
+    if (sp > 0.6 && q0 < 0.84 && (q1 >= 0.84 || q1 < q0) && state.time - player.lastTouch > 0.2) {
+      player.pulse = 1; player.touchSide = s; player.lastTouch = state.time;
+      player.touch = { side: s, t0: state.time, kind: 'dribble' };
+    }
   }
-}
-// First touch: cushion a ball arriving at the player's feet.
-function receiveBall() {
-  if (player.kick || state.time - player.lastTouch < 0.3) return;
-  const r = ballRel();
-  if (r.dist > 1.05 || ball.pos.y > 0.75) return;
-  const closing = -ball.vel.clone().sub(player.vel).dot(r.d.clone().normalize());
-  if (closing < 2.2) return;
-  const f = facingVec(player.yaw);
-  ball.vel.copy(player.vel).addScaledVector(f, 0.7 + player.speed * 0.15); ball.vel.y = Math.min(0, ball.vel.y) * 0.2;
-  ball.spin.multiplyScalar(0.2);
-  player.lastTouch = state.time;
-  player.touch = { side: r.lat > 0 ? 'R' : 'L', t0: state.time, kind: 'receive' };
+  player.pulse = Math.max(0, (player.pulse || 0) - dt * lerp(3.2, 2.2, k));
+  const ahead = lerp(0.4, 0.95, k) + player.pulse * lerp(0.15, 0.55, k);
+  const lat = (player.touchSide === 'L' ? -1 : 1) * 0.06 * Math.min(1, sp);
+  const tgt = player.pos.clone().addScaledVector(f, ahead).addScaledVector(side, lat);
+  // Critically-damped pull: velocity = player velocity + correction toward the target spot.
+  const corr = V3(tgt.x - ball.pos.x, 0, tgt.z - ball.pos.z).multiplyScalar(lerp(10, 7, k));
+  if (corr.length() > 7) corr.setLength(7);
+  ball.vel.set(player.vel.x + corr.x, Math.min(ball.vel.y, 0), player.vel.z + corr.z);
+  if (ball.pos.y <= BALL_R + 0.01) { ball.vel.y = 0; ball.pos.y = BALL_R; }
+  rollingSpin(ball.vel, ball.spin);
 }
 
 /* =====================================================================
@@ -2705,7 +2687,7 @@ const actions = {
   pause: () => { state.paused = !state.paused; toggle('t-pause', state.paused); },
   wire: () => { const on = !wireMeshes[0].visible; wireMeshes.forEach(w => w.visible = on); toggle('t-wire', on); },
   spin: () => { controls.autoRotate = !controls.autoRotate; toggle('t-spin', controls.autoRotate); },
-  hq: () => { quality.high = !quality.high; toggle('t-hq', quality.high); key.shadow.mapSize.setScalar(quality.high ? 4096 : 2048); key.shadow.map?.dispose(); key.shadow.map = null; resize(); },
+  hq: () => { quality.high = !quality.high; toggle('t-hq', quality.high); key.shadow.mapSize.setScalar(2048); quality.auto = false; gtao.enabled = true; key.shadow.map?.dispose(); key.shadow.map = null; resize(); },
 };
 for (const k of Object.keys(actions)) document.getElementById('t-' + k).addEventListener('click', actions[k]);
 controls.addEventListener('start', () => { camTween = null; });
@@ -2948,8 +2930,8 @@ function randomKit() {
 buildCustomizer();
 
 /* ---------- Post-processing: GTAO, bloom, tone mapping, grade/vignette/grain ---------- */
-const quality = { high: !matchMedia('(pointer: coarse)').matches };
-const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
+const quality = { high: !matchMedia('(pointer: coarse)').matches, auto: true, acc: 0, n: 0, wait: 2 };
+const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 2 }));
 composer.addPass(new RenderPass(scene, camera));
 const gtao = new GTAOPass(scene, camera, 1, 1);
 gtao.blendIntensity = 0.9;
@@ -2998,7 +2980,7 @@ function resize() {
   camera.aspect = w / h;
   camera.fov = w / h < 0.8 ? 44 : 32; // keep the whole player in frame on tall screens
   camera.updateProjectionMatrix();
-  const dpr = Math.min(window.devicePixelRatio, quality.high ? 2 : 1.5);
+  const dpr = Math.min(window.devicePixelRatio, quality.high ? 1.5 : 1);
   renderer.setPixelRatio(dpr);
   renderer.setSize(w, h, false);
   composer.setPixelRatio(dpr);
@@ -3075,6 +3057,16 @@ function frame() {
   hype.value = Math.max(0, hype.value - real * 0.12);
   for (const t of ledBoards) t.offset.x = (state.time * 0.04) % 1;
 
+  // Auto quality: if frames run slow (> ~24 ms average), drop AO, then post-processing entirely.
+  if (quality.auto && real > 0) {
+    quality.acc += real; quality.n++;
+    if (quality.acc > 1.5) {
+      const avg = quality.acc / quality.n; quality.acc = 0; quality.n = 0;
+      if (quality.wait > 0) quality.wait--;
+      else if (avg > 0.024 && quality.high && gtao.enabled) { gtao.enabled = false; quality.wait = 1; }
+      else if (avg > 0.024 && quality.high) { quality.high = false; toggle('t-hq', false); resize(); toast('Graphics lowered for smoothness', 'info'); }
+    }
+  }
   controls.update(real);
   if (quality.high) { grade.uniforms.uTime.value = state.time; composer.render(real); } else renderer.render(scene, camera);
   requestAnimationFrame(frame);
