@@ -13,6 +13,7 @@ import { GoalCine, MatchIntro, TrophyCine } from '../cine';
 import { startCrowd, stopCrowd, roar, groan, whistle, setSound } from '../sfx';
 import { luminance } from '../art';
 import { Broadcast, LW, LH } from '../broadcast';
+import { awaySlot, kitOf } from '../../data/kits';
 
 type Phase = 'preview' | 'intro' | 'live' | 'done';
 
@@ -120,8 +121,8 @@ function Live({ m, userSide, onEnd }: { m: Match; userSide: 0 | 1; onEnd: () => 
   const clubs = m.clubs;
   const kit = useMemo(() => {
     const h = clubs[0], a = clubs[1];
-    const away = Math.abs(luminance(h.c1) - luminance(a.c1)) < 0.18 || h.c1.toLowerCase() === a.c1.toLowerCase();
-    return [{ c1: h.c1, c2: h.c2, gk: '#1ed760' }, away ? { c1: a.a1, c2: a.a2, gk: '#f97316', away: true } : { c1: a.c1, c2: a.c2, gk: '#f97316' }];
+    const slot = awaySlot(h, a), hk = kitOf(h, 'h'), ak = kitOf(a, slot);
+    return [{ c1: hk.body, c2: hk.trim, gk: '#1ed760', slot: 'h' as const }, { c1: ak.body, c2: ak.trim, gk: '#f97316', slot }];
   }, [clubs]);
   const bc = useMemo(() => new Broadcast(m, kit), [m, kit]);
 

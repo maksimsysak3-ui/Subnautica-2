@@ -1,5 +1,6 @@
 import logos from '../data/logos.json';
 import { CLUB_META, KIT_EXTRA } from '../data/clubs';
+import { importedHome } from '../data/kits';
 import { ENG } from '../data/sq-eng';
 import { ESP } from '../data/sq-esp';
 import { GER } from '../data/sq-ger';
@@ -58,7 +59,8 @@ export function createWorld(userClub: string, manager: string, seed = Date.now()
     const tier: 0 | 1 | 2 = lg ? lg.tier : 0;
     if (tier === 2 && slug === 'deportivo-la-coruna') continue;
     const rep = meta?.rep ?? (tier === 2 ? 52 + Math.round(rand() * 10) : 55);
-    const c1 = meta?.c1 ?? hashColor(slug, 62, 40), c2 = meta?.c2 ?? '#FFFFFF';
+    const real = meta ? undefined : importedHome(slug);
+    const c1 = meta?.c1 ?? real?.body ?? hashColor(slug, 62, 40), c2 = meta?.c2 ?? real?.trim ?? '#FFFFFF';
     const club: Club = {
       id: slug, name: meta?.name ?? cname, short: meta?.short ?? cname.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase(), country, league: lg ? league : 'world', rep,
       c1, c2, a1: meta?.a1 ?? c2, a2: meta?.a2 ?? c1, kit: meta?.kit ?? 'plain', stadium: meta?.stadium ?? `${cname} Stadium`, cap: meta?.cap ?? 15000 + Math.round(rand() * 20000),

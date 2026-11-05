@@ -1,6 +1,7 @@
 import { memo, useState } from 'react';
 import type { Club, Player } from '../core/types';
 import type { KitPattern } from '../data/clubs';
+import { kitOf, type KitSlot } from '../data/kits';
 import { makeRng, hash } from '../core/rng';
 import { regionOf, flagUrl, natName, type Region } from '../data/nations';
 import { faceStats } from '../core/player';
@@ -71,7 +72,11 @@ export function luminance(hex: string) {
   const n = parseInt(m[1], 16);
   return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
 }
-export const kitFor = (c: Club, away = false) => away ? { c1: c.a1, c2: c.a2, pattern: 'plain' as KitPattern } : { c1: c.c1, c2: c.c2, pattern: c.kit };
+/** Shirt colours for the SVG kit and portraits. 'sleeves' draws its contrast colour from the sleeves. */
+export const kitFor = (c: Club, away: boolean | KitSlot = false) => {
+  const k = kitOf(c, away === true ? 'a' : away === false ? 'h' : away);
+  return { c1: k.body, c2: k.pattern === 'sleeves' ? k.sleeve : k.trim, pattern: k.pattern };
+};
 
 // ---- faces --------------------------------------------------------------------------------
 const SKIN: Record<Region, [string[], number[]]> = {

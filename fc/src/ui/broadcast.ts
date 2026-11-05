@@ -2,6 +2,7 @@
 // view that follows the ball, animated pixel players, nets, stands, crowd, dust and celebrations.
 import type { Action, LP, Match } from '../core/engine';
 import { drawPlayer, lookFor, type Look, type Pose } from './pixel';
+import type { KitSlot } from '../data/kits';
 import { luminance } from './art';
 
 export const LW = 768, LH = 432;
@@ -24,16 +25,16 @@ export class Broadcast {
   grassTex: HTMLCanvasElement | null = null;
   time = 0;
 
-  constructor(private m: Match, kits: { c1: string; c2: string; gk: string; away?: boolean }[]) {
+  constructor(private m: Match, kits: { c1: string; c2: string; gk: string; slot: KitSlot }[]) {
     for (const l of m.lps) {
       const club = m.clubs[l.side];
-      this.looks.set(l.id, lookFor(l.p, club, { away: !!kits[l.side].away, gk: l.p.pos === 'GK', gkColor: kits[l.side].gk }));
+      this.looks.set(l.id, lookFor(l.p, club, { slot: kits[l.side].slot, gk: l.p.pos === 'GK', gkColor: kits[l.side].gk }));
     }
     // pre-rendered crowd texture
     this.crowd = document.createElement('canvas');
     this.crowd.width = 256; this.crowd.height = 48;
     const c = this.crowd.getContext('2d')!;
-    const cols = [m.clubs[0].c1, m.clubs[0].c2, m.clubs[1].c1, '#d9cfc1', '#8a6b52', '#3b2717', '#e8bf9f', '#1d2433', '#f5f5f5'];
+    const cols = [kits[0].c1, kits[0].c2, kits[1].c1, '#d9cfc1', '#8a6b52', '#3b2717', '#e8bf9f', '#1d2433', '#f5f5f5'];
     c.fillStyle = '#141a28'; c.fillRect(0, 0, 256, 48);
     for (let yy = 0; yy < 48; yy += 3) for (let xx = (yy / 3) % 2; xx < 256; xx += 3) {
       c.fillStyle = cols[(xx * 7 + yy * 13 + ((xx * yy) % 11)) % cols.length];

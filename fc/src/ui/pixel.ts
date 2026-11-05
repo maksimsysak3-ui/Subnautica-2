@@ -3,26 +3,21 @@
 // heading and celebrating, in any kit, skin tone and hairstyle.
 import type { Club, Player } from '../core/types';
 import { faceSpec } from './art';
-import { luminance } from './art';
 import type { KitPattern } from '../data/clubs';
+import { kitOf, type KitSlot } from '../data/kits';
 
 export type Pose = 'idle' | 'run' | 'kick' | 'slide' | 'dive' | 'header' | 'celebrate' | 'slideCelebrate' | 'dejected' | 'lift' | 'wave' | 'jump';
 export interface Look { shirt: string; trim: string; shorts: string; socks: string; skin: string; hair: string; hairStyle: number; stripes: boolean; gk: boolean; num: number; pattern: KitPattern; sleeve: string; beard: number }
 
-export function lookFor(p: Player, club: Club | undefined, opts: { away?: boolean; gk?: boolean; gkColor?: string } = {}): Look {
+export function lookFor(p: Player, club: Club | undefined, opts: { slot?: KitSlot; gk?: boolean; gkColor?: string } = {}): Look {
   const f = faceSpec(p);
-  const c1 = club ? (opts.away ? club.a1 : club.c1) : '#2b3550';
-  const c2 = club ? (opts.away ? club.a2 : club.c2) : '#8fa3c7';
-  const shirt = opts.gk ? (opts.gkColor ?? '#1ed760') : c1;
-  const light = luminance(shirt) > 0.65;
-  const home = !!club && !opts.away && !opts.gk;
-  const pattern: KitPattern = home ? club!.kit : 'plain';
-  return {
-    shirt, trim: opts.gk ? '#111' : c2,
-    shorts: opts.gk ? '#111' : home && club!.shorts ? club!.shorts : light ? '#1b2232' : (luminance(c2) > 0.7 ? '#f3f5f9' : c2),
-    socks: opts.gk ? shirt : home && club!.socks ? club!.socks : c1, skin: f.skin, hair: f.hair, hairStyle: f.hairStyle,
-    stripes: pattern === 'stripes' || pattern === 'pinstripe', gk: !!opts.gk, num: p.num, pattern, sleeve: pattern === 'sleeves' ? c2 : shirt, beard: f.beard,
-  };
+  const k = club ? kitOf(club, opts.slot ?? 'h') : { body: '#2b3550', trim: '#8fa3c7', pattern: 'plain' as KitPattern, sleeve: '#2b3550', shorts: '#1b2232', socks: '#2b3550' };
+  const face = { skin: f.skin, hair: f.hair, hairStyle: f.hairStyle, beard: f.beard, num: p.num };
+  if (opts.gk) {
+    const shirt = opts.gkColor ?? '#1ed760';
+    return { ...face, shirt, trim: '#111', shorts: '#111', socks: shirt, stripes: false, gk: true, pattern: 'plain', sleeve: shirt };
+  }
+  return { ...face, shirt: k.body, trim: k.trim, shorts: k.shorts, socks: k.socks, stripes: k.pattern === 'stripes' || k.pattern === 'pinstripe', gk: false, pattern: k.pattern, sleeve: k.sleeve };
 }
 
 const OUT = '#0b0d14';
