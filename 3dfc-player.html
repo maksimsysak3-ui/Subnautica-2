@@ -66,6 +66,7 @@
   #stick { position: fixed; left: 22px; bottom: 26px; width: 130px; height: 130px; border-radius: 50%; background: rgba(255,255,255,0.07); border: 1px solid var(--line); touch-action: none; }
   #stick i { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(255,255,255,0.22); }
   .tbtns { position: fixed; right: 18px; bottom: 22px; display: grid; grid-template-columns: repeat(2, 72px); gap: 10px; }
+  .tbtns button[data-k="skill"] { grid-column: 1 / span 2; height: 44px; width: auto; border-radius: 22px; }
   .tbtns button { width: 72px; height: 72px; border-radius: 50%; font-weight: 700; font-size: 12px; background: rgba(255,255,255,0.1); border: 1px solid var(--line); touch-action: none; }
   .tbtns button[data-k="power"] { background: color-mix(in srgb, var(--power) 45%, transparent); }
   .tbtns button[data-k="finesse"] { background: color-mix(in srgb, var(--curl) 45%, transparent); }
@@ -151,6 +152,7 @@
     <dt><kbd>J</kbd> / <kbd>Q</kbd></dt><dd>Pass, hold for distance</dd>
     <dt>Aim</dt><dd>Hold a direction as you strike. With no direction it goes far post.</dd>
     <dt><kbd>R</kbd> · <kbd>F</kbd></dt><dd>Ball to feet · Free kick</dd>
+    <dt><kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd></dt><dd>Step-over · Drag-back · Ball roll (A/D picks the side)</dd>
     <dt>Mouse</dt><dd>Drag to orbit, scroll to zoom</dd>
   </dl>
 </details>
@@ -159,6 +161,7 @@
   <div class="tbtns touch-only">
     <button data-k="finesse">CURL</button><button data-k="power">SHOOT</button>
     <button data-k="sprint">SPRINT</button><button data-k="pass">PASS</button>
+    <button data-k="skill">SKILL</button>
   </div>
 </div>
 
@@ -659,12 +662,12 @@ const HEAD_PROFILE = [
   [1.00, 0.00, 0.00, 0.00, 1.00],
   [0.80, 0.60, 0.58, 0.62, 0.86],
   [0.50, 0.88, 0.86, 0.92, 0.56],
-  [0.20, 0.98, 0.97, 1.00, 0.22],
-  [0.00, 1.00, 1.00, 1.00, 0.00],
-  [-0.22, 0.98, 1.00, 0.90, -0.22],
-  [-0.43, 0.95, 0.98, 0.58, -0.44],
-  [-0.62, 0.90, 0.95, 0.22, -0.66],
-  [-0.78, 0.63, 0.93, 0.05, -0.83],
+  [0.20, 0.98, 0.97, 0.95, 0.22],
+  [0.00, 1.00, 1.00, 0.9, 0.00],
+  [-0.22, 0.98, 1.00, 0.8, -0.22],
+  [-0.43, 0.95, 0.98, 0.64, -0.44],
+  [-0.62, 0.90, 0.95, 0.42, -0.66],
+  [-0.78, 0.63, 0.93, 0.22, -0.83],
   [-0.90, 0.43, 0.86, 0.0, -0.935],
   [-1.00, 0.00, 0.40, 0.00, -0.955],
 ];
@@ -812,7 +815,7 @@ for (const m of [1, -1]) {
 }
 
 /* ---------- Neck ---------- */
-add('body', loft(ringsAlong(V3(0, 1.33, -0.006), UP, [[0, 0.064, 0.06], [0.09, 0.061, 0.057, 0, 0, -0.008], [0.16, 0.058, 0.054, 0, 0, -0.016], [0.21, 0.052, 0.048, 0, 0, -0.02]]), { seg: 10 }),
+add('body', loft(ringsAlong(V3(0, 1.33, -0.006), UP, [[0, 0.064, 0.064, 0, 0, -0.008], [0.09, 0.062, 0.062, 0, 0, -0.018], [0.16, 0.06, 0.06, 0, 0, -0.03], [0.25, 0.055, 0.055, 0, 0, -0.04]]), { seg: 10 }),
   { color: 'skin', weights: chain('chest', [{ bone: 'neck', at: J.neck, dir: UP, w: 0.03 }, { bone: 'head', at: J.head, dir: UP, w: 0.03 }]) });
 
 /* ---------- Torso (jersey) ---------- */
@@ -1968,10 +1971,10 @@ function predictBall(t) {
 }
 // Ball vs player's body (a vertical capsule) so it can't pass through the runner.
 function bodyBlock() {
-  if (app.mode !== 'play' || player.possess || (player.kick && Math.abs(player.kick.t) < 0.12)) return;
+  if (app.mode !== 'play' || (player.kick && Math.abs(player.kick.t) < 0.12)) return;
   const d = _tmp.set(ball.pos.x - player.pos.x, 0, ball.pos.z - player.pos.z), dist = d.length();
   const r = 0.17 + BALL_R;
-  if (ball.pos.y < 1.7 && dist < r && dist > 1e-4) {
+  if (ball.pos.y > 0.3 && ball.pos.y < 1.7 && dist < r && dist > 1e-4) {
     d.divideScalar(dist);
     ball.pos.x = player.pos.x + d.x * r; ball.pos.z = player.pos.z + d.z * r;
     const rel = _tmp2.copy(ball.vel).sub(player.vel), vn = rel.dot(d);
@@ -2177,8 +2180,9 @@ function curve(times, vals) {
 }
 for (const def of Object.values(KICK_DEFS)) def.fn = Object.fromEntries(Object.entries(def.ch).map(([k, v]) => [k, curve(def.times, v)]));
 // Map generic kick channels (K = kicking leg, S = support leg, AK/AS = arms on those sides) to L/R pose channels.
-function kickPose(type, t, K) {
-  const def = KICK_DEFS[type], S = K === 'R' ? 'L' : 'R', fs = K === 'R' ? 1 : -1, p = {};
+const kickPose = (type, t, K) => channelPose(KICK_DEFS[type], t, K);
+function channelPose(def, t, K) {
+  const S = K === 'R' ? 'L' : 'R', fs = K === 'R' ? 1 : -1, p = {};
   for (const [ch, f] of Object.entries(def.fn)) {
     const v = f(t), r = v * DEG, dot = ch.indexOf('.');
     if (dot > 0) { const pre = ch.slice(0, dot), name = ch.slice(dot + 1); p[name + (pre === 'K' || pre === 'AK' ? K : S)] = r; continue; }
@@ -2337,7 +2341,7 @@ function launchParams(type, power, dirHint, lateralIn, K) {
   return { v: dir.clone().multiplyScalar(speed), spin: spinFn(dir), speed, aim };
 }
 function requestKick(type, power) {
-  if (player.kick || app.mode !== 'play') return;
+  if (player.kick || player.skill || app.mode !== 'play') return;
   const { dist } = ballRel(), def = KICK_DEFS[type];
   const reach = clamp(0.9 + def.pre * Math.max(player.speed, 2.0) * 1.05, 1.5, 4.2);
   if (dist <= reach && ball.pos.y < 0.7 && ball.vel.length() < 14) startKick(type, power);
@@ -2345,7 +2349,9 @@ function requestKick(type, power) {
   else toast('Get closer to the ball', 'info');
 }
 function startKick(type, power) {
-  const K = cfg.player.foot === 'L' ? 'L' : 'R', def = KICK_DEFS[type], fs = K === 'R' ? 1 : -1;
+  // Strike with the leg nearest the ball; the strong foot only breaks ties when it's dead centre.
+  const lat0 = ballRel().lat;
+  const K = Math.abs(lat0) < 0.06 ? (cfg.player.foot === 'L' ? 'L' : 'R') : lat0 > 0 ? 'R' : 'L', def = KICK_DEFS[type], fs = K === 'R' ? 1 : -1;
   const { dir: inDir } = moveInput();
   const toBall = V3(ball.pos.x - player.pos.x, 0, ball.pos.z - player.pos.z).normalize();
   // Kick direction hint: stick direction if held, otherwise where the player faces / towards the ball.
@@ -2409,7 +2415,7 @@ function onGoal(gi) {
   if (app.mode === 'play') player.celebrate = 2.6;
 }
 function resetBall(at) {
-  player.possess = false;
+  player.possess = false; player.skill = null;
   const f = facingVec(player.yaw);
   ball.pos.copy(at || player.pos.clone().addScaledVector(f, 0.55)).setY(BALL_R);
   ball.vel.set(0, 0, 0); ball.spin.set(0, 0, 0); ball.outT = 0;
@@ -2475,6 +2481,9 @@ function updatePlay(dt) {
       player.speed = player.vel.length();
       player.phase = k.K === 'L' ? 0.1 : 0.6; // the kicking foot has just landed
     }
+  } else if (player.skill) {
+    const loco = locomotion(Math.min(player.speed, 1.2), player.phase, player.idleT);
+    pose = updateSkill(dt, loco);
   } else {
     // Auto-approach a requested kick
     let want = inDir, wantMag = mag;
@@ -2512,7 +2521,7 @@ function updatePlay(dt) {
   }
   keepInBounds();
   // Posture: bank into turns, lean with acceleration
-  const bank = player.kick ? 0 : clamp(-player.yawRate * player.speed * 0.04, -0.32, 0.32);
+  const bank = player.kick || player.skill ? 0 : clamp(-player.yawRate * player.speed * 0.04, -0.32, 0.32);
   player.lean = damp(player.lean, bank, 6, dt);
   addTouchLayer(pose, state.time);
   addLookLayer(pose, dt);
@@ -2531,6 +2540,7 @@ function updatePlay(dt) {
     }
     if (!k.released && k.t >= 0) releaseBall(k);
   }
+  footBall(dt);
 }
 function applyPlayerTransform() {
   character.position.copy(player.pos);
@@ -2549,39 +2559,190 @@ function keepInBounds() {
 // Dribbling: a touch is played by whichever foot reaches late swing (~85 % of its cycle) with the ball
 // in front of it. The touch knocks the ball ahead of the runner in the desired direction - softer when
 // walking, longer when sprinting - with a little positional assist so the foot actually meets the ball.
-// Close control, FC-style: once the ball reaches the player's feet it is "owned". Every stride-timed
-// touch pushes it out a little and a damped pull reels it back to a spot just ahead of the feet, so it
-// stays with you through turns, stops and sprints (further ahead when sprinting).
+// Ball control depends on pace, like FC:
+//  - walking / standing: no assistance at all - the boots move the ball (see footBall), so you can
+//    nudge it, step over it, go round it, or stop it under the sole;
+//  - jogging / running: stride-timed touches knock it ahead in the direction you want, then it rolls free;
+//  - fast running / sprinting: close control - each touch pushes it out and a damped pull keeps it
+//    within reach.
 function dribble(prevPhase, phase, want, dt) {
   const r = ballRel();
-  if (!player.possess) {
-    const rel = ball.vel.clone().sub(player.vel).length();
-    if (player.kick || r.dist > 1.15 || r.fwd < -0.25 || ball.pos.y > 0.45 || rel > 9 || state.time - player.lastTouch < 0.35) return;
-    player.possess = true; player.pulse = 0.4; player.lastTouch = state.time;
-    player.touch = { side: r.lat > 0 ? 'R' : 'L', t0: state.time, kind: 'receive' };
-    ball.spin.multiplyScalar(0.2);
-  }
-  if (r.dist > 2.6 || ball.pos.y > 0.7) { player.possess = false; return; }
-  const f = r.f, side = rightOf(f), sp = player.speed, k = clamp(sp / GAIT.vSprint, 0, 1);
+  if (player.kick || ball.pos.y > 0.6 || r.dist > 2.8) { player.possess = false; return; }
+  if (r.dist < 1.5) player.possess = true;
+  if (!player.possess) return;
+  const f = r.f, side = rightOf(f), sp = player.speed, dir = want ? want.clone() : f.clone();
+  const wFast = smoothstep(4.4, 5.4, sp);
   for (const [s, off] of [['L', 0], ['R', 0.5]]) {
     const q0 = (prevPhase + off) % 1, q1 = (phase + off) % 1;
-    if (sp > 0.6 && q0 < 0.84 && (q1 >= 0.84 || q1 < q0) && state.time - player.lastTouch > 0.2) {
-      player.pulse = 1; player.touchSide = s; player.lastTouch = state.time;
-      player.touch = { side: s, t0: state.time, kind: 'dribble' };
+    if (!(sp > 1.8 && q0 < 0.84 && (q1 >= 0.84 || q1 < q0) && state.time - player.lastTouch > 0.2)) continue;
+    if (wFast > 0.5) { player.pulse = 1; player.touchSide = s; }
+    else {
+      if (r.fwd < 0.05 || r.fwd > 0.85 || Math.abs(r.lat) > 0.45) continue; // only when the swinging foot can reach it
+      const knock = lerp(0.7, 1.3, clamp((sp - 1.8) / 3, 0, 1));
+      const footLat = s === 'L' ? -0.08 : 0.08;
+      ball.vel.set(dir.x * (sp + knock), 0, dir.z * (sp + knock));
+      ball.vel.addScaledVector(side, clamp((footLat - r.lat) * 3, -0.6, 0.6));
     }
+    player.lastTouch = state.time;
+    player.touch = { side: s, t0: state.time, kind: 'dribble' };
   }
-  player.pulse = Math.max(0, (player.pulse || 0) - dt * lerp(3.2, 2.2, k));
-  const ahead = lerp(0.4, 0.95, k) + player.pulse * lerp(0.15, 0.55, k);
-  const lat = (player.touchSide === 'L' ? -1 : 1) * 0.06 * Math.min(1, sp);
-  const tgt = player.pos.clone().addScaledVector(f, ahead).addScaledVector(side, lat);
-  // Critically-damped pull: velocity = player velocity + correction toward the target spot.
-  const corr = V3(tgt.x - ball.pos.x, 0, tgt.z - ball.pos.z).multiplyScalar(lerp(10, 7, k));
-  if (corr.length() > 7) corr.setLength(7);
-  ball.vel.set(player.vel.x + corr.x, Math.min(ball.vel.y, 0), player.vel.z + corr.z);
-  if (ball.pos.y <= BALL_R + 0.01) { ball.vel.y = 0; ball.pos.y = BALL_R; }
+  if (wFast > 0) {
+    player.pulse = Math.max(0, (player.pulse || 0) - dt * 2.4);
+    const ahead = 0.95 + player.pulse * 0.5, lat = (player.touchSide === 'L' ? -1 : 1) * 0.06;
+    const tgt = player.pos.clone().addScaledVector(f, ahead).addScaledVector(side, lat);
+    const corr = V3(tgt.x - ball.pos.x, 0, tgt.z - ball.pos.z).multiplyScalar(7);
+    if (corr.length() > 7) corr.setLength(7);
+    ball.vel.x = lerp(ball.vel.x, player.vel.x + corr.x, wFast); ball.vel.z = lerp(ball.vel.z, player.vel.z + corr.z, wFast);
+  }
+  // Stopping with the ball: if you let go of the stick it is trapped under the sole.
+  if (!want && sp < 2.5 && r.dist < 1.0 && r.fwd > -0.1) {
+    ball.vel.x = damp(ball.vel.x, player.vel.x, 5, dt); ball.vel.z = damp(ball.vel.z, player.vel.z, 5, dt);
+  }
+  if (ball.pos.y <= BALL_R + 0.01) ball.vel.y = 0;
   rollingSpin(ball.vel, ball.spin);
 }
 
+/* =====================================================================
+   14b. Feet <-> ball contact, skill moves
+   ===================================================================== */
+// Boot colliders (toe tip, ball of foot, heel, ankle). The ball is moved by the feet physically, so at
+// walking pace you can nudge it, step over it, walk around it or put a sole on it.
+const FOOT_COLL = [];
+for (const s of ['L', 'R']) {
+  const m = s === 'L' ? 1 : -1;
+  for (const [bone, p, r, kind] of [['toe' + s, V3(0.1 * m, 0.035, 0.162), 0.035, 'toe'], ['foot' + s, V3(0.1 * m, 0.042, 0.07), 0.045, 'sole'],
+    ['foot' + s, V3(0.1 * m, 0.045, -0.05), 0.04, 'heel'], ['foot' + s, V3(0.1 * m, 0.095, -0.005), 0.045, 'ankle']]) {
+    const o = new THREE.Object3D(); o.position.copy(p).sub(J[bone]); B[bone].add(o);
+    FOOT_COLL.push({ o, r, side: s, kind, prev: null });
+  }
+}
+function footBall(dt) {
+  const skip = dt <= 0 || ball.pos.y > 0.5 || (player.kick && player.kick.t < 0.1) || player.skill || state.time < (player.skillGrace || 0);
+  for (const c of FOOT_COLL) {
+    const p = wpos(c.o);
+    const v = c.prev && dt > 0 ? p.clone().sub(c.prev).divideScalar(dt) : V3();
+    if (v.length() > 14) v.setLength(14); // teleports (reset / free kick) are not kicks
+    c.prev = p;
+    if (skip) continue;
+    const d = ball.pos.clone().sub(p), dist = d.length(), minD = BALL_R + c.r;
+    if (dist >= minD || dist < 1e-5) continue;
+    const n = d.divideScalar(dist);
+    if (n.y > 0.55) { // boot resting on top of the ball: it rolls with the sole
+      ball.vel.x = lerp(ball.vel.x, v.x, 0.6); ball.vel.z = lerp(ball.vel.z, v.z, 0.6);
+    } else {
+      n.y = 0; n.normalize();
+      const hd = Math.hypot(ball.pos.x - p.x, ball.pos.z - p.z);
+      ball.pos.addScaledVector(n, Math.max(0, minD - hd));
+      const vn = _tmp.subVectors(ball.vel, v).dot(n);
+      if (vn < 0) {
+        // Dribbling touches are soft (players cushion them): no bounce, a little steer toward where the
+        // player is heading, and never much faster than the player.
+        ball.vel.addScaledVector(n, -vn);
+        const h = V3(ball.vel.x, 0, ball.vel.z), sp = h.length(), fwd = facingVec(player.yaw);
+        if (sp > 1e-3) {
+          h.lerp(fwd.clone().multiplyScalar(sp), 0.35);
+          h.setLength(Math.min(sp, player.speed + 0.9));
+          ball.vel.x = h.x; ball.vel.z = h.z;
+        }
+      }
+      ball.vel.y = Math.max(0, ball.vel.y);
+    }
+    rollingSpin(ball.vel, ball.spin);
+    player.lastTouch = state.time;
+  }
+}
+// Skill moves: keyframed like the kicks (K = the leg doing the move, S = standing leg), plus root motion
+// and what happens to the ball over time.
+const SKILLS = {
+  // Step-over: the foot circles over the front of the ball from inside to outside while the body dips
+  // that way; the ball is left untouched.
+  stepover: {
+    label: 'Step-over', dur: 0.62, times: [0, 0.12, 0.24, 0.36, 0.48, 0.62],
+    ch: {
+      'K.thF': [5, 38, 54, 40, 16, 5], 'K.kn': [12, 66, 72, 54, 24, 12], 'K.thAbd': [0, -18, 0, 28, 14, 0],
+      'K.thInt': [0, 12, 0, -16, -6, 0], 'K.ank': [0, 12, 16, 6, 0, 0],
+      'S.kn': [15, 26, 32, 30, 22, 14], 'S.thF': [5, 6, 8, 8, 6, 4], 'S.ank': [-8, -14, -18, -16, -12, -8],
+      hipsYk: [0, -10, 0, 14, 6, 0], chestZs: [0, 5, -6, -15, -8, 0], spineX: [6, 9, 11, 10, 8, 6], headX: [10, 16, 18, 16, 12, 8],
+      'AS.shAbd': [10, 38, 30, 14, 10, 5], 'AK.shAbd': [10, 8, 28, 46, 30, 10], 'AS.elb': [40, 35, 35, 40, 45, 50], 'AK.elb': [40, 45, 35, 30, 40, 50],
+    },
+  },
+  // Drag-back: sole on top of the ball, pull it back under the body and spin away with it.
+  dragback: {
+    label: 'Drag-back', dur: 0.72, times: [0, 0.12, 0.26, 0.42, 0.58, 0.72],
+    ch: {
+      'K.thF': [5, 36, 32, 4, -6, 0], 'K.kn': [12, 56, 52, 40, 20, 10], 'K.ank': [0, -16, -16, -6, 0, 0], 'K.thAbd': [0, 4, 4, 2, 0, 0],
+      'S.kn': [15, 22, 26, 26, 20, 12], 'S.ank': [-6, -10, -12, -12, -8, -4],
+      spineX: [5, 7, 3, 0, 4, 4], headX: [10, 18, 20, 14, 8, 6], chestZs: [0, 4, 6, 6, 3, 0],
+      'AS.shAbd': [10, 30, 34, 26, 14, 5], 'AK.shAbd': [10, 20, 24, 18, 10, 5], 'AS.elb': [40, 40, 40, 45, 50, 55], 'AK.elb': [40, 45, 45, 50, 50, 55],
+    },
+    hold: [0.1, 0.44],
+  },
+  // Ball roll: sole on top, roll the ball across the body to the other side while shuffling with it.
+  roll: {
+    label: 'Ball roll', dur: 0.56, times: [0, 0.1, 0.24, 0.38, 0.56],
+    ch: {
+      'K.thF': [5, 26, 24, 18, 5], 'K.kn': [12, 46, 46, 40, 12], 'K.ank': [0, -12, -12, -8, 0], 'K.thAbd': [0, 12, 0, -16, 0],
+      'S.kn': [15, 24, 26, 24, 14], 'S.thAbd': [0, 4, 8, 10, 2],
+      spineX: [5, 8, 8, 7, 5], headX: [10, 18, 20, 16, 8], chestZs: [0, -4, 0, 6, 0],
+      'AS.shAbd': [10, 26, 30, 22, 8], 'AK.shAbd': [10, 30, 22, 14, 8],
+    },
+    hold: [0.08, 0.52],
+  },
+};
+for (const def of Object.values(SKILLS)) def.fn = Object.fromEntries(Object.entries(def.ch).map(([k, v]) => [k, curve(def.times, v)]));
+function startSkill(name) {
+  if (app.mode !== 'play' || player.kick || player.skill) return;
+  const r = ballRel();
+  if (r.dist > 1.3 || r.fwd < -0.15 || ball.pos.y > 0.4) { toast('Get the ball at your feet first', 'info'); return; }
+  const { dir } = moveInput();
+  let K = Math.abs(r.lat) < 0.05 ? (cfg.player.foot === 'L' ? 'L' : 'R') : r.lat > 0 ? 'R' : 'L';
+  let side = 0;
+  if (name === 'roll') { // roll it across with the inside of the far foot: rolling left uses the right sole
+    side = dir ? Math.sign(dir.dot(rightOf(r.f)) || 1) : (cfg.player.foot === 'L' ? 1 : -1);
+    K = side < 0 ? 'R' : 'L';
+  }
+  const def = SKILLS[name];
+  player.skill = { name, def, K, fs: K === 'R' ? 1 : -1, t: 0, yaw0: player.yaw, f0: r.f.clone(), side,
+    off: V3(clamp(r.lat, -0.05, 0.05), 0, name === 'stepover' ? 0.32 : Math.max(0.3, Math.min(r.fwd, 0.6))), hold: false, done: false };
+  player.pending = null; player.charge = null; player.possess = true;
+  toast(def.label, 'info');
+}
+const skillMarker = (K) => FOOT_COLL.find(c => c.side === K && c.kind === 'sole').o; // ball of the foot
+function updateSkill(dt, loco) {
+  const sk = player.skill, def = sk.def;
+  sk.t += dt;
+  const t = sk.t, u = clamp(t / def.dur, 0, 1), f0 = sk.f0, side = rightOf(f0);
+  // Root motion
+  if (sk.name === 'stepover') player.pos.addScaledVector(f0, 0.9 * dt);
+  if (sk.name === 'dragback') {
+    if (t < 0.44) player.pos.addScaledVector(f0, -0.65 * dt);
+    player.yaw = sk.yaw0 + sk.fs * Math.PI * smoothstep(0.28, 0.72, t);
+  }
+  if (sk.name === 'roll') player.pos.addScaledVector(side, sk.side * 1.6 * Math.sin(Math.PI * u) * dt);
+  player.vel.set(0, 0, 0); player.speed = Math.min(player.speed, 1.2);
+  // Ball
+  const holdWin = def.hold;
+  sk.hold = !!holdWin && t >= holdWin[0] && t <= holdWin[1];
+  if (sk.name === 'stepover') { // the ball rolls along with the player, untouched
+    const want = player.pos.clone().addScaledVector(f0, sk.off.z).addScaledVector(side, sk.off.x);
+    ball.vel.set((want.x - ball.pos.x) * 8 + f0.x * 0.9, 0, (want.z - ball.pos.z) * 8 + f0.z * 0.9);
+  } else if (sk.hold) { // under the sole
+    const m = wpos(skillMarker(sk.K)), a = smoothstep(holdWin[0], holdWin[0] + 0.06, t);
+    const nx = lerp(ball.pos.x, m.x, a), nz = lerp(ball.pos.z, m.z, a);
+    ball.vel.set((nx - ball.pos.x) / Math.max(dt, 1e-3), 0, (nz - ball.pos.z) / Math.max(dt, 1e-3));
+    sk.wasHeld = true;
+  } else if (sk.wasHeld && !sk.released) { // let it go in the new direction
+    sk.released = true;
+    const out = sk.name === 'dragback' ? facingVec(sk.yaw0 + sk.fs * Math.PI) : side.clone().multiplyScalar(sk.side).addScaledVector(f0, 0.35).normalize();
+    ball.vel.copy(out.multiplyScalar(sk.name === 'dragback' ? 1.5 : 1.0));
+  }
+  rollingSpin(ball.vel, ball.spin);
+  player.lastTouch = state.time;
+  const w = smoothstep(0, 0.08, t) * (1 - smoothstep(def.dur - 0.1, def.dur, t));
+  const pose = blendPoses([[loco.pose, 1 - w], [{ ...loco.pose, ...channelPose(def, t, sk.K) }, w]]);
+  if (t >= def.dur) { player.skill = null; player.possess = true; player.skillGrace = state.time + 0.3; }
+  return pose;
+}
 /* =====================================================================
    15. App state, camera rig
    ===================================================================== */
@@ -2707,6 +2868,9 @@ window.addEventListener('keydown', e => {
   if (app.mode === 'play') {
     keys.add(e.code);
     if (KICK_KEYS[e.code]) { e.preventDefault(); if (!e.repeat) beginCharge(KICK_KEYS[e.code], e.code); }
+    if (e.code === 'KeyZ' && !e.repeat) startSkill('stepover');
+    if (e.code === 'KeyX' && !e.repeat) startSkill('dragback');
+    if (e.code === 'KeyC' && !e.repeat) startSkill('roll');
     if (e.code === 'KeyR') resetBall();
     if (e.code === 'KeyF') freeKick();
     if (e.code.startsWith('Arrow')) e.preventDefault();
@@ -2736,8 +2900,15 @@ window.addEventListener('blur', () => { keys.clear(); player.charge = null; });
   stick.addEventListener('pointerup', end); stick.addEventListener('pointercancel', end);
   document.querySelectorAll('.tbtns button').forEach(b => {
     const k = b.dataset.k;
-    b.addEventListener('pointerdown', e => { e.preventDefault(); b.setPointerCapture(e.pointerId); if (k === 'sprint') touchIn.sprint = true; else beginCharge(k, 'touch-' + k); });
-    const up = () => { if (k === 'sprint') touchIn.sprint = false; else endCharge('touch-' + k); };
+    b.addEventListener('pointerdown', e => {
+      e.preventDefault(); b.setPointerCapture(e.pointerId);
+      if (k === 'sprint') touchIn.sprint = true;
+      else if (k === 'skill') { // stick back = drag-back, stick sideways = ball roll, otherwise step-over
+        const f = facingVec(player.yaw), d = moveInput().dir;
+        startSkill(!d ? 'stepover' : d.dot(f) < -0.5 ? 'dragback' : Math.abs(d.dot(rightOf(f))) > 0.6 ? 'roll' : 'stepover');
+      } else beginCharge(k, 'touch-' + k);
+    });
+    const up = () => { if (k === 'sprint') touchIn.sprint = false; else if (k !== 'skill') endCharge('touch-' + k); };
     b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
   });
 }
@@ -3075,7 +3246,7 @@ function frame() {
 window.__fc = {
   // Deterministic stepping for automated checks (pause first so the loop only renders).
   step(dt, n = 1) { for (let i = 0; i < n; i++) { state.time += dt; if (app.mode === 'play') updatePlay(dt); else if (app.mode === 'customize') updateCustomize(dt); else updateShowcase(dt); stepBall(dt); } },
-  app, state, player, ball, stats, strikeMarkers, CONTACT, wpos, character, applyPose, kickPose, cfg: () => cfg, setCfg: (c) => { cfg = deepMerge(cfg, c); applyAll(); buildCustomizer(); }, setAppMode, setMode, setView, camera, controls, character, quality, composer, requestKick, startKick, freeKick, resetBall, GAIT, KICK_DEFS, keys, get triCount() { return triCount; } };
+  app, state, player, ball, stats, startSkill, ballRel, strikeMarkers, CONTACT, wpos, character, applyPose, kickPose, cfg: () => cfg, setCfg: (c) => { cfg = deepMerge(cfg, c); applyAll(); buildCustomizer(); }, setAppMode, setMode, setView, camera, controls, character, quality, composer, requestKick, startKick, freeKick, resetBall, GAIT, KICK_DEFS, keys, get triCount() { return triCount; } };
 requestAnimationFrame(frame);
 </script>
 </body>
