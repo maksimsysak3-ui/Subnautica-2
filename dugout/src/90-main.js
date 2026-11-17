@@ -1,6 +1,6 @@
 /* ================= app shell ================= */
 function render(){
- $('#bar').hidden=!S;
+ $('#bar').hidden=!S;document.body.classList.toggle('ingame',!!S);
  if(!S){$('#bar').innerHTML='';
   if(ui.mode==='new'){$('#view').innerHTML=viewStart();return}
   // Keep the menu backdrop mounted so the intro animation plays once, not on every click.
@@ -10,8 +10,9 @@ function render(){
   return}
  renderBar();
  const fn={home:viewHome,squad:viewSquad,player:viewPlayer,tactics:viewTactics,transfers:viewTransfers,comps:viewComps,office:viewOffice,club:viewClub,match:viewMatch}[view]||viewHome;
- const html=fn(),side=['home','squad','club'].includes(view)&&!(view==='home'&&(sub==='news'||sub==='inbox'));
- $('#view').innerHTML=side?`<div class="layout"><div style="min-width:0">${html}</div>${newsSidebar()}</div>`:html;
+ const html=fn(),side=['home','squad','club'].includes(view)&&!(view==='home'&&(sub==='news'||sub==='inbox'||sub==='calendar'));
+ const body=side?`<div class="layout"><div style="min-width:0">${html}</div>${newsSidebar()}</div>`:html;
+ $('#view').innerHTML=(view==='match'?'':pageHead())+body;
  if(view==='transfers'&&sub==='search')renderSearch();
  if(view==='match')mountMatch();
 }
@@ -63,6 +64,8 @@ document.addEventListener('click',e=>{
   case'an-tab':ui.anTab=v;refreshAn();break;
   case'an-side':ui.anSide=+v;refreshAn();break;
   case'an-player':{const p=M&&M.E&&M.E.P.concat(M.E.old).find(q=>q.pid===id);if(p){ui.anPid=id;ui.anSide=p.s;ui.anTab='heat';refreshAn();document.querySelector('.an')?.scrollIntoView({behavior:'smooth',block:'nearest'})}break}
+  case'cal-m':ui.calM=(ui.calM??null)===null?null:ui.calM;{const cur=document.querySelector('.cal-months [aria-pressed=true]');ui.calM=(cur?+cur.dataset.v:0)+ +t.dataset.d}render();break;
+  case'cal-go':ui.calM=+v;render();break;
   case'goto':{const[g,sb]=v.split('/');closeModal();go(g,sb);break}
   case'mailf':ui.mailF=v;ui.msg=null;render();break;
   case'mail-read-all':S.inbox.forEach(m=>m.read=true);save();render();renderBar();break;

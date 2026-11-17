@@ -2,7 +2,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap">
 <style>
 /* Layout: data-dense manager console. Top command bar with section menus, contextual sub-tabs, tile dashboards and tight tables.
    Single deliberate night palette: ink navy surfaces, amber for the one primary action, cyan for data highlights. */
@@ -751,9 +751,95 @@ select,input[type=search],input[type=text]{border-radius:2px}
   .pp-head h1{font-size:26px}
 }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* ================= design system v3: sidebar shell, page headers, refined type ================= */
+:root{--fb:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--sbw:252px;--panel:#131315;--panel2:#19191c;--line:#222225;--line2:#2e2e33}
+body{font:13.5px/1.45 var(--fb);letter-spacing:-.003em;background:#0b0b0c}
+body.ingame{display:grid;grid-template-columns:var(--sbw) minmax(0,1fr);min-height:100vh}
+body.ingame main{max-width:none;width:100%;padding:0 max(22px,env(safe-area-inset-right,0px)) 60px 22px;margin:0}
+/* sidebar */
+#bar{position:sticky;top:0;height:100vh;overflow-y:auto;scrollbar-width:none;display:flex;flex-direction:column;gap:2px;padding:14px 12px 16px;background:linear-gradient(180deg,color-mix(in srgb,var(--tc,#333) 16%,#0e0e10) 0,#0d0d0f 220px);border:0;border-right:1px solid #1c1c1f;box-shadow:none;z-index:40}
+#bar::-webkit-scrollbar{display:none}
+#bar::before{content:"";position:absolute;left:0;top:0;right:0;height:3px;background:var(--tc,#444)}
+.sb-top{display:flex;align-items:center;justify-content:space-between;padding:2px 6px 12px}
+.sb-top .logo{margin:0;font-size:15px}.sb-top .logo svg{width:26px;height:26px}
+.sb-club{display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px;align-items:center;text-align:left;padding:10px;margin:0 0 10px;border:1px solid #232327;background:rgba(255,255,255,.025);border-radius:6px}
+.sb-club:hover{border-color:#34343a;background:rgba(255,255,255,.045)}
+.sb-club .crest{width:40px;height:48px}.sb-club b{display:block;font:700 15px/1.1 var(--fd);letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sb-club small{font-size:11.5px;color:var(--muted)}
+.sb-nav{display:flex;flex-direction:column;gap:1px}
+.sb-item{display:flex;align-items:center;gap:11px;width:100%;padding:9px 10px;border-radius:5px;color:#b9b7b0;font:500 13.5px var(--fb);text-align:left;position:relative}
+.sb-item svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;opacity:.8;flex:none}
+.sb-item:hover{background:rgba(255,255,255,.05);color:#fff}
+.sb-item[aria-current="page"]{background:rgba(255,255,255,.07);color:#fff;font-weight:600}
+.sb-item[aria-current="page"]::before{content:"";position:absolute;left:-12px;top:7px;bottom:7px;width:3px;border-radius:0 2px 2px 0;background:var(--tc,var(--accent))}
+.sb-item span{flex:1}
+.sb-badge{font-style:normal;font:700 10.5px/1 var(--fb);background:var(--accent);color:#1a1000;padding:3px 6px;border-radius:9px}
+.sb-subs{display:flex;flex-direction:column;margin:2px 0 6px 21px;padding-left:12px;border-left:1px solid #26262a}
+.sb-subs button{text-align:left;padding:6px 10px;border-radius:4px;color:var(--muted);font:500 13px var(--fb)}
+.sb-subs button:hover{color:#fff;background:rgba(255,255,255,.04)}
+.sb-subs button[aria-current="true"]{color:#fff;background:rgba(255,255,255,.06)}
+.sb-next{margin-top:auto;padding:12px;border:1px solid #232327;border-radius:6px;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.01))}
+.sb-next-h{display:flex;align-items:center;gap:6px;font:600 11px var(--fb);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}.sb-next-h span{flex:1}.sb-next-h small{font-size:11px;color:var(--dim);text-transform:none;letter-spacing:0}
+.sb-next-m{display:grid;grid-template-columns:30px minmax(0,1fr);gap:10px;align-items:center;margin-top:10px}.sb-next-m .crest{width:28px;height:34px}.sb-next-m b{display:block;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sb-next-m small{font-size:11.5px;color:var(--muted)}
+/* page header */
+.pghead{position:sticky;top:0;z-index:30;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 16px;align-items:end;margin:0 -22px 18px;padding:18px 22px 0;background:linear-gradient(180deg,#0b0b0c 70%,rgba(11,11,12,.92));backdrop-filter:blur(8px);border-bottom:1px solid #1c1c1f}
+.pg-crumb{font:500 12px var(--fb);color:var(--dim)}.pg-crumb i{font-style:normal;margin:0 4px;color:#3a3a40}
+.pghead h1{font:700 clamp(24px,2.4vw,32px)/1.15 var(--fd);letter-spacing:.02em;text-transform:uppercase;margin:2px 0 12px}
+.pg-r{display:flex;align-items:center;gap:14px;padding-bottom:12px}
+.pg-date{display:flex;flex-direction:column;align-items:flex-end;line-height:1.2}.pg-date b{font:600 13px var(--fb)}.pg-date small{font-size:11.5px;color:var(--dim)}
+.pghead .go{height:40px;padding:0 20px;border-radius:4px;background:#ecebe6;color:#121212;border:0;font:700 13px var(--fb);letter-spacing:.04em;text-transform:none;box-shadow:0 6px 18px -8px rgba(255,255,255,.25)}
+.pghead .go:hover{background:#fff;color:#000}
+.ph-tabs{grid-column:1/-1;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;margin-bottom:-1px}
+.ph-tabs::-webkit-scrollbar{display:none}
+.ph-tabs button{padding:10px 14px;font:500 13.5px var(--fb);color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
+.ph-tabs button:hover{color:#fff}.ph-tabs button[aria-selected="true"]{color:#fff;font-weight:600;border-bottom-color:var(--tc,var(--accent))}
+/* panels and tables, refined */
+.panel{border-radius:6px;background:var(--panel);border:1px solid var(--line);box-shadow:0 1px 0 rgba(255,255,255,.02) inset}
+.ph{min-height:46px;padding:11px 14px}
+.ph h3{font:600 14px var(--fb);letter-spacing:0;text-transform:none;color:#ecebe6}
+.ph h3 small{font:400 12.5px var(--fb);color:var(--dim)}
+.tbl{font-size:13px}.tbl th{font:600 10.5px/1 var(--fb);letter-spacing:.06em;color:#76756e;padding:10px 9px}
+.tbl td{height:34px;padding:5px 9px;border-bottom:1px solid #1c1c1f}
+.li{padding:9px 14px}
+.btn{font-family:var(--fb);font-weight:600;letter-spacing:.02em;text-transform:none;font-size:13px;border-radius:4px}
+.eyebrow{font-family:var(--fb);font-weight:600;letter-spacing:.1em}
+@media (min-width:1281px){.layout{grid-template-columns:minmax(0,1fr) 320px}.newsbar{top:150px;max-height:calc(100vh - 170px)}}
+.chip{font-family:var(--fb)}
+/* calendar */
+.cal-wrap{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;align-items:start}
+.cal-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.cal-head h2{font:700 24px var(--fd);text-transform:uppercase;letter-spacing:.04em;min-width:190px;text-align:center}.cal-head h2 small{font:500 14px var(--fb);color:var(--dim);text-transform:none}
+.cal-months{display:flex;gap:2px;margin-left:auto;flex-wrap:wrap}.cal-months button{padding:5px 8px;font:500 12px var(--fb);color:var(--muted);border-radius:3px}.cal-months button:hover{color:#fff}.cal-months button[aria-pressed="true"]{background:#ecebe6;color:#111}.cal-months button.now:not([aria-pressed="true"]){color:var(--accent2)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:#1a1a1d;border-bottom:1px solid var(--line)}
+.cal-dow{background:#111113;padding:8px 10px;font:600 10.5px var(--fb);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.cal-d{background:#131315;min-height:104px;padding:6px;display:flex;flex-direction:column;gap:4px;position:relative}
+.cal-d.out{background:#0f0f11}
+.cal-d>i{font-style:normal;font:600 12px var(--fb);color:#6c6b64}
+.cal-d.today{box-shadow:inset 0 0 0 2px var(--accent)}.cal-d.today>i{color:var(--accent2)}
+.cal-fx{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:6px;align-items:center;padding:6px 7px;border-radius:4px;background:linear-gradient(135deg,var(--c1),color-mix(in srgb,var(--c1) 55%,#111));border-left:3px solid var(--c2);box-shadow:0 4px 12px -6px rgba(0,0,0,.8)}
+.cal-fx.played{opacity:.92}
+.cal-fx span{display:flex;flex-direction:column;min-width:0;gap:1px}.cal-fx span .crest{display:none}
+.cal-fx b{font:700 13px var(--fd);text-transform:uppercase;letter-spacing:.03em;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cal-fx small{font-size:10.5px;color:rgba(255,255,255,.72);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-r{font-style:normal;font:800 12px var(--fd);padding:2px 5px;border-radius:3px;color:#fff}.cal-r.w{background:var(--win);color:#04210f}.cal-r.l{background:var(--loss)}.cal-r.d{background:#7d8697}
+.cal-tag{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--muted);padding:2px 4px;border-radius:3px;background:color-mix(in srgb,var(--c1,#333) 25%,transparent)}
+.cal-tag.win{background:rgba(110,159,209,.12);color:#9fc0e6}.cal-tag.dl{background:rgba(255,90,109,.14);color:#ff9aa6;font-weight:600}
+.cal-legend{display:flex;gap:16px;flex-wrap:wrap;padding:12px 16px;font-size:12px;color:var(--muted)}.cal-legend span{display:flex;align-items:center;gap:7px}
+.cal-side{position:sticky;top:150px}.cal-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.cal-kpis div{display:flex;flex-direction:column;gap:2px;padding:10px;border:1px solid var(--line2);border-radius:4px;background:var(--bg2)}.cal-kpis small{font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}.cal-kpis b{font:800 22px var(--fd)}
+@media (max-width:1300px){.cal-wrap{grid-template-columns:1fr}.cal-side{position:static}}
+@media (max-width:700px){.cal-d{min-height:64px;padding:3px}.cal-fx{grid-template-columns:1fr;padding:3px}.cal-fx .lgo,.cal-fx small,.cal-tag span{display:none}.cal-fx b{font-size:10px}.cal-head h2{min-width:0}}
+/* small screens: sidebar becomes a top bar */
+@media (max-width:900px){
+ body.ingame{display:block}
+ #bar{position:sticky;top:0;height:auto;flex-direction:row;align-items:center;gap:6px;padding:8px 10px;overflow-x:auto;border-right:0;border-bottom:1px solid #1c1c1f}
+ .sb-top{padding:0}.sb-top .logo span,.sb-club small,.sb-next,.sb-subs{display:none}
+ .sb-club{grid-template-columns:28px;padding:4px;margin:0;border:0;background:none}.sb-club .crest{width:24px;height:29px}.sb-club span{display:none}
+ .sb-nav{flex-direction:row}.sb-item{padding:8px 10px;white-space:nowrap}.sb-item[aria-current="page"]::before{left:8px;right:8px;top:auto;bottom:-8px;width:auto;height:2px}
+ body.ingame main{padding:0 14px 50px}
+ .pghead{margin:0 -14px 14px;padding:12px 14px 0;top:54px}.pg-date{display:none}
+}
 </style>
 
-<div id="bar"></div>
+<aside id="bar" hidden></aside>
 <main id="view"></main>
 <div id="modal" class="modal" hidden><div class="modal-box" role="dialog" aria-modal="true"><button class="x" data-act="close" aria-label="Close">×</button><div id="modal-body"></div></div></div>
 <div id="toast" role="status" aria-live="polite"></div>
@@ -2287,7 +2373,7 @@ let view='home',sub='overview',W=null;
 const ui={trNat:'all',trExp:false,dealLeague:'all',sort:{squad:['ovr',-1],search:['ovr',-1]},group:'all',tSel:null,tSwap:null,trPos:'all',trLeague:'all',trMax:0,trAge:40,trMin:0,trQ:'',lg:null,lgMd:null,kitBack:false,pickNation:'ENG',pickLeague:null,pickClub:null,pid:null,back:null};
 const ARROW='<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 const LOGO=`<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="1" y="1" width="38" height="38" rx="10" fill="#ffb43a"/><path d="M11 10 H19 A10 10 0 0 1 19 30 H11 Z" fill="none" stroke="#2b1900" stroke-width="3.4" stroke-linejoin="round"/><path d="M15 20 H24 M21 16.5 L24.5 20 L21 23.5" fill="none" stroke="#2b1900" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-const NAV=[['home','Home',[['overview','Overview'],['inbox','Inbox'],['news','News']]],['squad','Squad',[['players','Players'],['stats','Statistics'],['training','Training']]],['tactics','Tactics',[['tactics','Tactics']]],['transfers','Transfers',[['hub','Transfer hub'],['search','Player search'],['shortlist','Shortlist'],['bids','My bids'],['deals','Deals']]],['comps','Competitions',[['overview','Overview'],['table','Table'],['fixtures','Fixtures'],['stats','Stats'],['clubs','Clubs'],['history','History']]],['office','Office',[['budget','Budgets'],['finances','Finances'],['board','Board']]],['club','Club',[['overview','Overview'],['honours','Honours'],['history','History'],['records','Records']]]];
+const NAV=[['home','Home',[['overview','Overview'],['inbox','Inbox'],['calendar','Calendar'],['news','News']]],['squad','Squad',[['players','Players'],['stats','Statistics'],['training','Training']]],['tactics','Tactics',[['tactics','Tactics']]],['transfers','Transfers',[['hub','Transfer hub'],['search','Player search'],['shortlist','Shortlist'],['bids','My bids'],['deals','Deals']]],['comps','Competitions',[['overview','Overview'],['table','Table'],['fixtures','Fixtures'],['stats','Stats'],['clubs','Clubs'],['history','History']]],['office','Office',[['budget','Budgets'],['finances','Finances'],['board','Board']]],['club','Club',[['overview','Overview'],['honours','Honours'],['history','History'],['records','Records']]]];
 const NAV_ICON={home:'<path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"/>',squad:'<path d="M8 3 4 6 2 11l4 1v9h12v-9l4-1-2-5-4-3q-4 3-8 0z"/>',tactics:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="14" r="1.5"/><path d="M10.5 11.5q3-4 6.5-2M15 15l3 3M18 15l-3 3"/>',transfers:'<path d="M4 8h15l-4-4M20 16H5l4 4"/>',comps:'<path d="M7 4h10v5a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 5M17 6h3a3 3 0 0 1-3 5M12 14v4M8 20h8"/>',office:'<rect x="3" y="7" width="18" height="13" rx="1"/><path d="M9 7V4h6v3M3 12h18"/>',club:'<path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z"/>'};
 function storyArt(n,big){
  if(n.score){const[h,a,hg,ag]=n.score,ch=clubOf(h),ca=clubOf(a);return`<div class="story-art" style="background:linear-gradient(115deg,${ch.colors[0]} 0 48%,${ca.colors[0]} 52% 100%)">${crest(h,big?62:30)}<span class="sc">${hg}–${ag}</span>${crest(a,big?62:30)}</div>`}
@@ -2317,16 +2403,25 @@ function openPlayer(pid){ui.back=[view,sub];go('player','',{pid})}
 
 /* ---------- bar ---------- */
 function nextLabel(){if(S.md>=MDAYS)return'Season review';if(typeof M!=='undefined'&&M&&M.phase==='live')return'Resume match';if(typeof M!=='undefined'&&M&&M.phase==='done')return'Match report';return'Continue'}
+const PAGE={home:{overview:'Club Overview',inbox:'Inbox',news:'News',calendar:'Calendar'},squad:{players:'Squad',stats:'Squad Statistics',training:'Training'},tactics:{tactics:'Tactics'},
+ transfers:{hub:'Transfer Centre',search:'Player Search',shortlist:'Shortlist',bids:'Transfer Activity',deals:'Deals Ledger'},comps:{overview:'Competition Overview',table:'Standings',fixtures:'Fixtures & Results',stats:'Player Statistics',clubs:'Clubs',history:'Roll of Honour'},
+ office:{budget:'Budgets',finances:'Finances',board:'Board Room'},club:{overview:'Club Info',honours:'Manager Profile',history:'Club History',records:'Records'},player:{'':'Player Profile'},match:{'':'Match Day'}};
 function renderBar(){
- const c=clubOf(S.user),nt=nextUserTie(),unread=S.inbox.filter(m=>!m.read).length,nav=NAV.find(n=>n[0]===view);
- const opp=nt&&!nt.pending?clubOf(nt.h===S.user?nt.a:nt.h):null;
- $('#bar').style.setProperty('--tc',c.colors[0]===('#ffffff')?c.colors[1]:c.colors[0]);
- $('#bar').innerHTML=`<div class="bar-row"><button class="logo" data-act="menu" title="Main menu (career saves automatically)">${LOGO}<span>DUGOUT</span></button>
- <button class="club-chip" data-act="nav" data-v="club">${crest(S.user)}<b>${esc(c.short)}</b></button>
- <nav class="nav" aria-label="Sections">${NAV.map(([k,l])=>`<button data-act="nav" data-v="${k}" ${view===k?'aria-current="page"':''}><svg viewBox="0 0 24 24">${NAV_ICON[k]}</svg>${l}${k==='home'&&unread?'<span class="dot"></span>':''}</button>`).join('')}</nav>
- <div class="when"><b>${fmtDate(nt?nt.date:mdDate(MDAYS-1))}</b><small>${nt?(opp?`Next: ${esc(opp.short)} (${nt.neutral?'N':nt.h===S.user?'H':'A'}) · ${esc(nt.short)}`:`Next: ${esc(nt.short)} draw`):'Season complete'}</small></div>
- <button class="go" data-act="continue"><span class="lbl">${nextLabel()}</span>${ARROW}</button></div>
- ${nav&&nav[2].length>1?`<div class="sub">${nav[2].map(([k,l])=>`<button data-act="sub" data-v="${k}" aria-current="${sub===k}">${l}</button>`).join('')}<span class="sp"></span></div>`:view==='player'?`<div class="sub"><button data-act="back">‹ Back</button><span class="sp"></span></div>`:''}`;
+ const c=clubOf(S.user),nt=nextUserTie(),unread=S.inbox.filter(m=>!m.read).length;
+ const opp=nt&&!nt.pending?clubOf(nt.h===S.user?nt.a:nt.h):null,tc=c.colors[0]==='#ffffff'?c.colors[1]:c.colors[0];
+ document.body.classList.add('ingame');document.body.style.setProperty('--tc',tc);
+ const lg=S.leagues[c.league],tb=S.results[c.league].length?posIn(table(c.league),S.user):null;
+ $('#bar').innerHTML=`<div class="sb-top"><button class="logo" data-act="menu" title="Main menu (your career saves automatically)">${LOGO}<span>DUGOUT</span></button></div>
+ <button class="sb-club" data-act="nav" data-v="club">${crest(S.user,44)}<span><b>${esc(c.name)}</b><small>${esc(lg.name)}${tb?` · ${ordinal(tb)}`:''}</small></span></button>
+ <nav class="sb-nav" aria-label="Sections">${NAV.map(([k,l,subs])=>`<div class="sb-sec ${view===k?'on':''}"><button class="sb-item" data-act="nav" data-v="${k}" ${view===k?'aria-current="page"':''}><svg viewBox="0 0 24 24">${NAV_ICON[k]}</svg><span>${l}</span>${k==='home'&&unread?`<em class="sb-badge">${unread}</em>`:''}</button>
+  ${view===k&&subs.length>1?`<div class="sb-subs">${subs.map(([sk,sl])=>`<button data-act="sub" data-v="${sk}" aria-current="${sub===sk}">${sl}${sk==='inbox'&&unread?` <em class="sb-badge">${unread}</em>`:''}</button>`).join('')}</div>`:''}</div>`).join('')}</nav>
+ <div class="sb-next">${nt?`<div class="sb-next-h">${compBadge(nt.comp,16)}<span>${esc(nt.short)}</span><small>${shortDate(nt.date)}</small></div>${opp?`<div class="sb-next-m">${crest(opp.id,30)}<span><b>${esc(opp.name)}</b><small>${nt.neutral?'Neutral venue':nt.h===S.user?'Home':'Away'}</small></span></div>`:`<p class="muted" style="margin:6px 0 0;font-size:12px">Opponent to be drawn</p>`}`:'<p class="muted" style="margin:0;font-size:12px">The season is complete.</p>'}</div>`;
+}
+function pageHead(){
+ const nav=NAV.find(n=>n[0]===view),secName=nav?nav[1]:view==='player'?'Squad':view==='match'?'Match':'',title=(PAGE[view]||{})[sub]||(PAGE[view]||{})['']||secName;
+ const nt=nextUserTie(),tabs=nav&&nav[2].length>1?`<div class="ph-tabs" role="tablist">${nav[2].map(([k,l])=>`<button role="tab" data-act="sub" data-v="${k}" aria-selected="${sub===k}">${l}</button>`).join('')}</div>`:view==='player'?`<div class="ph-tabs"><button data-act="back">‹ Back</button></div>`:'';
+ return`<header class="pghead"><div class="pg-l"><div class="pg-crumb">${esc(clubOf(S.user).short)} <i>/</i> ${esc(secName)}</div><h1>${esc(title)}</h1></div>
+ <div class="pg-r"><div class="pg-date"><b>${fmtDate(nt?nt.date:mdDate(MDAYS-1))}</b><small>${seasonLabel()} season</small></div><button class="go" data-act="continue"><span class="lbl">${nextLabel()}</span>${ARROW}</button></div>${tabs}</header>`;
 }
 
 /* ---------- start ---------- */
@@ -2352,6 +2447,7 @@ function viewStart(){
 function viewHome(){
  if(sub==='inbox')return inboxView();
  if(sub==='news')return newsView(S.news);
+ if(sub==='calendar')return viewCalendar();
  const c=clubOf(S.user),ct=curTie(),fx=ct?[ct.h,ct.a]:null,tb=table(c.league),lg=S.leagues[c.league],sch=userSchedule(),wb=wageBill(S.user);
  const next=sch.filter(f=>!f.res).slice(0,5),last=sch.filter(f=>f.res).slice(-3);
  const sq=squadOf(S.user),unavailable=sq.filter(p=>p.inj||p.ban),tired=sq.filter(p=>p.cond<75).sort((a,b)=>a.cond-b.cond).slice(0,4),top=sq.filter(p=>p.s.ap>=2).sort((a,b)=>avg(b)-avg(a)).slice(0,5);
@@ -3052,6 +3148,46 @@ async function menuLoad(n){
 function menuNew(n,over){
  if(!n){ui.slotIntent='new';render();return}
  ui.newSlot=n;ui.overwrite=!!over;ui.slotIntent=null;ui.mode='new';W=null;ui.pickClub=null;render();window.scrollTo(0,0);
+}
+/* ================= calendar =================
+   A month view of the whole season. Each fixture is themed in its competition's colours and logo, with the
+   opponent, venue and result. Cup rounds you are not in, transfer windows and deadline day are marked too. */
+ui.calM=null;
+const MONTH_FULL=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const compTheme=comp=>{if(comp==='lg'||typeof comp==='number'){const st=compStyle(typeof comp==='number'?comp:clubOf(S.user).league);return{c1:st.c1,c2:st.c2,name:S.leagues[typeof comp==='number'?comp:clubOf(S.user).league].name}}const st=cupStyle(comp);return{c1:st.c1,c2:st.c2,name:S.cups[comp].name}};
+function calendarItems(){
+ const items={},put=(ms,o)=>{const k=new Date(ms).toISOString().slice(0,10);(items[k]=items[k]||[]).push(o)};
+ for(const f of userSchedule())put(f.date,Object.assign({kind:'fx'},f));
+ // cup rounds the user is not part of, so the calendar shows the whole season's rhythm
+ if(S.cups)for(const c of Object.values(S.cups).filter(c=>c.teams.includes(S.user)))c.after.forEach((md,r)=>{const ms=mdDate(md)+3*DAY,k=new Date(ms).toISOString().slice(0,10);if(!(items[k]||[]).some(x=>x.kind==='fx'&&x.comp===c.key))put(ms,{kind:'cup',comp:c.key,label:c.names[r]})});
+ put(mdDate(0)-5*DAY,{kind:'win',label:'Transfer window opens'});put(mdDate(WIN1)-DAY,{kind:'win',label:'Deadline day',deadline:true});
+ put(mdDate(WIN2[0])-2*DAY,{kind:'win',label:'Winter window opens'});put(mdDate(WIN2[1])-DAY,{kind:'win',label:'Winter deadline day',deadline:true});
+ put(mdDate(MDAYS-1)+2*DAY,{kind:'win',label:'Season awards'});
+ return items;
+}
+function viewCalendar(){
+ const items=calendarItems(),nowMs=(()=>{const t=curTie()||nextUserTie();return t?t.date:mdDate(Math.min(S.md,MDAYS-1))})();
+ const start=new Date(mdDate(0)-6*DAY),months=[];for(let i=0;i<11;i++){const d=new Date(Date.UTC(start.getUTCFullYear(),start.getUTCMonth()+i,1));months.push(d)}
+ const nowIdx=Math.max(0,months.findIndex((d,i)=>{const n=months[i+1];return nowMs>=d.getTime()&&(!n||nowMs<n.getTime())}));
+ const mi=clamp(ui.calM??nowIdx,0,months.length-1),m0=months[mi],y=m0.getUTCFullYear(),mo=m0.getUTCMonth(),days=new Date(Date.UTC(y,mo+1,0)).getUTCDate(),lead=(m0.getUTCDay()+6)%7;
+ const todayKey=new Date(nowMs).toISOString().slice(0,10);let cells='';
+ for(let i=0;i<lead;i++)cells+='<div class="cal-d out"></div>';
+ const monthFx=[];
+ for(let d=1;d<=days;d++){const k=`${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`,list=items[k]||[],fx=list.find(x=>x.kind==='fx');let inner='';
+  if(fx){monthFx.push(fx);const th=compTheme(fx.comp);
+   if(fx.pending)inner=`<div class="cal-fx" style="--c1:${th.c1};--c2:${th.c2}">${compBadge(fx.comp,18)}<span><b>${esc(fx.label)}</b><small>Draw pending</small></span></div>`;
+   else{const home=fx.h===S.user,opp=home?fx.a:fx.h,r=fx.res;let res='';if(r){const gf=home?r.hg:r.ag,ga=home?r.ag:r.hg,pw=r.pens?(home?r.pens[0]>r.pens[1]:r.pens[1]>r.pens[0]):null,o=gf>ga||pw===true?'w':gf<ga||pw===false?'l':'d';res=`<em class="cal-r ${o}">${gf}–${ga}${r.pens?'p':''}</em>`}
+    inner=`<div class="cal-fx ${r?'played':''}" style="--c1:${th.c1};--c2:${th.c2}" title="${esc(th.name)} · ${esc(fx.label)}">${compBadge(fx.comp,18)}<span>${crest(opp,18)}<b>${esc(clubOf(opp).short)}</b><small>${home?'H':'A'} · ${esc(fx.label)}</small></span>${res}</div>`}}
+  for(const x of list){if(x.kind==='cup')inner+=`<div class="cal-tag" style="--c1:${compTheme(x.comp).c1}">${compBadge(x.comp,12)}<span>${esc(x.label)}</span></div>`;if(x.kind==='win')inner+=`<div class="cal-tag win ${x.deadline?'dl':''}"><span>${esc(x.label)}</span></div>`}
+  cells+=`<div class="cal-d ${k===todayKey?'today':''} ${fx?'has':''}"><i>${d}</i>${inner}</div>`}
+ const used=[...new Set(monthFx.map(f=>f.comp))],rec=monthFx.filter(f=>f.res).reduce((a,f)=>{const home=f.h===S.user,gf=home?f.res.hg:f.res.ag,ga=home?f.res.ag:f.res.hg;a[gf>ga?0:gf<ga?2:1]++;return a},[0,0,0]);
+ const legend=['lg',...(S.cups?Object.keys(S.cups).filter(k=>S.cups[k].teams.includes(S.user)):[])].map(k=>`<span>${compBadge(k,20)}${esc(compTheme(k).name)}</span>`).join('');
+ return`<div class="cal-wrap"><section class="panel cal"><div class="cal-head"><button class="btn ghost" data-act="cal-m" data-d="-1" ${mi<=0?'disabled':''} aria-label="Previous month">‹</button><h2>${MONTH_FULL[mo]} <small>${y}</small></h2><button class="btn ghost" data-act="cal-m" data-d="1" ${mi>=months.length-1?'disabled':''} aria-label="Next month">›</button>
+ <div class="cal-months">${months.map((d,i)=>`<button data-act="cal-go" data-v="${i}" aria-pressed="${i===mi}" class="${i===nowIdx?'now':''}">${MONTH_FULL[d.getUTCMonth()].slice(0,3)}</button>`).join('')}</div></div>
+ <div class="cal-grid">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<div class="cal-dow">${d}</div>`).join('')}${cells}</div>
+ <div class="cal-legend">${legend}</div></section>
+ <aside class="panel cal-side"><div class="ph"><h3>${MONTH_FULL[mo]} at a glance</h3></div><div class="pb"><div class="cal-kpis"><div><small>Matches</small><b>${monthFx.filter(f=>!f.pending).length}</b></div><div><small>Record</small><b>${rec[0]}-${rec[1]}-${rec[2]}</b></div><div><small>Competitions</small><b>${used.length}</b></div></div></div>
+ <div class="list">${monthFx.map(f=>schedRow(f)).join('')||'<p class="pb muted" style="margin:0">No fixtures this month.</p>'}</div></aside></div>`;
 }
 /* ================= match day ================= */
 let M=null;
@@ -3853,7 +3989,7 @@ async function create3D(stage,cv,E){
 }
 /* ================= app shell ================= */
 function render(){
- $('#bar').hidden=!S;
+ $('#bar').hidden=!S;document.body.classList.toggle('ingame',!!S);
  if(!S){$('#bar').innerHTML='';
   if(ui.mode==='new'){$('#view').innerHTML=viewStart();return}
   // Keep the menu backdrop mounted so the intro animation plays once, not on every click.
@@ -3863,8 +3999,9 @@ function render(){
   return}
  renderBar();
  const fn={home:viewHome,squad:viewSquad,player:viewPlayer,tactics:viewTactics,transfers:viewTransfers,comps:viewComps,office:viewOffice,club:viewClub,match:viewMatch}[view]||viewHome;
- const html=fn(),side=['home','squad','club'].includes(view)&&!(view==='home'&&(sub==='news'||sub==='inbox'));
- $('#view').innerHTML=side?`<div class="layout"><div style="min-width:0">${html}</div>${newsSidebar()}</div>`:html;
+ const html=fn(),side=['home','squad','club'].includes(view)&&!(view==='home'&&(sub==='news'||sub==='inbox'||sub==='calendar'));
+ const body=side?`<div class="layout"><div style="min-width:0">${html}</div>${newsSidebar()}</div>`:html;
+ $('#view').innerHTML=(view==='match'?'':pageHead())+body;
  if(view==='transfers'&&sub==='search')renderSearch();
  if(view==='match')mountMatch();
 }
@@ -3916,6 +4053,8 @@ document.addEventListener('click',e=>{
   case'an-tab':ui.anTab=v;refreshAn();break;
   case'an-side':ui.anSide=+v;refreshAn();break;
   case'an-player':{const p=M&&M.E&&M.E.P.concat(M.E.old).find(q=>q.pid===id);if(p){ui.anPid=id;ui.anSide=p.s;ui.anTab='heat';refreshAn();document.querySelector('.an')?.scrollIntoView({behavior:'smooth',block:'nearest'})}break}
+  case'cal-m':ui.calM=(ui.calM??null)===null?null:ui.calM;{const cur=document.querySelector('.cal-months [aria-pressed=true]');ui.calM=(cur?+cur.dataset.v:0)+ +t.dataset.d}render();break;
+  case'cal-go':ui.calM=+v;render();break;
   case'goto':{const[g,sb]=v.split('/');closeModal();go(g,sb);break}
   case'mailf':ui.mailF=v;ui.msg=null;render();break;
   case'mail-read-all':S.inbox.forEach(m=>m.read=true);save();render();renderBar();break;

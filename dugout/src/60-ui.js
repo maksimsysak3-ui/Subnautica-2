@@ -3,7 +3,7 @@ let view='home',sub='overview',W=null;
 const ui={trNat:'all',trExp:false,dealLeague:'all',sort:{squad:['ovr',-1],search:['ovr',-1]},group:'all',tSel:null,tSwap:null,trPos:'all',trLeague:'all',trMax:0,trAge:40,trMin:0,trQ:'',lg:null,lgMd:null,kitBack:false,pickNation:'ENG',pickLeague:null,pickClub:null,pid:null,back:null};
 const ARROW='<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 const LOGO=`<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="1" y="1" width="38" height="38" rx="10" fill="#ffb43a"/><path d="M11 10 H19 A10 10 0 0 1 19 30 H11 Z" fill="none" stroke="#2b1900" stroke-width="3.4" stroke-linejoin="round"/><path d="M15 20 H24 M21 16.5 L24.5 20 L21 23.5" fill="none" stroke="#2b1900" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-const NAV=[['home','Home',[['overview','Overview'],['inbox','Inbox'],['news','News']]],['squad','Squad',[['players','Players'],['stats','Statistics'],['training','Training']]],['tactics','Tactics',[['tactics','Tactics']]],['transfers','Transfers',[['hub','Transfer hub'],['search','Player search'],['shortlist','Shortlist'],['bids','My bids'],['deals','Deals']]],['comps','Competitions',[['overview','Overview'],['table','Table'],['fixtures','Fixtures'],['stats','Stats'],['clubs','Clubs'],['history','History']]],['office','Office',[['budget','Budgets'],['finances','Finances'],['board','Board']]],['club','Club',[['overview','Overview'],['honours','Honours'],['history','History'],['records','Records']]]];
+const NAV=[['home','Home',[['overview','Overview'],['inbox','Inbox'],['calendar','Calendar'],['news','News']]],['squad','Squad',[['players','Players'],['stats','Statistics'],['training','Training']]],['tactics','Tactics',[['tactics','Tactics']]],['transfers','Transfers',[['hub','Transfer hub'],['search','Player search'],['shortlist','Shortlist'],['bids','My bids'],['deals','Deals']]],['comps','Competitions',[['overview','Overview'],['table','Table'],['fixtures','Fixtures'],['stats','Stats'],['clubs','Clubs'],['history','History']]],['office','Office',[['budget','Budgets'],['finances','Finances'],['board','Board']]],['club','Club',[['overview','Overview'],['honours','Honours'],['history','History'],['records','Records']]]];
 const NAV_ICON={home:'<path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"/>',squad:'<path d="M8 3 4 6 2 11l4 1v9h12v-9l4-1-2-5-4-3q-4 3-8 0z"/>',tactics:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="14" r="1.5"/><path d="M10.5 11.5q3-4 6.5-2M15 15l3 3M18 15l-3 3"/>',transfers:'<path d="M4 8h15l-4-4M20 16H5l4 4"/>',comps:'<path d="M7 4h10v5a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 5M17 6h3a3 3 0 0 1-3 5M12 14v4M8 20h8"/>',office:'<rect x="3" y="7" width="18" height="13" rx="1"/><path d="M9 7V4h6v3M3 12h18"/>',club:'<path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z"/>'};
 function storyArt(n,big){
  if(n.score){const[h,a,hg,ag]=n.score,ch=clubOf(h),ca=clubOf(a);return`<div class="story-art" style="background:linear-gradient(115deg,${ch.colors[0]} 0 48%,${ca.colors[0]} 52% 100%)">${crest(h,big?62:30)}<span class="sc">${hg}–${ag}</span>${crest(a,big?62:30)}</div>`}
@@ -33,16 +33,25 @@ function openPlayer(pid){ui.back=[view,sub];go('player','',{pid})}
 
 /* ---------- bar ---------- */
 function nextLabel(){if(S.md>=MDAYS)return'Season review';if(typeof M!=='undefined'&&M&&M.phase==='live')return'Resume match';if(typeof M!=='undefined'&&M&&M.phase==='done')return'Match report';return'Continue'}
+const PAGE={home:{overview:'Club Overview',inbox:'Inbox',news:'News',calendar:'Calendar'},squad:{players:'Squad',stats:'Squad Statistics',training:'Training'},tactics:{tactics:'Tactics'},
+ transfers:{hub:'Transfer Centre',search:'Player Search',shortlist:'Shortlist',bids:'Transfer Activity',deals:'Deals Ledger'},comps:{overview:'Competition Overview',table:'Standings',fixtures:'Fixtures & Results',stats:'Player Statistics',clubs:'Clubs',history:'Roll of Honour'},
+ office:{budget:'Budgets',finances:'Finances',board:'Board Room'},club:{overview:'Club Info',honours:'Manager Profile',history:'Club History',records:'Records'},player:{'':'Player Profile'},match:{'':'Match Day'}};
 function renderBar(){
- const c=clubOf(S.user),nt=nextUserTie(),unread=S.inbox.filter(m=>!m.read).length,nav=NAV.find(n=>n[0]===view);
- const opp=nt&&!nt.pending?clubOf(nt.h===S.user?nt.a:nt.h):null;
- $('#bar').style.setProperty('--tc',c.colors[0]===('#ffffff')?c.colors[1]:c.colors[0]);
- $('#bar').innerHTML=`<div class="bar-row"><button class="logo" data-act="menu" title="Main menu (career saves automatically)">${LOGO}<span>DUGOUT</span></button>
- <button class="club-chip" data-act="nav" data-v="club">${crest(S.user)}<b>${esc(c.short)}</b></button>
- <nav class="nav" aria-label="Sections">${NAV.map(([k,l])=>`<button data-act="nav" data-v="${k}" ${view===k?'aria-current="page"':''}><svg viewBox="0 0 24 24">${NAV_ICON[k]}</svg>${l}${k==='home'&&unread?'<span class="dot"></span>':''}</button>`).join('')}</nav>
- <div class="when"><b>${fmtDate(nt?nt.date:mdDate(MDAYS-1))}</b><small>${nt?(opp?`Next: ${esc(opp.short)} (${nt.neutral?'N':nt.h===S.user?'H':'A'}) · ${esc(nt.short)}`:`Next: ${esc(nt.short)} draw`):'Season complete'}</small></div>
- <button class="go" data-act="continue"><span class="lbl">${nextLabel()}</span>${ARROW}</button></div>
- ${nav&&nav[2].length>1?`<div class="sub">${nav[2].map(([k,l])=>`<button data-act="sub" data-v="${k}" aria-current="${sub===k}">${l}</button>`).join('')}<span class="sp"></span></div>`:view==='player'?`<div class="sub"><button data-act="back">‹ Back</button><span class="sp"></span></div>`:''}`;
+ const c=clubOf(S.user),nt=nextUserTie(),unread=S.inbox.filter(m=>!m.read).length;
+ const opp=nt&&!nt.pending?clubOf(nt.h===S.user?nt.a:nt.h):null,tc=c.colors[0]==='#ffffff'?c.colors[1]:c.colors[0];
+ document.body.classList.add('ingame');document.body.style.setProperty('--tc',tc);
+ const lg=S.leagues[c.league],tb=S.results[c.league].length?posIn(table(c.league),S.user):null;
+ $('#bar').innerHTML=`<div class="sb-top"><button class="logo" data-act="menu" title="Main menu (your career saves automatically)">${LOGO}<span>DUGOUT</span></button></div>
+ <button class="sb-club" data-act="nav" data-v="club">${crest(S.user,44)}<span><b>${esc(c.name)}</b><small>${esc(lg.name)}${tb?` · ${ordinal(tb)}`:''}</small></span></button>
+ <nav class="sb-nav" aria-label="Sections">${NAV.map(([k,l,subs])=>`<div class="sb-sec ${view===k?'on':''}"><button class="sb-item" data-act="nav" data-v="${k}" ${view===k?'aria-current="page"':''}><svg viewBox="0 0 24 24">${NAV_ICON[k]}</svg><span>${l}</span>${k==='home'&&unread?`<em class="sb-badge">${unread}</em>`:''}</button>
+  ${view===k&&subs.length>1?`<div class="sb-subs">${subs.map(([sk,sl])=>`<button data-act="sub" data-v="${sk}" aria-current="${sub===sk}">${sl}${sk==='inbox'&&unread?` <em class="sb-badge">${unread}</em>`:''}</button>`).join('')}</div>`:''}</div>`).join('')}</nav>
+ <div class="sb-next">${nt?`<div class="sb-next-h">${compBadge(nt.comp,16)}<span>${esc(nt.short)}</span><small>${shortDate(nt.date)}</small></div>${opp?`<div class="sb-next-m">${crest(opp.id,30)}<span><b>${esc(opp.name)}</b><small>${nt.neutral?'Neutral venue':nt.h===S.user?'Home':'Away'}</small></span></div>`:`<p class="muted" style="margin:6px 0 0;font-size:12px">Opponent to be drawn</p>`}`:'<p class="muted" style="margin:0;font-size:12px">The season is complete.</p>'}</div>`;
+}
+function pageHead(){
+ const nav=NAV.find(n=>n[0]===view),secName=nav?nav[1]:view==='player'?'Squad':view==='match'?'Match':'',title=(PAGE[view]||{})[sub]||(PAGE[view]||{})['']||secName;
+ const nt=nextUserTie(),tabs=nav&&nav[2].length>1?`<div class="ph-tabs" role="tablist">${nav[2].map(([k,l])=>`<button role="tab" data-act="sub" data-v="${k}" aria-selected="${sub===k}">${l}</button>`).join('')}</div>`:view==='player'?`<div class="ph-tabs"><button data-act="back">‹ Back</button></div>`:'';
+ return`<header class="pghead"><div class="pg-l"><div class="pg-crumb">${esc(clubOf(S.user).short)} <i>/</i> ${esc(secName)}</div><h1>${esc(title)}</h1></div>
+ <div class="pg-r"><div class="pg-date"><b>${fmtDate(nt?nt.date:mdDate(MDAYS-1))}</b><small>${seasonLabel()} season</small></div><button class="go" data-act="continue"><span class="lbl">${nextLabel()}</span>${ARROW}</button></div>${tabs}</header>`;
 }
 
 /* ---------- start ---------- */
@@ -68,6 +77,7 @@ function viewStart(){
 function viewHome(){
  if(sub==='inbox')return inboxView();
  if(sub==='news')return newsView(S.news);
+ if(sub==='calendar')return viewCalendar();
  const c=clubOf(S.user),ct=curTie(),fx=ct?[ct.h,ct.a]:null,tb=table(c.league),lg=S.leagues[c.league],sch=userSchedule(),wb=wageBill(S.user);
  const next=sch.filter(f=>!f.res).slice(0,5),last=sch.filter(f=>f.res).slice(-3);
  const sq=squadOf(S.user),unavailable=sq.filter(p=>p.inj||p.ban),tired=sq.filter(p=>p.cond<75).sort((a,b)=>a.cond-b.cond).slice(0,4),top=sq.filter(p=>p.s.ap>=2).sort((a,b)=>avg(b)-avg(a)).slice(0,5);
