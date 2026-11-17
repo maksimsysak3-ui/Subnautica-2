@@ -8,10 +8,11 @@ async function create3D(stage,cv,E){
  renderer.setPixelRatio(Math.min(2,devicePixelRatio||1));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;
  renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15;
  const scene=new T.Scene();scene.background=new T.Color('#050506');scene.fog=new T.Fog('#050506',140,320);
- const cam=new T.PerspectiveCamera(24,16/9,.3,700);cam.position.set(0,15,33);
+ const cam=new T.PerspectiveCamera(24,16/9,.3,800);cam.position.set(0,18,55);
  const others=shuffled(S.clubs.filter(c=>c.id!==E.T[0].club&&c.id!==E.T[1].club)).slice(0,10);
  const sc={scene,ads:[],home:clubOf(E.T[0].club),away:clubOf(E.T[1].club),sponsors:[clubOf(E.T[0].club),clubOf(E.T[1].club),...others]};
- const size=()=>{const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;renderer.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix()};size();
+ let lastFov=0;
+ const size=()=>{const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;renderer.setSize(w,h,false);cam.aspect=w/h;lastFov=0;cam.updateProjectionMatrix()};size();
  const ro=new ResizeObserver(size);ro.observe(stage);
  scene.add(new T.HemisphereLight('#dfe6ff','#24331f',.75));
  const sun=new T.DirectionalLight('#fff3df',2.7);sun.position.set(-28,62,30);sun.castShadow=true;
@@ -26,7 +27,7 @@ async function create3D(stage,cv,E){
   torso:lathe([[.13,0],[.15,.05],[.165,.14],[.19,.26],[.215,.38],[.225,.45],[.2,.51],[.11,.555],[.06,.565]]),
   shorts:lathe([[.15,0],[.175,.04],[.19,.12],[.2,.2],[.165,.24]],16),
   shortLeg:new T.CylinderGeometry(.098,.09,.17,12),collar:new T.TorusGeometry(.06,.016,6,16),
-  delt:new T.SphereGeometry(.072,12,10),upper:new T.CapsuleGeometry(.054,.2,6,10),cuff:new T.CylinderGeometry(.058,.058,.035,10),fore:new T.CapsuleGeometry(.044,.19,6,10),hand:new T.SphereGeometry(.048,10,8),
+  delt:new T.SphereGeometry(.062,14,10),upper:new T.CapsuleGeometry(.054,.2,6,10),cuff:new T.CylinderGeometry(.058,.058,.035,10),fore:new T.CapsuleGeometry(.044,.19,6,10),hand:new T.SphereGeometry(.048,10,8),
   thigh:lathe([[.06,-.36],[.075,-.3],[.088,-.18],[.09,-.06],[.082,0]],12),knee:new T.SphereGeometry(.062,10,8),
   calf:lathe([[.045,-.4],[.05,-.34],[.066,-.22],[.07,-.12],[.06,0]],12),band:new T.CylinderGeometry(.064,.064,.05,12),
   boot:new T.CapsuleGeometry(.048,.16,4,10),sole:new T.BoxGeometry(.1,.025,.27),
@@ -97,7 +98,7 @@ async function create3D(stage,cv,E){
   const leg=s=>{const hip=new T.Group();hip.position.set(s*.092,-.06,0);pelvis.add(hip);add(G3.shortLeg,sh,hip,0,-.07,0);add(G3.thigh,skin,hip,0,-.03,0);
    const knee=new T.Group();knee.position.y=-.4;hip.add(knee);add(G3.knee,skin,knee,0,0,.008).scale.set(1,1,.9);add(G3.calf,base,knee,0,0,0);add(G3.band,trim,knee,0,-.035,0);
    const ank=new T.Group();ank.position.y=-.42;knee.add(ank);const b=add(G3.boot,boot,ank,0,-.035,.05);b.rotation.x=Math.PI/2;add(G3.sole,mat(kit.trim==='#111111'?'#e8e8e8':'#f2f2f2',.5),ank,0,-.075,.05);return{hip,knee,ank}};
-  const arm=s=>{const shg=new T.Group();shg.position.set(s*.23,.47,0);chest.add(shg);add(G3.delt,base,shg,s*.012,0,0);add(G3.upper,base,shg,0,-.14,0);add(G3.cuff,trim,shg,0,-.25,0);
+  const arm=s=>{const shg=new T.Group();shg.position.set(s*.23,.47,0);chest.add(shg);add(G3.delt,base,shg,s*.004,-.012,0).scale.set(.95,.9,.9);add(G3.upper,base,shg,0,-.14,0);add(G3.cuff,trim,shg,0,-.25,0);
    const el=new T.Group();el.position.y=-.29;shg.add(el);add(G3.fore,gk?base:skin,el,0,-.13,0);add(G3.hand,gk?mat('#f0f0f0',.6):skin,el,0,-.27,0).scale.set(.8,1.1,.6);return{sh:shg,el}};
   const blob=new T.Mesh(G3.blob,blobMat);blob.rotation.x=-Math.PI/2;blob.position.y=.02;blob.scale.set(1.3,1.3,1);root.add(blob);
   root.scale.setScalar(1.06*lk.tall);
@@ -163,9 +164,78 @@ async function create3D(stage,cv,E){
  function drawTag(k){const x=tagCv.getContext('2d');x.clearRect(0,0,256,64);tagOwner=k;if(k<0){tag.visible=false;return}
   const sp=E.P[k];x.fillStyle='rgba(10,10,11,.86)';if(x.roundRect){x.beginPath();x.roundRect(6,10,244,44,10);x.fill()}else x.fillRect(6,10,244,44);
   x.fillStyle=k<11?hk.base:ak.base;x.fillRect(6,10,9,44);x.fillStyle='#fff';x.font='700 28px "Barlow Condensed","Arial Narrow",sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(`${sp.num}  ${sp.name.toUpperCase()}`,132,33);tagT.needsUpdate=true;tag.visible=true}
+ // ---- tunnel for the walkout ----
+ {const tg=new T.Group(),dk=new T.MeshBasicMaterial({color:'#030304'}),fr=new T.MeshStandardMaterial({color:mix(sc.home.colors[0],'#111111',.35),roughness:.6});
+  const mouth=new T.Mesh(new T.BoxGeometry(4,2.5,1.2),dk);mouth.position.set(0,1.25,40.4);tg.add(mouth);
+  for(const q of[-1,1]){const post=new T.Mesh(new T.BoxGeometry(.35,2.9,1.4),fr);post.position.set(q*2.15,1.45,40.2);tg.add(post)}
+  const lintel=new T.Mesh(new T.BoxGeometry(4.7,.45,1.4),fr);lintel.position.set(0,2.9,40.2);tg.add(lintel);scene.add(tg)}
+ // ---- camera helpers ----
+ const D2R=Math.PI/180,camPos=new T.Vector3(),camLook=new T.Vector3();let camInit=false;
+ function fovFor(hfov){const v=2*Math.atan(Math.tan(hfov*D2R/2)/cam.aspect)/D2R;const f=clamp(v,14,70);if(Math.abs(f-lastFov)>.01){cam.fov=lastFov=f;cam.updateProjectionMatrix()}}
+ function camTo(px,py,pz,lx,ly,lz,hfov,k){
+  if(!camInit||k>=1){camPos.set(px,py,pz);camLook.set(lx,ly,lz);camInit=true}
+  else{camPos.x+=(px-camPos.x)*k;camPos.y+=(py-camPos.y)*k;camPos.z+=(pz-camPos.z)*k;camLook.x+=(lx-camLook.x)*k;camLook.y+=(ly-camLook.y)*k;camLook.z+=(lz-camLook.z)*k}
+  cam.position.copy(camPos);cam.lookAt(camLook);fovFor(hfov);
+ }
+ // Broadcast framing. The main camera hangs under the main-stand roof and pans with the play.
+ let lead=0;
+ function gameCam(mode,real,fr,prev,side){
+  const k=1-Math.exp(-real*2.4),vx=(fr.bx-prev.bx)/.2;
+  lead+=(clamp(vx*.55,-7,7)-lead)*(1-Math.exp(-real*1.2));
+  bx+=(clamp(fr.bx-52.5+lead,-44,44)-bx)*k;bz+=(fr.by-34-bz)*k;
+  if(mode==='high')camTo(bx*.5,62,40,bx*.62,0,0,62,k);
+  else if(mode==='near')camTo(bx*.9,6.2,Math.min(39,bz+15),bx,1,bz,36,k);
+  else if(mode==='replay'){const gx=side===0?52.5:-52.5,d=side===0?1:-1;camTo(gx+d*9,5.5,clamp(fr.by-34,-14,14)*.4+9,fr.bx-52.5,.8,fr.by-34,44,1-Math.exp(-real*3.5))}
+  else camTo(bx*.66,18,55,bx,0,bz*.92,36,k);
+ }
+ function placeBall(fr,prev){
+  ball.position.set(fr.bx-52.5,Math.max(.11,fr.bz),fr.by-34);ball.rotation.x+=(fr.by-prev.by)*.9;ball.rotation.z-=(fr.bx-prev.bx)*.9;
+  ballBlob.position.set(ball.position.x,.015,ball.position.z);ballBlob.scale.setScalar(.45/(1+fr.bz*.4));
+ }
+ // ---- pre-match ceremony: walkout, line-up for the anthem, handshakes, then everyone takes position ----
+ const f0=newFrame();let f0done=false;const IT=INTRO3D;
+ const lineX=k=>{const s=k<11?-1:1,i=k%11;return s*(.9+i*.85)};
+ function introPos(k,ct){
+  const s=k<11?-1:1,i=k%11,lx=lineX(k),lz=20;
+  const st=IT.walk+i*.36,sx=s*.9,sz=38.5,len=Math.hypot(lx-sx,lz-sz),dur=len/2.8;
+  if(ct<st)return null;
+  if(ct<st+dur){const u=(ct-st)/dur;return[sx+(lx-sx)*u,sz+(lz-sz)*u,0]}
+  if(s>0&&ct>=IT.shake){const u=clamp((ct-IT.shake)/3.9,0,1);return[lx-11.6*u,20+.95*Math.min(1,u*5),u<1?2:0]}
+  return[lx,lz,1];
+ }
+ function introAt(k,ct){
+  if(ct<IT.disperse)return introPos(k,ct);
+  const a=introPos(k,IT.disperse)||[0,38.5,0],u=clamp((ct-IT.disperse)/(IT.end-IT.disperse-.6),0,1),e=u*u*(3-2*u);
+  return[a[0]+(f0.px[k]-52.5-a[0])*e,a[1]+(f0.py[k]-34-a[1])*e,u<1?0:3];
+ }
+ function introCam(ct,real){
+  if(ct<IT.walk){const a=-.75+ct*.12;camTo(Math.sin(a)*78,30-ct*2.5,Math.cos(a)*66,0,0,0,58,1)}
+  else if(ct<IT.anthem){const u=(ct-IT.walk)/(IT.anthem-IT.walk);camTo(7.5,2.4,33.5,-.5,1.25,36-u*13,40,1)}
+  else if(ct<IT.shake){const u=(ct-IT.anthem)/(IT.shake-IT.anthem);const x=-10+u*20;camTo(x,1.8,27.6,x,1.45,20,36,1)}
+  else if(ct<IT.disperse)camTo(1.5,3.6,31.5,-3.5,1.1,20.5,44,1);
+  else{const u=clamp((ct-IT.disperse)/(IT.end-IT.disperse),0,1),e=u*u*(3-2*u);bx=f0.bx-52.5;bz=f0.by-34;
+   camTo(1.5+(bx*.66-1.5)*e,3.6+(18-3.6)*e,31.5+(55-31.5)*e,-3.5+(bx+3.5)*e,1.1-1.1*e,20.5+(bz*.92-20.5)*e,44-8*e,1)}
+ }
+ const ip=[],iv=[];
  return{
   setCam(m){camMode=m},
-  draw(t,sim,real){
+  intro(ct,real){
+   if(!f0done){frameAt(E,0,f0);f0done=true}
+   sc.ads.forEach(tx=>{tx.offset.x=(tx.offset.x+real*.03)%1});
+   for(let k=0;k<22;k++){const o=P[k],q=introAt(k,ct);
+    if(!q){o.root.visible=false;continue}o.root.visible=true;
+    const old=ip[k]||q,vx=(q[0]-old[0])/Math.max(real,1e-3),vz=(q[1]-old[1])/Math.max(real,1e-3);ip[k]=q;
+    iv[k]=iv[k]==null?0:iv[k]+(Math.hypot(vx,vz)-iv[k])*Math.min(1,real*8);const speed=real>0?iv[k]:0;
+    o.root.position.set(q[0],0,q[1]);
+    const want=speed>.6?Math.atan2(vx,vz):q[2]===3?Math.atan2(f0.bx-52.5-q[0],f0.by-34-q[1]):q[2]===2?-Math.PI/2:0;
+    o.yaw=lerpA(o.yaw,want,Math.min(1,real*6));o.body.rotation.y=o.yaw;pose(o,POSE.run,0,speed,real);
+    const shaking=ct>=IT.shake&&ct<IT.disperse&&(k>=11?q[2]===2:true);
+    if(shaking){o.La.sh.rotation.x=-1.05;o.La.sh.rotation.z=.12;o.La.el.rotation.x=-.25}
+   }
+   ball.position.set(f0.bx-52.5,.11,f0.by-34);ballBlob.position.set(ball.position.x,.015,ball.position.z);if(tagOwner!==-1)drawTag(-1);
+   introCam(ct,real);env(0,real);renderer.render(scene,cam);
+  },
+  draw(t,sim,real,opt){
    frameAt(E,t,fr);frameAt(E,Math.max(0,t-.2),prev);
    sc.ads.forEach(tx=>{tx.offset.x=(tx.offset.x+real*.03)%1});
    for(let k=0;k<22;k++){
@@ -179,12 +249,10 @@ async function create3D(stage,cv,E){
     if(code!==POSE.dive)o.yaw=lerpA(o.yaw,want,Math.min(1,real*7));else if(pf<.12){const toB=Math.atan2(fr.bx-52.5-x,fr.by-34-z)-o.yaw;o.diveSide=Math.sin(toB)>0?-1:1}
     o.body.rotation.y=o.yaw;pose(o,code,pf,speed,sim);
    }
-   ball.position.set(fr.bx-52.5,Math.max(.11,fr.bz),fr.by-34);ball.rotation.x+=(fr.by-prev.by)*.9;ball.rotation.z-=(fr.bx-prev.bx)*.9;
-   ballBlob.position.set(ball.position.x,.015,ball.position.z);ballBlob.scale.setScalar(.45/(1+fr.bz*.4));
-   const own=fr.own>=0?fr.own:-1;if(own!==tagOwner)drawTag(own);if(own>=0)tag.position.set(fr.px[own]-52.5,2.45,fr.py[own]-34);
-   const k=1-Math.exp(-real*2.6);bx+=(clamp(fr.bx-52.5,-47,47)-bx)*k;bz+=(fr.by-34-bz)*k;
-   let p;if(camMode==='high')p=[bx*.55,70,30,bx*.6,0];else if(camMode==='near')p=[bx*.96,6.5,bz+12.5,bx,bz];else p=[bx*.84,14,31,bx*.92,2+bz*.45];
-   cam.position.x+=(p[0]-cam.position.x)*k;cam.position.y+=(p[1]-cam.position.y)*k;cam.position.z+=(p[2]-cam.position.z)*k;look.set(p[3],.5,p[4]);cam.lookAt(look);
+   placeBall(fr,prev);
+   const own=fr.own>=0?fr.own:-1,showTag=!(opt&&opt.noTag)&&camMode!=='high';
+   if((showTag?own:-1)!==tagOwner)drawTag(showTag?own:-1);if(showTag&&own>=0)tag.position.set(fr.px[own]-52.5,2.45,fr.py[own]-34);
+   gameCam(opt&&opt.cam||camMode,real,fr,prev,opt&&opt.side);
    env(t,real);renderer.render(scene,cam);
   },
   dispose(){ro.disconnect();renderer.dispose();renderer.forceContextLoss()},

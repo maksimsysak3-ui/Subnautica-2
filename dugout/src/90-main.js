@@ -95,8 +95,11 @@ document.addEventListener('click',e=>{
   case'mspeed':if(M.mode==='full')M.fs=+v;else M.hs=+v;pressOne(t);break;
   case'mview':M.viewMode=v;render();break;
   case'mcam':M.camMode=v;if(VIEW)VIEW.setCam(v);pressOne(t);break;
-  case'mpause':M.paused=!M.paused;t.textContent=M.paused?'Resume':'Pause';break;
-  case'mtab':M.tab=v;pressOne(t);$('#m-feed').hidden=v!=='feed';$('#m-stats').hidden=v!=='stats';if(v==='stats')$('#m-stats').innerHTML=statsHTML();break;
+  case'mpause':M.paused=!M.paused;t.textContent=M.paused?'Resume':'Pause';M.paused?SND.stop():SND.resume();break;
+  case'mskip':endIntro();break;
+  case'mskiprep':endReplay();break;
+  case'msound':SND.on=!SND.on;if(SND.on){SND.init();SND.setCrowd(.4)}t.textContent=SND.on?'Sound on':'Sound off';t.setAttribute('aria-pressed',SND.on);break;
+  case'mfull':{const st=$('#stage');if(document.fullscreenElement)document.exitFullscreen();else if(st&&st.requestFullscreen)st.requestFullscreen().catch(()=>toast('Full screen is not available here'));break}
   case'mtab2':M.tab2=v;pressOne(t);$('#m-side').innerHTML=v==='team'?lineupHTML():quickTacHTML();break;
   case'msel':{const i=+t.dataset.i;M.sel=M.sel===i?null:i;$('#m-side').innerHTML=lineupHTML();break}
   case'msub':{const E=M.E,tm=E.T[M.us],p=E.P[M.sel];if(p&&!p.off&&substitute(E,tm,p,id)){toast(`${S.players[id].ln} is coming on`)}M.sel=null;$('#m-side').innerHTML=lineupHTML();break}
@@ -120,7 +123,7 @@ document.addEventListener('input',e=>{const k=e.target.dataset.input,v=+e.target
  else if(k==='trq'){ui.trQ=e.target.value;renderSearch()}});
 document.addEventListener('keydown',e=>{
  if(e.key==='Escape'&&!$('#modal').hidden)closeModal();
- if(e.key===' '&&view==='match'&&M&&M.phase==='live'&&!/INPUT|SELECT|BUTTON/.test(e.target.tagName)){e.preventDefault();M.paused=!M.paused;const b=$('#m-pause');if(b)b.textContent=M.paused?'Resume':'Pause'}
+ if(e.key===' '&&view==='match'&&M&&M.phase==='live'&&!/INPUT|SELECT|BUTTON/.test(e.target.tagName)){e.preventDefault();M.paused=!M.paused;M.paused?SND.stop():SND.resume();const b=$('#m-pause');if(b)b.textContent=M.paused?'Resume':'Pause'}
 });
 async function boot(data){
  if(data&&data.S&&data.S.slot){S=data.S;ui.mode='game';view='home';sub='overview';render();return}

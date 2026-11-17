@@ -1,12 +1,15 @@
 /* ================= match day ================= */
 let M=null;
-const MODES={key:{label:'Key highlights',ff:40},ext:{label:'Extended',ff:14},full:{label:'Full match',ff:0}};
-function newMatchDay(){const fx=userFixture();if(!fx)return null;return{fx,wx:forecast(S.md,fx[0]),phase:'pre',mode:'key',hs:1,fs:6,viewMode:'3d',camMode:'tv',paused:false,pt:0,shown:0,scan:0,wins:[],score:[0,0],sel:null,tab:'feed',ss:{sh:[0,0],sot:[0,0],xg:[0,0],cor:[0,0],fo:[0,0],yc:[0,0],off:[0,0]}}}
+const MODES={key:{label:'Key highlights',ff:120},ext:{label:'Extended',ff:70},full:{label:'Full match',ff:0}};
+// Pre-match ceremony timeline in seconds (3D), and the shorter overlay-only version for the 2D view.
+const INTRO3D={walk:3,anthem:13.5,shake:22.5,disperse:27,end:32.5,l3:[.6,6.4],lu:[6.9,13.3],music:3};
+const INTRO2D={end:9.5,l3:[.3,3.6],lu:[3.6,9],music:.3};
+function newMatchDay(){const fx=userFixture();if(!fx)return null;return{fx,wx:forecast(S.md,fx[0]),phase:'pre',mode:'key',hs:1,fs:12,viewMode:'3d',camMode:'tv',paused:false,pt:0,shown:0,scan:0,wins:[],score:[0,0],sel:null,tab:'feed',ss:{sh:[0,0],sot:[0,0],xg:[0,0],cor:[0,0],fo:[0,0],yc:[0,0],off:[0,0]}}}
 function kickOff(){
  const[h,a]=M.fx;prepAI(h,a);prepAI(a,h);ensureLineup(S.user);
  const team=c=>({club:c,tac:clubOf(c).tac,bench:clubOf(c).tac.bench.slice(),ai:c!==S.user});
  M.E=createMatch({seed:(S.seed^(S.season*1000+S.md*17+h*3))>>>0,getP:id=>S.players[id],teams:[team(h),team(a)],weather:M.wx});
- M.us=h===S.user?0:1;M.phase='live';M.pt=0;
+ M.us=h===S.user?0:1;M.phase='live';M.pt=0;M.rate=1;M.intro={ct:0};M.wins=[[0,9]];SND.init();SND.setCrowd(.5);
  if(M.preTalk){const d=talkEffect(M.preTalk,0,false);applyTalk(M.E,M.us,d);setTimeout(()=>toast(talkWord(d)),400)}
 }
 const clockAt=(E,t)=>{const c=t<E.h1?Math.min(t,E.h1):2700+(t-E.h1);const m=Math.floor(c/60);if(t<E.h1&&c>=2700)return`45+${Math.floor((c-2700)/60)+1}'`;if(c>=5400)return`90+${Math.floor((c-5400)/60)+1}'`;return`${m+1}'`};
@@ -33,22 +36,28 @@ const evClass=e=>e.type==='weather'?'whistle':e.type==='goal'?'goal':e.type==='r
 function scanEvents(){
  const E=M.E;
  for(;M.scan<E.events.length;M.scan++){const e=E.events[M.scan];
-  if(e.type==='shot')M.wins.push([e.t-11,e.t+3.5]);
-  if(e.type==='goal')M.wins.push([e.t-1,e.t+7]);
-  if(e.type==='pen'||e.type==='red')M.wins.push([e.t-6,e.t+3]);
-  if(M.mode==='ext'&&(e.type==='corner'||e.type==='foul'&&e.card))M.wins.push([e.t-3,e.t+6]);
+  // Key highlights keep only real chances; extended shows every shot plus set pieces and cards.
+  if(e.type==='shot'&&(e.out==='goal'||e.x>=(M.mode==='ext'?.04:.11)||M.mode==='ext'&&e.out==='save'))M.wins.push([e.t-7,e.t+2]);
+  if(e.type==='goal')M.wins.push([e.t-1,e.t+6.5]);
+  if(e.type==='pen'||e.type==='red')M.wins.push([e.t-5,e.t+2.5]);
+  if(e.type==='ht')M.wins.push([E.h1,E.h1+6]);
+  if(M.mode==='ext'&&e.type==='foul'&&e.card)M.wins.push([e.t-2,e.t+3]);
  }
 }
 function inWindow(t){for(const w of M.wins)if(t>=w[0]&&t<=w[1])return true;return false}
+function nextWin(t){let n=Infinity;for(const w of M.wins)if(w[0]>t&&w[0]<n)n=w[0];return n}
 function surface(){
  const E=M.E,feed=$('#m-feed');let changed=false;
  while(M.shown<E.events.length&&E.events[M.shown].t<=M.pt+1e-6){
   const e=E.events[M.shown++],ss=M.ss;
-  if(e.type==='goal'){M.score=e.score.slice();flash(e.s)}
+  if(e.type==='goal'){M.score=e.score.slice();flash(e.s);SND.swell(1,4);M.repQ={t:e.t,s:e.s}}
+  if(e.type==='shot')SND.swell(.35+Math.min(.5,e.x*2),1.1);
+  if(e.type==='ht')SND.whistle(2,true);if(e.type==='ft')SND.whistle(3,true);if(e.type==='red'||e.type==='pen')SND.swell(.7,1.6);
   if(e.type==='ht'&&!M.htDone){M.htDone=true;M.paused=true;const b=$('#m-pause');if(b)b.textContent='Resume';openModal(talkHTML(true))}
   if(e.type==='shot'){ss.sh[e.s]++;ss.xg[e.s]+=e.x;if(e.out==='goal'||e.out==='save')ss.sot[e.s]++;continue}
   if(e.type==='corner')ss.cor[e.s]++;if(e.type==='foul'){ss.fo[e.s]++;if(e.card)ss.yc[e.s]++}if(e.type==='offside')ss.off[e.s]++;
   const tx=evText(e);if(!tx)continue;changed=true;
+  caption(tx,evClass(e));
   if(feed)feed.insertAdjacentHTML('afterbegin',`<li class="${evClass(e)}"><b>${e.type==='ht'||e.type==='ft'?'':clockAt(E,e.t)}</b><span>${esc(tx)}</span></li>`);
  }
  return changed;
@@ -86,17 +95,39 @@ function viewMatch(){
  }
  if(M.phase==='done')return bar+postHTML();
  M.shownFeed=true;
- return bar+`<div class="mgrid">
- <section class="panel"><div class="ph"><div class="seg" role="group" aria-label="Panel">${[['feed','Commentary'],['stats','Stats']].map(([k,l])=>`<button data-act="mtab" data-v="${k}" aria-pressed="${M.tab===k}">${l}</button>`).join('')}</div></div>
- <ul class="feed" id="m-feed" ${M.tab!=='feed'?'hidden':''}></ul><div id="m-stats" ${M.tab!=='stats'?'hidden':''}>${statsHTML()}</div></section>
- <div class="mid" style="min-width:0"><div class="stage" id="stage"><canvas id="m-canvas" aria-label="Match view"></canvas><div class="stage-msg" id="stage-msg" hidden></div><div class="ff" id="m-ff" hidden>Fast forward</div><div class="flash" id="m-flash"><b>GOAL</b></div></div>
- <div class="mctl"><div class="seg" role="group" aria-label="Viewing mode">${Object.entries(MODES).map(([k,v])=>`<button data-act="mmode" data-v="${k}" aria-pressed="${M.mode===k}">${v.label}</button>`).join('')}</div>
- <div class="seg" role="group" aria-label="Speed">${(M.mode==='full'?[3,6,12,24]:[1,2,4]).map(v=>`<button data-act="mspeed" data-v="${v}" aria-pressed="${(M.mode==='full'?M.fs:M.hs)===v}">${v}×</button>`).join('')}</div>
- <div class="seg" role="group" aria-label="View">${[['3d','3D'],['2d','2D']].map(([k,l])=>`<button data-act="mview" data-v="${k}" aria-pressed="${M.viewMode===k}">${l}</button>`).join('')}</div>
- <div class="seg" role="group" aria-label="Camera" ${M.viewMode!=='3d'?'hidden':''}>${[['tv','TV'],['high','Tactical'],['near','Close']].map(([k,l])=>`<button data-act="mcam" data-v="${k}" aria-pressed="${M.camMode===k}">${l}</button>`).join('')}</div>
- <div class="toolbar" style="margin:0"><button class="btn" data-act="mpause" id="m-pause">${M.paused?'Resume':'Pause'}</button><button class="btn" data-act="instant">Instant result</button></div></div></div>
+ const ctl=(lbl,grp,items,cur,act,hide)=>`<div class="seg" role="group" aria-label="${lbl}" ${hide?'hidden':''}>${items.map(([k,l])=>`<button data-act="${act}" data-v="${k}" aria-pressed="${cur==k}">${l}</button>`).join('')}</div>`;
+ return bar+`<div class="mstage">
+ <div class="stage" id="stage"><canvas id="m-canvas" aria-label="Match view"></canvas>
+  <div class="stage-msg" id="stage-msg" hidden></div>
+  <div class="ov-sbug" id="m-sbug">${sbugHTML()}</div>
+  <div class="ov-tl" id="m-tl"><b id="m-tlc"></b><small>Fast forward</small><span id="m-tlt"></span></div>
+  <div class="ov-l3" id="m-l3">${l3HTML()}</div>
+  <div class="ov-lu" id="m-lu">${lineupCards()}</div>
+  <div class="ov-cap" id="m-cap"></div>
+  <div class="ov-rep" id="m-rep"><span>Replay</span><button data-act="mskiprep">Skip</button></div>
+  <button class="ov-skip" id="m-skip" data-act="mskip" ${M.intro?'':'hidden'}>Skip to kick-off ›</button>
+  <div class="flash" id="m-flash"><b>GOAL</b></div></div>
+ <div class="mctl">${ctl('Viewing mode',0,Object.entries(MODES).map(([k,v])=>[k,v.label]),M.mode,'mmode')}
+ ${ctl('Speed',0,(M.mode==='full'?[6,12,24,48]:[1,2,4]).map(v=>[v,v+'×']),M.mode==='full'?M.fs:M.hs,'mspeed')}
+ ${ctl('View',0,[['3d','3D'],['2d','2D']],M.viewMode,'mview')}
+ ${ctl('Camera',0,[['tv','TV'],['high','Tactical'],['near','Close']],M.camMode,'mcam',M.viewMode!=='3d')}
+ <span class="grow"></span>
+ <button class="btn ghost" data-act="msound" id="m-sound" aria-pressed="${SND.on}">${SND.on?'Sound on':'Sound off'}</button>
+ <button class="btn ghost" data-act="mfull" title="Full screen">Full screen</button>
+ <button class="btn" data-act="mpause" id="m-pause">${M.paused?'Resume':'Pause'}</button><button class="btn" data-act="instant">Instant result</button></div></div>
+ <div class="mgrid">
+ <section class="panel"><div class="ph"><h3>Commentary</h3></div><ul class="feed" id="m-feed"></ul></section>
+ <section class="panel"><div class="ph"><h3>Match stats</h3></div><div id="m-stats">${statsHTML()}</div></section>
  <section class="panel"><div class="ph"><div class="seg" role="group" aria-label="Panel">${[['team','Team'],['tac','Tactics']].map(([k,l])=>`<button data-act="mtab2" data-v="${k}" aria-pressed="${(M.tab2||'team')===k}">${l}</button>`).join('')}</div></div><div id="m-side">${(M.tab2||'team')==='team'?lineupHTML():quickTacHTML()}</div></section></div>`;
 }
+const shortOf=s=>esc(clubOf(M.E.T[s].club).abbr||clubOf(M.E.T[s].club).short.slice(0,3).toUpperCase());
+function sbugHTML(){if(!M.E)return'';const[hk,ak]=kitColors(M.E);return`<span class="sb-t" style="--k:${hk.base}">${shortOf(0)}</span><b id="m-sbs">${M.score[0]}–${M.score[1]}</b><span class="sb-t" style="--k:${ak.base}">${shortOf(1)}</span><i id="m-sbc">${clockAt(M.E,M.pt)}</i>`}
+function l3HTML(){const[h,a]=M.fx,H=clubOf(h),lg=S.leagues[H.league];
+ return`<div class="l3-in"><small>${esc(lg.name)} · Matchday ${S.md+1}</small><div class="l3-teams">${crest(h,34)}<b>${esc(H.name)}</b><i>v</i><b>${esc(clubOf(a).name)}</b>${crest(a,34)}</div><span>${esc(H.stadium)} · ${kickLabel(M.wx.kick)} · ${WX[M.wx.type].n}, ${M.wx.temp}°C</span></div>`}
+function lineupCards(){if(!M.E)return'';const ks=kitColors(M.E);
+ return[0,1].map(s=>{const c=clubOf(M.E.T[s].club);return`<div class="lu-card" style="--k:${ks[s].base};--ki:${ink(ks[s].base)}"><header>${crest(c.id,38)}<div><b>${esc(c.short)}</b><small>${esc(c.tac.form)}</small></div></header>
+ <ol>${M.E.P.slice(s*11,s*11+11).map((p,i)=>`<li style="--d:${i*45}ms"><i>${p.num}</i><span>${esc(p.name)}</span><em>${p.pos}</em></li>`).join('')}</ol></div>`}).join('<div class="lu-vs">VS</div>')}
+function caption(tx,cls){const el=$('#m-cap');if(!el||M.intro)return;el.className='ov-cap on '+(cls||'');el.innerHTML=`<b>${clockAt(M.E,M.pt)}</b><span>${esc(tx)}</span>`;M.capAt=performance.now();const t=$('#m-tlt');if(t)t.textContent=tx}
 function postHTML(){
  const E=M.E,us=M.us,gf=E.score[us],ga=E.score[1-us],all=E.P.concat(E.old).filter(p=>p.rating!=null);
  const motm=all.slice().sort((a,b)=>b.rating-a.rating)[0];
@@ -126,29 +157,61 @@ function mountMatch(){
  }else use2d();
  lastTs=performance.now();RAF=requestAnimationFrame(loop);
 }
-function leaveMatch(){cancelAnimationFrame(RAF);if(VIEW){VIEW.dispose();VIEW=null}if(M&&M.phase==='live')M.paused=true}
-function rateNow(){const md=MODES[M.mode];if(M.mode==='full')return M.fs;return inWindow(M.pt)?M.hs:md.ff}
+function leaveMatch(){cancelAnimationFrame(RAF);if(VIEW){VIEW.dispose();VIEW=null}if(M&&M.phase==='live')M.paused=true;SND.stop()}
+// Playback speed: highlight speed inside windows, fast-forward between them, braking smoothly as the next window nears.
+function targetRate(){
+ if(M.mode==='full')return M.fs;
+ if(inWindow(M.pt))return M.hs;
+ const ff=MODES[M.mode].ff,gap=nextWin(M.pt)-M.pt;
+ return clamp(gap/.3,M.hs,ff);
+}
+function setOv(id,on){const el=document.getElementById(id);if(el&&el.classList.contains('on')!==on)el.classList.toggle('on',on)}
+function endIntro(){if(!M||!M.intro)return;M.intro=null;{const st=$('#stage');if(st)st.classList.remove('intro')}['m-l3','m-lu'].forEach(id=>setOv(id,false));const sk=$('#m-skip');if(sk)sk.hidden=true;SND.whistle(1);SND.setCrowd(.42);M.capAt=0;caption('Kick-off! We are under way.','whistle')}
+function endReplay(){M.replay=null;setOv('m-rep',false)}
 let sideT=0;
 function loop(ts){
  if(!M||M.phase!=='live'||view!=='match')return;
  const dt=Math.min(.25,(ts-lastTs)/1000);lastTs=ts;const E=M.E;
- const t0=performance.now();while(!E.done&&E.t<M.pt+18&&performance.now()-t0<12)stepMatch(E);
+ const t0=performance.now();while(!E.done&&E.t<M.pt+20&&performance.now()-t0<12)stepMatch(E);
  scanEvents();
- const r=rateNow();
+ // ---- pre-match ceremony ----
+ if(M.intro){
+  if(!VIEW){RAF=requestAnimationFrame(loop);return}
+  $('#stage').classList.add('intro');
+  const IT=VIEW.intro?INTRO3D:INTRO2D;if(!M.paused)M.intro.ct+=dt;const ct=M.intro.ct;
+  if(!M.intro.music&&ct>=IT.music){M.intro.music=1;SND.anthem()}
+  setOv('m-l3',ct>=IT.l3[0]&&ct<IT.l3[1]);setOv('m-lu',ct>=IT.lu[0]&&ct<IT.lu[1]);
+  if(VIEW.intro)VIEW.intro(ct,M.paused?0:dt);else VIEW.draw(0,0,dt);
+  if(ct>=IT.end)endIntro();
+  RAF=requestAnimationFrame(loop);return;
+ }
+ // ---- goal replay ----
+ if(!M.replay&&M.repQ&&M.pt>=Math.min(M.repQ.t+4.5,E.done?E.t-1e-3:Infinity)){M.replay={rt:M.repQ.t-5.5,end:M.repQ.t+1,s:M.repQ.s};M.repQ=null;setOv('m-rep',true);setOv('m-tl',false)}
+ if(M.replay){
+  if(!M.paused)M.replay.rt+=dt*.6;
+  if(VIEW)VIEW.draw(M.replay.rt,M.paused?0:dt*.6,dt,{cam:'replay',side:M.replay.s});
+  if(M.replay.rt>=M.replay.end)endReplay();
+  RAF=requestAnimationFrame(loop);return;
+ }
+ const want=targetRate();M.rate=want<M.rate?want:M.rate+(want-M.rate)*(1-Math.exp(-dt*4));const r=M.rate;
  if(!M.paused)M.pt=Math.min(M.pt+dt*r,E.t);
- const ff=$('#m-ff');if(ff)ff.hidden=!(r>=10&&!M.paused);
  surface();
- $('#m-score').textContent=`${M.score[0]} – ${M.score[1]}`;$('#m-clock').textContent=clockAt(E,M.pt);
+ const tl=r>=8&&!M.paused;setOv('m-tl',tl);
+ if(M.capAt&&performance.now()-M.capAt>4500){M.capAt=0;setOv('m-cap',false)}
+ const clk=clockAt(E,M.pt);
+ $('#m-score').textContent=`${M.score[0]} – ${M.score[1]}`;$('#m-clock').textContent=clk;
+ {const c=$('#m-sbc');if(c)c.textContent=clk;const sc=$('#m-sbs');if(sc)sc.textContent=`${M.score[0]}–${M.score[1]}`;if(tl){const b=$('#m-tlc');if(b)b.textContent=clk}}
  {const shownWx=wxAtPt();if(shownWx!==M.lastWx){M.lastWx=shownWx;const el=$('#m-wx');if(el)el.innerHTML=`${wxIcon(shownWx)}<span>${WX[shownWx].n} · ${M.wx.temp}°C · ${kickLabel(M.wx.kick)}</span>`}}
  if(VIEW)VIEW.draw(M.pt,M.paused?0:dt*Math.min(r,4),dt);
- if(ts-sideT>1000){sideT=ts;const st=$('#m-stats');if(st&&!st.hidden)st.innerHTML=statsHTML();const sd=$('#m-side');if(sd&&(M.tab2||'team')==='team'&&!sd.matches(':hover'))sd.innerHTML=lineupHTML()}
- if(E.done&&M.pt>=E.t-1e-3){finishLive();return}
+ if(ts-sideT>1000){sideT=ts;const st=$('#m-stats');if(st)st.innerHTML=statsHTML();const sd=$('#m-side');if(sd&&(M.tab2||'team')==='team'&&!sd.matches(':hover'))sd.innerHTML=lineupHTML();
+  if(!M.paused)SND.setCrowd(inWindow(M.pt)?.5:.32,2)}
+ if(E.done&&M.pt>=E.t-1e-3&&!M.repQ){finishLive();return}
  RAF=requestAnimationFrame(loop);
 }
-function finishLive(){cancelAnimationFrame(RAF);if(VIEW){VIEW.dispose();VIEW=null}M.phase='done';M.score=M.E.score.slice();render()}
+function finishLive(){cancelAnimationFrame(RAF);if(VIEW){VIEW.dispose();VIEW=null}M.phase='done';M.intro=null;M.replay=null;M.score=M.E.score.slice();SND.setCrowd(.18,3);render()}
 function instantResult(){
  if(M.phase==='pre')kickOff();
- runToEnd(M.E);M.pt=M.E.t;M.shown=M.E.events.length;M.score=M.E.score.slice();finishLive();
+ runToEnd(M.E);M.pt=M.E.t;M.shown=M.E.events.length;M.score=M.E.score.slice();M.repQ=null;finishLive();SND.stop();
 }
 function finishMatchday(){
  const E=M.E,res=applyUserMatch(E);processMatchday(res);
