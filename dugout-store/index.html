@@ -50,6 +50,7 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
 .buy-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .price{font:700 22px var(--fd);letter-spacing:.04em}
 .btn{border:0;border-radius:3px;padding:11px 16px;font-weight:600;font-size:14px}
+a.btn{display:block;text-align:center;text-decoration:none}
 .btn.pri{background:var(--accent);color:var(--accent-ink)}.btn.pri:hover{filter:brightness(1.08)}
 .btn.sec{background:var(--surface2);border:1px solid var(--line2)}.btn.sec:hover{border-color:#4b5446}
 .note{font-size:12px;color:var(--dim);margin:0}
@@ -96,7 +97,7 @@ section.block{margin-top:44px}
    <p class="short">Take charge of a club across six countries and twelve divisions. Build the squad, set the tactics, work the phones on deadline day, and watch every match play out live in 3D or 2D.</p>
    <dl class="facts"><dt>Genre</dt><dd>Football management</dd><dt>Modes</dt><dd>Single-player career, 3 save slots</dd><dt>Release</dt><dd>Coming soon</dd><dt>Languages</dt><dd>English</dd></dl>
    <div class="tags"><span class="tag">Sports</span><span class="tag">Management</span><span class="tag">Simulation</span><span class="tag">Strategy</span><span class="tag">Football</span><span class="tag">Tactical</span><span class="tag">Singleplayer</span></div>
-   <div class="buy"><div class="buy-row"><span class="price">Coming soon</span><button class="btn pri" id="wish" type="button">Add to wishlist</button></div><button class="btn sec" id="demo" type="button">Play the free demo</button><p class="note">This is a preview of the store page. Buttons are placeholders.</p></div>
+   <div class="buy"><div class="buy-row"><span class="price">Coming soon</span><button class="btn pri" id="wish" type="button">Add to wishlist</button></div><a class="btn sec" id="demo" href="https://claude.ai/artifact/BabrEqjqMdy9EAPpdC4xCp" target="_blank" rel="noopener">Play now, free in your browser</a><p class="note">The full game runs in your browser. Saves stay on your device.</p></div>
   </aside>
  </div>
 
@@ -127,6 +128,9 @@ const SHOTS=[
  ['i-anthem-crop.png','Walkouts, anthems and handshakes before every match, in each club’s own kit.'],
  ['c-2d-1.png','A clean tactical 2D view shows the shape of both teams at a glance.'],
  ['b-network.png','After the whistle: momentum, xG race, shot maps, passing networks and heatmaps.'],
+ ['k-hub.png','The club hub: next match, tale of the tape, table, inbox and transfer wire in one screen.'],
+ ['k-squad.png','Every section has its own backdrop, from the dressing room to the boardroom.'],
+ ['k-comps.png','Competition hubs with standings, results and season numbers.'],
  ['j-call.png','Work the phones: ask the agent what his client wants before you put an offer together.'],
  ['f-scout.png','Send scouts across the continent and get graded reports on the best targets.'],
  ['a3-cont.png','Six domestic cups and the Continental Elite Cup, with groups, brackets and penalties.'],
@@ -194,7 +198,6 @@ $('#copy').addEventListener('click',e=>{const b=e.target.closest('.copy-btn');if
  const sel=()=>{const r=document.createRange();r.selectNodeContents($('#cp'+i));const s=getSelection();s.removeAllRanges();s.addRange(r);toast('Selected. Press Ctrl+C or Cmd+C to copy')};
  try{navigator.clipboard.writeText(text).then(()=>toast('Copied'),sel)}catch(err){sel()}});
 $('#wish').addEventListener('click',()=>toast('Wishlists open when the store page goes live'));
-$('#demo').addEventListener('click',()=>toast('The demo link goes here'));
 let auto=setInterval(()=>{const cur=[...document.querySelectorAll('.thumb')].findIndex(t=>t.getAttribute('aria-pressed')==='true');show((cur+1)%SHOTS.length)},5000);
 $('#rail').addEventListener('pointerenter',()=>clearInterval(auto),{once:true});
 if(matchMedia('(prefers-reduced-motion: reduce)').matches)clearInterval(auto);
