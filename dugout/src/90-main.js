@@ -1,6 +1,13 @@
 /* ================= app shell ================= */
 function render(){
- if(!S){$('#bar').innerHTML='';$('#view').innerHTML=viewStart();return}
+ $('#bar').hidden=!S;
+ if(!S){$('#bar').innerHTML='';
+  if(ui.mode==='new'){$('#view').innerHTML=viewStart();return}
+  // Keep the menu backdrop mounted so the intro animation plays once, not on every click.
+  const ex=$('#view .mm'),html=viewMenu();
+  if(ex){const tmp=document.createElement('div');tmp.innerHTML=html;ex.querySelector('.mm-in').replaceWith(tmp.querySelector('.mm-in'))}
+  else{$('#view').innerHTML=html;const mm=$('#view .mm');setTimeout(()=>mm.classList.remove('fresh'),1200)}
+  return}
  renderBar();
  const fn={home:viewHome,squad:viewSquad,player:viewPlayer,tactics:viewTactics,transfers:viewTransfers,comps:viewComps,office:viewOffice,club:viewClub,match:viewMatch}[view]||viewHome;
  const html=fn(),side=['home','squad','club'].includes(view)&&!(view==='home'&&sub==='news');
@@ -35,8 +42,17 @@ document.addEventListener('click',e=>{
   case'pickNation':ui.pickNation=v;ui.pickLeague=null;ui.pickClub=null;render();break;
   case'pickLeague':ui.pickLeague=+v;ui.pickClub=null;render();break;
   case'pickClub':ui.pickClub=id;render();break;
-  case'start':S=W;W=null;startCareer(id);view='home';sub='overview';render();break;
-  case'resume':S=loadSave();W=null;view='home';sub='overview';render();break;
+  case'start':S=W;W=null;S.slot=ui.newSlot||1;ui.mode='game';startCareer(id);flushSave();view='home';sub='overview';render();window.scrollTo(0,0);break;
+  case'menu':askMenu();break;
+  case'menu-go':toMenu();break;
+  case'menu-back':W=null;ui.mode='menu';render();break;
+  case'menu-load':if(v)menuLoad(+v);break;
+  case'menu-new':menuNew(v?+v:null,t.dataset.over);break;
+  case'menu-cancel':ui.slotIntent=null;render();break;
+  case'menu-help':openModal(HELP);break;
+  case'menu-del':ui.confirmDel=+v;render();break;
+  case'menu-del-no':ui.confirmDel=null;render();break;
+  case'menu-del-yes':ui.confirmDel=null;deleteSlot(+v).then(refreshMetas).then(render);break;
   case'nav':closeModal();go(v);break;
   case'sub':sub=v;render();window.scrollTo(0,0);break;
   case'back':{const b=ui.back||['home','overview'];go(b[0],b[1]);break}
@@ -106,6 +122,12 @@ document.addEventListener('keydown',e=>{
  if(e.key==='Escape'&&!$('#modal').hidden)closeModal();
  if(e.key===' '&&view==='match'&&M&&M.phase==='live'&&!/INPUT|SELECT|BUTTON/.test(e.target.tagName)){e.preventDefault();M.paused=!M.paused;const b=$('#m-pause');if(b)b.textContent=M.paused?'Resume':'Pause'}
 });
-function boot(data){if(data&&data.S){S=data.S;view='home';sub='overview'}render()}
+async function boot(data){
+ if(data&&data.S&&data.S.slot){S=data.S;ui.mode='game';view='home';sub='overview';render();return}
+ render();await migrateLegacy();await refreshMetas();if(!S)render();
+}
+// Write the pending save before the tab closes or is hidden (mobile browsers rarely fire unload).
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&S)flushSave()});
+window.addEventListener('pagehide',()=>{if(S)flushSave()});
 if(window.claude&&window.claude.hot&&window.claude.hot.snapshot)window.claude.hot.snapshot(()=>({S}));
 window.claude?.hot?.ready?window.claude.hot.ready(boot):boot(window.claude?.hot?.data??{});

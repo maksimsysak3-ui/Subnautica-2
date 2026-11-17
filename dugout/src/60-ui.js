@@ -37,7 +37,7 @@ function renderBar(){
  const c=clubOf(S.user),fx=userFixture(),unread=S.inbox.filter(m=>!m.read).length,nav=NAV.find(n=>n[0]===view);
  const opp=fx?clubOf(fx[0]===S.user?fx[1]:fx[0]):null;
  $('#bar').style.setProperty('--tc',c.colors[0]===('#ffffff')?c.colors[1]:c.colors[0]);
- $('#bar').innerHTML=`<div class="bar-row"><div class="logo">${LOGO}<span>DUGOUT</span></div>
+ $('#bar').innerHTML=`<div class="bar-row"><button class="logo" data-act="menu" title="Main menu (career saves automatically)">${LOGO}<span>DUGOUT</span></button>
  <button class="club-chip" data-act="nav" data-v="club">${crest(S.user)}<b>${esc(c.short)}</b></button>
  <nav class="nav" aria-label="Sections">${NAV.map(([k,l])=>`<button data-act="nav" data-v="${k}" ${view===k?'aria-current="page"':''}><svg viewBox="0 0 24 24">${NAV_ICON[k]}</svg>${l}${k==='home'&&unread?'<span class="dot"></span>':''}</button>`).join('')}</nav>
  <div class="when"><b>${fmtDate(mdDate(Math.min(S.md,MDAYS-1)))}</b><small>${opp?`Next: ${esc(opp.short)} (${fx[0]===S.user?'H':'A'}) · MD ${S.md+1}/${MDAYS}`:'Season complete'}</small></div>
@@ -48,11 +48,11 @@ function renderBar(){
 /* ---------- start ---------- */
 function viewStart(){
  if(!W){W=genWorld((Math.random()*2e9)|0);S=null}
- const saved=loadSave(),lgs=W.leagues.filter(l=>l.nation===ui.pickNation),lid=ui.pickLeague??lgs[0].id,lg=W.leagues[lid];
+ const lgs=W.leagues.filter(l=>l.nation===ui.pickNation),lid=ui.pickLeague??lgs[0].id,lg=W.leagues[lid];
  const clubs=lg.clubs.map(id=>W.clubs[id]).sort((a,b)=>b.rep-a.rep),c=W.clubs[ui.pickClub??clubs[0].id];
  const sv=S;S=W;
- const html=`<div class="start"><header class="hero">${LOGO}<div><h1>DUGOUT</h1><p>Football management across ${COUNTRIES.length} countries and ${W.leagues.length} divisions. Every match is simulated from real positional play.</p></div></header>
- ${saved?`<div class="panel" style="margin-bottom:12px"><div class="pb" style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap"><div><b>Career in progress</b><br><small>${esc(saved.clubs[saved.user].name)} · Season ${saved.season} · Matchday ${Math.min(saved.md+1,MDAYS)}</small></div><button class="btn pri lg" data-act="resume">Resume career ${ARROW}</button></div></div>`:''}
+ const html=`<div class="start"><div class="start-top"><button class="btn ghost" data-act="menu-back">‹ Main menu</button><span class="chip">Save slot ${ui.newSlot||1}</span></div>
+ <header class="hero">${LOGO}<div><h1>New career</h1><p>Choose a club from ${COUNTRIES.length} countries and ${W.leagues.length} divisions. Every match is simulated from real positional play.</p></div></header>
  <div class="toolbar"><div class="seg" role="group" aria-label="Country">${COUNTRIES.map(co=>`<button data-act="pickNation" data-v="${co.code}" aria-pressed="${co.code===ui.pickNation}">${flagSVG(co.code)} ${NATIONS[co.code].n}</button>`).join('')}</div>
  <div class="seg" role="group" aria-label="Division">${lgs.map(l=>`<button data-act="pickLeague" data-v="${l.id}" aria-pressed="${l.id===lid}">${esc(l.name)}</button>`).join('')}</div></div>
  <div class="pick-grid"><div class="panel"><div class="tw"><table class="tbl"><thead><tr><th>Club</th><th>Reputation</th><th class="r">Budget</th><th class="r hide-sm">Wages p/w</th><th class="hide-sm">Objective</th></tr></thead><tbody>
@@ -60,7 +60,7 @@ function viewStart(){
  <aside class="panel club-prev"><div class="pb"><div class="cp-head">${crest(c.id)}<div><h2 style="font-size:28px;line-height:1">${esc(c.name)}</h2><p class="muted" style="margin:4px 0 0">${esc(lg.name)} · Est. ${c.est}</p></div></div>
  <div class="kits">${['home','away','third'].map(w=>`<figure>${kitSVG(c,w)}<figcaption>${w}</figcaption></figure>`).join('')}</div>
  <dl class="facts"><div><dt>Stadium</dt><dd>${esc(c.stadium)}</dd></div><div><dt>Capacity</dt><dd>${c.cap.toLocaleString('en-GB')}</dd></div><div><dt>Transfer budget</dt><dd>${money(c.budget)}</dd></div><div><dt>Objective</dt><dd>${expectation(c.id)}</dd></div><div><dt>Best player</dt><dd>${(()=>{const p=c.squad.map(id=>W.players[id]).sort((a,b)=>b.ovr-a.ovr)[0];return pName(p)+' · '+p.pos})()}</dd></div><div><dt>Squad</dt><dd>${c.squad.length} players</dd></div></dl>
- <button class="btn pri lg" style="width:100%" data-act="start" data-id="${c.id}">Take charge of ${esc(c.short)} ${ARROW}</button>${saved?'<p class="muted" style="font-size:12px;margin:8px 0 0">Starting a new career replaces the saved one.</p>':''}</div></aside></div></div>`;
+ <button class="btn pri lg" style="width:100%" data-act="start" data-id="${c.id}">Take charge of ${esc(c.short)} ${ARROW}</button>${ui.overwrite?`<p class="muted" style="font-size:12px;margin:8px 0 0">This replaces the career in slot ${ui.newSlot}.</p>`:''}</div></aside></div></div>`;
  S=sv;return html;
 }
 

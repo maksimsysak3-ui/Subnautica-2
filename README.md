@@ -66,4 +66,4 @@ kits and stadiums, about 4,000 players, promotion and relegation, and a career t
 - **Weather and time.** Kick-off times from lunchtime to night games, daylight that fades into floodlights, and weather (rain, storms, snow, wind, heat) that can change mid-match and affects first touch, pass accuracy, ball speed, keeping and fatigue.
 - **Management.** Squad with 1-20 attributes and star ratings, scouting search across all leagues, bids, wage demands, transfer windows, AI transfers, incoming offers, finances, inbox and a news feed.
 
-Source lives in `dugout/src/` and is stitched into the page by `npm run build:dugout`. Saves to the browser's local storage.
+Source lives in `dugout/src/` and is stitched into the page by `npm run build:dugout`. Three career save slots live in the browser (IndexedDB, gzip-compressed, about 0.4 MB each), managed from the main menu. An older single save moves into slot 1 automatically.

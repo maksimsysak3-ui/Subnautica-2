@@ -59,8 +59,6 @@ function expectation(cid){const c=clubOf(cid),lg=leagueOf(cid),rank=lg.clubs.map
 const targetPos=cid=>{const e=expectation(cid);return{'Win the title':1,'Finish in the top four':4,'Finish in the top half':10,'Finish mid-table':14,'Avoid relegation':17,'Win promotion':3,'Challenge for promotion':6}[e]||10};
 function mail(from,subj,body,action,kind){S.inbox.unshift({id:S.nid++,from,subj,body,md:S.md,season:S.season,read:false,action:action||null,kind:kind||'info'});if(S.inbox.length>60)S.inbox.length=60}
 function news(text,kind,clubs,extra){S.news.unshift(Object.assign({id:S.nid++,md:S.md,season:S.season,text,kind,clubs:clubs||[]},extra||{}));if(S.news.length>90)S.news.length=90}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S));return true}catch(e){if(typeof toast==='function'&&!save.warned){save.warned=1;toast('Could not save: browser storage is full or blocked')}return false}}
-function loadSave(){try{const t=localStorage.getItem(KEY);if(!t)return null;const s=JSON.parse(t);return s&&s.v===3&&s.user>=0?s:null}catch(e){return null}}
 const newFin=()=>({gate:0,tv:0,prize:0,sponsor:0,sales:0,wages:0,buys:0});
 function table(lid){
  const lg=S.leagues[lid],T={};lg.clubs.forEach(id=>T[id]={id,p:0,w:0,d:0,l:0,gf:0,ga:0,pts:0,form:[]});

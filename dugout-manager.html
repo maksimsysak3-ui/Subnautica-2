@@ -139,6 +139,72 @@ input[type=range]{accent-color:var(--accent);width:100%}
 .hero svg{width:58px;height:58px}
 .hero h1{font-size:clamp(38px,6vw,60px);letter-spacing:.16em;font-weight:800;line-height:.9}
 .hero p{margin:4px 0 0;color:var(--muted)}
+.start-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+
+/* ---------- main menu ---------- */
+.mm{position:relative;min-height:100vh;min-height:100svh;display:grid;place-items:center;overflow:hidden;margin:-16px calc(-1*max(14px,env(safe-area-inset-left,0px))) -60px;padding:40px max(16px,env(safe-area-inset-left,0px));isolation:isolate}
+.mm-pitch{position:absolute;inset:0;width:100%;height:100%;color:#fff;opacity:.05;z-index:-2}
+.mm-pitch g>*{stroke-dasharray:100;stroke-dashoffset:100;animation:mmDraw 2.6s cubic-bezier(.6,.1,.2,1) forwards}
+.mm-pitch g>*:nth-child(n+4){animation-delay:.5s}.mm-pitch g>*:nth-child(n+7){animation-delay:.9s}
+@keyframes mmDraw{to{stroke-dashoffset:0}}
+.mm-glow{position:absolute;inset:0;z-index:-1;background:radial-gradient(60% 70% at 18% 40%,rgba(255,180,58,.07),transparent 60%),radial-gradient(50% 60% at 85% 70%,rgba(255,255,255,.035),transparent 70%),linear-gradient(180deg,transparent 60%,rgba(0,0,0,.5))}
+.mm-in{width:min(1180px,100%);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:clamp(28px,6vw,96px);align-items:center}
+.mm.fresh .mm-left,.mm.fresh .mm-right{animation:mmUp .7s cubic-bezier(.2,.7,.2,1) both}.mm.fresh .mm-right{animation-delay:.12s}
+@keyframes mmUp{from{opacity:0;transform:translateY(14px)}}
+.mm-mark{display:flex;align-items:center;gap:18px;margin-bottom:clamp(28px,6vh,56px)}
+.mm-mark svg{width:64px;height:64px;flex:none}
+.mm-mark h1{font:800 clamp(48px,7vw,84px)/.86 var(--fd);letter-spacing:.2em;margin-right:-.2em}
+.mm-mark p{margin:8px 0 0;font:600 13px/1 var(--fd);letter-spacing:.42em;text-transform:uppercase;color:var(--muted)}
+.mm-list{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.mm-list li{border-bottom:1px solid var(--line)}
+.mm-item{position:relative;display:flex;flex-direction:column;gap:5px;width:100%;text-align:left;padding:16px 0 16px 18px;transition:padding .25s cubic-bezier(.2,.7,.2,1),background .25s}
+.mm-item::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:2px;background:var(--accent);transform:scaleY(0);transition:transform .25s cubic-bezier(.2,.7,.2,1)}
+.mm-item .mm-l{font:700 clamp(26px,3vw,34px)/1 var(--fd);letter-spacing:.08em;text-transform:uppercase;color:#d8d6cf;transition:color .2s}
+.mm-item .mm-n{font-size:13px;color:var(--muted)}
+.mm-item:hover:not(:disabled),.mm-item:focus-visible{padding-left:28px;background:linear-gradient(90deg,rgba(255,255,255,.035),transparent 70%)}
+.mm-item:hover:not(:disabled)::before,.mm-item:focus-visible::before{transform:scaleY(1)}
+.mm-item:hover:not(:disabled) .mm-l{color:#fff}
+.mm-item:disabled{cursor:default}.mm-item:disabled .mm-l{color:#4a4945}
+.mm-note{margin:18px 0 0;font-size:12px;color:var(--dim)}
+.mm-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px}
+.mm-head h2{font:700 13px/1 var(--fd);letter-spacing:.3em;text-transform:uppercase;color:var(--muted)}
+.mm-head .link{font:inherit;color:var(--accent2);text-decoration:underline;text-underline-offset:3px}
+.mm-slots{display:grid;gap:10px}
+.mm-slot{--tc:#444;position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 16px;padding:16px 18px 14px 16px;background:linear-gradient(100deg,color-mix(in srgb,var(--tc) 13%,#151517),#121214 55%);border:1px solid var(--line);border-left:3px solid color-mix(in srgb,var(--tc) 80%,#333);border-radius:4px;transition:border-color .2s,transform .2s,box-shadow .2s}
+.mm-slot:not(.empty):not(.ghost):hover{border-color:var(--line2);border-left-color:var(--tc);transform:translateX(3px);box-shadow:0 16px 30px -18px rgba(0,0,0,.9)}
+.mm-slot.recent::after{content:"Last played";position:absolute;top:12px;right:14px;font:700 10px/1 var(--fd);letter-spacing:.2em;text-transform:uppercase;color:var(--accent)}
+.mm-no{grid-row:span 3;font:800 15px/1 var(--fd);letter-spacing:.1em;color:var(--dim);padding-top:4px}
+.mm-club{display:flex;align-items:center;gap:14px;min-width:0}
+.mm-club .crest{flex:none;filter:drop-shadow(0 4px 8px rgba(0,0,0,.5))}
+.mm-club h3{font:700 24px/1 var(--fd);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:80px}
+.mm-club small{display:block;margin-top:5px}
+.mm-club>div{min-width:0}
+.mm-facts{display:flex;flex-wrap:wrap;gap:6px 22px;margin:12px 0 0}
+.mm-facts dt{font:600 10px/1 var(--fd);letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.mm-facts dd{margin:4px 0 0;font:700 17px/1 var(--fd);letter-spacing:.03em;font-variant-numeric:tabular-nums}
+.mm-facts dd i{font-style:normal;color:var(--dim);font-size:13px}
+.mm-foot{grid-column:2;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:11px;border-top:1px solid rgba(255,255,255,.06)}
+.mm-act,.mm-confirm{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.mm-confirm{font-size:13px;color:var(--text)}
+.mm-slot.empty{border-style:dashed;border-left-style:dashed;border-left-width:1px;background:transparent;align-items:center}
+.mm-slot.empty .mm-no{grid-row:auto}
+.mm-empty{display:flex;flex-direction:column;gap:3px}.mm-empty b{font:700 18px/1 var(--fd);letter-spacing:.06em;text-transform:uppercase;color:#bbb9b1}
+.mm-slot.empty .mm-act{grid-column:2;margin-top:8px}
+.mm-slot.ghost{min-height:150px;background:#131315}
+.mm-sk{height:100%;border-radius:3px;background:linear-gradient(90deg,#18181a,#202023,#18181a);background-size:200% 100%;animation:mmSk 1.2s linear infinite}
+@keyframes mmSk{to{background-position:-200% 0}}
+.btn.ghost{background:transparent;box-shadow:none;border-color:transparent;color:var(--muted)}
+.btn.ghost:hover{color:var(--text);border-color:var(--line2);background:transparent}
+.btn.danger{color:#ffb3bb;border-color:rgba(255,90,109,.55)}
+.btn.danger:hover{border-color:var(--loss);color:#fff}
+.help-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 22px}
+.help-grid b{font:700 15px var(--fd);letter-spacing:.08em;text-transform:uppercase}
+.help-grid p{margin:6px 0 0;color:var(--muted);line-height:1.55}
+button.logo{cursor:pointer;border-radius:6px;padding:4px 6px 4px 0}
+button.logo:hover{color:var(--accent2)}
+@media (max-width:860px){.mm-in{grid-template-columns:1fr}.mm{place-items:start center}.mm-mark{margin-bottom:22px}.help-grid{grid-template-columns:1fr}}
+@media (max-width:480px){.mm-club h3{font-size:20px;padding-right:0}.mm-slot.recent::after{display:none}.mm-mark svg{width:48px;height:48px}}
+@media (prefers-reduced-motion:reduce){.mm-pitch g>*,.mm-left,.mm-right,.mm-sk{animation:none;stroke-dashoffset:0}}
 .pick-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:12px;align-items:start}
 .club-prev{position:sticky;top:12px}
 .cp-head{display:flex;gap:14px;align-items:center}
@@ -1519,8 +1585,6 @@ function expectation(cid){const c=clubOf(cid),lg=leagueOf(cid),rank=lg.clubs.map
 const targetPos=cid=>{const e=expectation(cid);return{'Win the title':1,'Finish in the top four':4,'Finish in the top half':10,'Finish mid-table':14,'Avoid relegation':17,'Win promotion':3,'Challenge for promotion':6}[e]||10};
 function mail(from,subj,body,action,kind){S.inbox.unshift({id:S.nid++,from,subj,body,md:S.md,season:S.season,read:false,action:action||null,kind:kind||'info'});if(S.inbox.length>60)S.inbox.length=60}
 function news(text,kind,clubs,extra){S.news.unshift(Object.assign({id:S.nid++,md:S.md,season:S.season,text,kind,clubs:clubs||[]},extra||{}));if(S.news.length>90)S.news.length=90}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S));return true}catch(e){if(typeof toast==='function'&&!save.warned){save.warned=1;toast('Could not save: browser storage is full or blocked')}return false}}
-function loadSave(){try{const t=localStorage.getItem(KEY);if(!t)return null;const s=JSON.parse(t);return s&&s.v===3&&s.user>=0?s:null}catch(e){return null}}
 const newFin=()=>({gate:0,tv:0,prize:0,sponsor:0,sales:0,wages:0,buys:0});
 function table(lid){
  const lg=S.leagues[lid],T={};lg.clubs.forEach(id=>T[id]={id,p:0,w:0,d:0,l:0,gf:0,ga:0,pts:0,form:[]});
@@ -1756,6 +1820,49 @@ function youthIntake(cid,n){const c=clubOf(cid),co=COUNTRIES.find(x=>x.code===c.
  for(let k=0;k<n;k++){const pos=rng.pick(['GK','CB','CB','LB','RB','DM','CM','CM','AM','LW','RW','ST','ST']),roll=rng.f(),pot=clamp(Math.round(repToOvr(c.rep)+(roll<.08?rng.i(12,20):roll<.35?rng.i(4,11):rng.i(-8,3))),45,96);
   const y=genPlayer(rng,pos,clamp(pot-rng.i(16,26),35,70),cid,rng.chance(.75)?co.code:rng.pick(NAT_BAG),{age:rng.i(16,17),pot});y.con=3;y.wage=Math.max(500,Math.round(y.wage*.5/100)*100);y.id=S.npid++;S.players[y.id]=y;c.squad.push(y.id);y.num=assignNum(cid,pos);y.youth=S.season;out.push(y)}
  return out}
+/* ================= save slots =================
+   Careers live in IndexedDB (gzip-compressed where the browser supports it), one record per slot plus a small
+   metadata record for the menu. Falls back to localStorage if IndexedDB is unavailable. */
+const SLOTS=3;
+const DB={
+ p:null,fallback:false,
+ open(){if(!this.p)this.p=new Promise((res,rej)=>{try{const r=indexedDB.open('dugout-saves',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}catch(e){rej(e)}}).catch(e=>{this.fallback=true;return null});return this.p},
+ async put(k,v){const db=await this.open();if(!db){localStorage.setItem('dugout:'+k,typeof v==='string'?v:JSON.stringify(v));return}
+  return new Promise((res,rej)=>{const t=db.transaction('kv','readwrite');t.objectStore('kv').put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)})},
+ async get(k){const db=await this.open();if(!db){const v=localStorage.getItem('dugout:'+k);if(v==null)return null;try{return k[0]==='m'?JSON.parse(v):v}catch(e){return v}}
+  return new Promise((res,rej)=>{const r=db.transaction('kv').objectStore('kv').get(k);r.onsuccess=()=>res(r.result??null);r.onerror=()=>rej(r.error)})},
+ async del(k){const db=await this.open();if(!db){localStorage.removeItem('dugout:'+k);return}
+  return new Promise(res=>{const t=db.transaction('kv','readwrite');t.objectStore('kv').delete(k);t.oncomplete=()=>res();t.onerror=()=>res()})},
+};
+async function pack(str){if(DB.fallback||typeof CompressionStream==='undefined')return str;return new Response(new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'))).blob()}
+async function unpack(v){if(v==null)return null;if(typeof v==='string')return v;return new Response(v.stream().pipeThrough(new DecompressionStream('gzip'))).text()}
+function slotMeta(){
+ const c=clubOf(S.user),lg=S.leagues[c.league],played=S.results[c.league].length;
+ return{slot:S.slot,savedAt:Date.now(),club:{id:c.id,name:c.name,short:c.short,abbr:c.abbr,colors:c.colors,crest:c.crest,est:c.est},league:lg.name,season:seasonLabel(),md:S.md,
+  pos:played?posIn(table(c.league),S.user):null,rec:[S.mgr.w,S.mgr.d,S.mgr.l],trophies:S.mgr.trophies.filter(t=>!t.minor).length,seasons:S.mgr.seasons};
+}
+let saveTimer=0,savePending=null;
+function save(){
+ if(!S||!S.slot)return false;
+ clearTimeout(saveTimer);saveTimer=setTimeout(flushSave,350);return true;
+}
+async function flushSave(){
+ clearTimeout(saveTimer);if(!S||!S.slot)return;
+ const slot=S.slot,json=JSON.stringify(S),meta=slotMeta();
+ // Chain writes so a slower, older save can never land after a newer one.
+ savePending=(savePending||Promise.resolve()).then(async()=>{try{await DB.put('d'+slot,await pack(json));await DB.put('m'+slot,DB.fallback?JSON.stringify(meta):meta)}
+  catch(e){if(typeof toast==='function'&&!save.warned){save.warned=1;toast('Could not save: browser storage is full or blocked')}}});
+ return savePending;
+}
+async function loadSlot(n){const raw=await unpack(await DB.get('d'+n));if(!raw)return null;const s=JSON.parse(raw);if(!s||s.v!==3)return null;s.slot=n;return s}
+async function readMetas(){const out=[];for(let n=1;n<=SLOTS;n++){let m=await DB.get('m'+n);if(typeof m==='string')try{m=JSON.parse(m)}catch(e){m=null}out.push(m||null)}return out}
+async function deleteSlot(n){await DB.del('d'+n);await DB.del('m'+n)}
+// One-time move of a pre-slot career (single localStorage save) into slot 1.
+async function migrateLegacy(){
+ try{const t=localStorage.getItem(KEY);if(!t)return;const s=JSON.parse(t);if(!s||s.v!==3||s.user<0)return;
+  const metas=await readMetas();if(metas[0])return;
+  const prev=S;S=s;S.slot=1;await flushSave();await savePending;S=prev;localStorage.removeItem(KEY)}catch(e){}
+}
 /* ================= interface ================= */
 let view='home',sub='overview',W=null;
 const ui={trNat:'all',trExp:false,dealLeague:'all',sort:{squad:['ovr',-1],search:['ovr',-1]},group:'all',tSel:null,tSwap:null,trPos:'all',trLeague:'all',trMax:0,trAge:40,trMin:0,trQ:'',lg:null,lgMd:null,kitBack:false,pickNation:'ENG',pickLeague:null,pickClub:null,pid:null,back:null};
@@ -1795,7 +1902,7 @@ function renderBar(){
  const c=clubOf(S.user),fx=userFixture(),unread=S.inbox.filter(m=>!m.read).length,nav=NAV.find(n=>n[0]===view);
  const opp=fx?clubOf(fx[0]===S.user?fx[1]:fx[0]):null;
  $('#bar').style.setProperty('--tc',c.colors[0]===('#ffffff')?c.colors[1]:c.colors[0]);
- $('#bar').innerHTML=`<div class="bar-row"><div class="logo">${LOGO}<span>DUGOUT</span></div>
+ $('#bar').innerHTML=`<div class="bar-row"><button class="logo" data-act="menu" title="Main menu (career saves automatically)">${LOGO}<span>DUGOUT</span></button>
  <button class="club-chip" data-act="nav" data-v="club">${crest(S.user)}<b>${esc(c.short)}</b></button>
  <nav class="nav" aria-label="Sections">${NAV.map(([k,l])=>`<button data-act="nav" data-v="${k}" ${view===k?'aria-current="page"':''}><svg viewBox="0 0 24 24">${NAV_ICON[k]}</svg>${l}${k==='home'&&unread?'<span class="dot"></span>':''}</button>`).join('')}</nav>
  <div class="when"><b>${fmtDate(mdDate(Math.min(S.md,MDAYS-1)))}</b><small>${opp?`Next: ${esc(opp.short)} (${fx[0]===S.user?'H':'A'}) · MD ${S.md+1}/${MDAYS}`:'Season complete'}</small></div>
@@ -1806,11 +1913,11 @@ function renderBar(){
 /* ---------- start ---------- */
 function viewStart(){
  if(!W){W=genWorld((Math.random()*2e9)|0);S=null}
- const saved=loadSave(),lgs=W.leagues.filter(l=>l.nation===ui.pickNation),lid=ui.pickLeague??lgs[0].id,lg=W.leagues[lid];
+ const lgs=W.leagues.filter(l=>l.nation===ui.pickNation),lid=ui.pickLeague??lgs[0].id,lg=W.leagues[lid];
  const clubs=lg.clubs.map(id=>W.clubs[id]).sort((a,b)=>b.rep-a.rep),c=W.clubs[ui.pickClub??clubs[0].id];
  const sv=S;S=W;
- const html=`<div class="start"><header class="hero">${LOGO}<div><h1>DUGOUT</h1><p>Football management across ${COUNTRIES.length} countries and ${W.leagues.length} divisions. Every match is simulated from real positional play.</p></div></header>
- ${saved?`<div class="panel" style="margin-bottom:12px"><div class="pb" style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap"><div><b>Career in progress</b><br><small>${esc(saved.clubs[saved.user].name)} · Season ${saved.season} · Matchday ${Math.min(saved.md+1,MDAYS)}</small></div><button class="btn pri lg" data-act="resume">Resume career ${ARROW}</button></div></div>`:''}
+ const html=`<div class="start"><div class="start-top"><button class="btn ghost" data-act="menu-back">‹ Main menu</button><span class="chip">Save slot ${ui.newSlot||1}</span></div>
+ <header class="hero">${LOGO}<div><h1>New career</h1><p>Choose a club from ${COUNTRIES.length} countries and ${W.leagues.length} divisions. Every match is simulated from real positional play.</p></div></header>
  <div class="toolbar"><div class="seg" role="group" aria-label="Country">${COUNTRIES.map(co=>`<button data-act="pickNation" data-v="${co.code}" aria-pressed="${co.code===ui.pickNation}">${flagSVG(co.code)} ${NATIONS[co.code].n}</button>`).join('')}</div>
  <div class="seg" role="group" aria-label="Division">${lgs.map(l=>`<button data-act="pickLeague" data-v="${l.id}" aria-pressed="${l.id===lid}">${esc(l.name)}</button>`).join('')}</div></div>
  <div class="pick-grid"><div class="panel"><div class="tw"><table class="tbl"><thead><tr><th>Club</th><th>Reputation</th><th class="r">Budget</th><th class="r hide-sm">Wages p/w</th><th class="hide-sm">Objective</th></tr></thead><tbody>
@@ -1818,7 +1925,7 @@ function viewStart(){
  <aside class="panel club-prev"><div class="pb"><div class="cp-head">${crest(c.id)}<div><h2 style="font-size:28px;line-height:1">${esc(c.name)}</h2><p class="muted" style="margin:4px 0 0">${esc(lg.name)} · Est. ${c.est}</p></div></div>
  <div class="kits">${['home','away','third'].map(w=>`<figure>${kitSVG(c,w)}<figcaption>${w}</figcaption></figure>`).join('')}</div>
  <dl class="facts"><div><dt>Stadium</dt><dd>${esc(c.stadium)}</dd></div><div><dt>Capacity</dt><dd>${c.cap.toLocaleString('en-GB')}</dd></div><div><dt>Transfer budget</dt><dd>${money(c.budget)}</dd></div><div><dt>Objective</dt><dd>${expectation(c.id)}</dd></div><div><dt>Best player</dt><dd>${(()=>{const p=c.squad.map(id=>W.players[id]).sort((a,b)=>b.ovr-a.ovr)[0];return pName(p)+' · '+p.pos})()}</dd></div><div><dt>Squad</dt><dd>${c.squad.length} players</dd></div></dl>
- <button class="btn pri lg" style="width:100%" data-act="start" data-id="${c.id}">Take charge of ${esc(c.short)} ${ARROW}</button>${saved?'<p class="muted" style="font-size:12px;margin:8px 0 0">Starting a new career replaces the saved one.</p>':''}</div></aside></div></div>`;
+ <button class="btn pri lg" style="width:100%" data-act="start" data-id="${c.id}">Take charge of ${esc(c.short)} ${ARROW}</button>${ui.overwrite?`<p class="muted" style="font-size:12px;margin:8px 0 0">This replaces the career in slot ${ui.newSlot}.</p>`:''}</div></aside></div></div>`;
  S=sv;return html;
 }
 
@@ -2309,6 +2416,90 @@ function viewHonours(){
 function jobsModal(ids,title,sub,forced){
  openModal(`<div class="eyebrow">${esc(sub)}</div><h2 style="font-size:28px;margin:6px 0 14px">${esc(title)}</h2><div class="jobs">${ids.map(id=>{const c=clubOf(id);return`<div class="job" style="--cc:${c.colors[0]}">${crest(id,56)}<div><b>${esc(c.name)}</b><small>${esc(S.leagues[c.league].name)} · ${starHTML(stars(repToOvr(c.rep)))}</small><small>Budget ${money(c.budget)} · objective: ${expectation(id).toLowerCase()}</small></div><button class="btn pri" data-act="job" data-id="${id}">Accept</button></div>`}).join('')}</div>${forced?'':'<div class="toolbar" style="margin:14px 0 0"><button class="btn" data-act="close">Stay at your club</button></div>'}`);
 }
+/* ================= main menu & save slots ================= */
+ui.mode='menu';ui.metas=null;ui.slotIntent=null;ui.confirmDel=null;ui.newSlot=null;ui.busy=false;
+
+function ago(t){const s=(Date.now()-t)/1000;if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+' min ago';if(s<86400)return Math.floor(s/3600)+' h ago';const d=Math.floor(s/86400);return d<7?d+(d>1?' days':' day')+' ago':new Date(t).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}
+const latestSlot=()=>{const m=(ui.metas||[]).filter(Boolean).sort((a,b)=>b.savedAt-a.savedAt)[0];return m?m.slot:null};
+const firstFree=()=>{const i=(ui.metas||[]).findIndex(m=>!m);return i<0?null:i+1};
+
+// Faint pitch drawing that traces itself in, used as the menu backdrop.
+const MENU_PITCH=`<svg class="mm-pitch" viewBox="0 0 1050 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2">
+<rect x="20" y="20" width="1010" height="640"/><path d="M525 20V660"/><circle cx="525" cy="340" r="91.5"/><circle cx="525" cy="340" r="3" fill="currentColor"/>
+<rect x="20" y="138.5" width="165" height="403"/><rect x="20" y="248.5" width="55" height="183"/><path d="M185 266.9A91.5 91.5 0 0 1 185 413.1"/>
+<rect x="865" y="138.5" width="165" height="403"/><rect x="975" y="248.5" width="55" height="183"/><path d="M865 266.9A91.5 91.5 0 0 0 865 413.1"/>
+<circle cx="130" cy="340" r="3" fill="currentColor"/><circle cx="920" cy="340" r="3" fill="currentColor"/></g></svg>`.replace(/<(rect|path|circle) /g,'<$1 pathLength="100" ');
+
+function slotCard(n){
+ const m=ui.metas?ui.metas[n-1]:undefined,over=ui.slotIntent==='new';
+ if(m===undefined)return`<article class="mm-slot ghost"><span class="mm-no">0${n}</span><div class="mm-sk"></div></article>`;
+ if(!m)return`<article class="mm-slot empty"><span class="mm-no">0${n}</span><div class="mm-empty"><b>Empty slot</b><small>Start a new career here</small></div>
+  <div class="mm-act"><button class="btn" data-act="menu-new" data-v="${n}">New career ${ARROW}</button></div></article>`;
+ const[w,d,l]=m.rec,games=w+d+l,tc=m.club.colors[0]==='#ffffff'?m.club.colors[1]:m.club.colors[0];
+ const confirm=ui.confirmDel===n;
+ return`<article class="mm-slot ${latestSlot()===n?'recent':''}" style="--tc:${tc}"><span class="mm-no">0${n}</span>
+ <div class="mm-club">${crestSVG(m.club,{size:46})}<div><h3>${esc(m.club.name)}</h3><small>${esc(m.league)}</small></div></div>
+ <dl class="mm-facts"><div><dt>Season</dt><dd>${esc(m.season)}</dd></div><div><dt>Matchday</dt><dd>${Math.min(m.md+1,MDAYS)}<i>/${MDAYS}</i></dd></div><div><dt>Position</dt><dd>${m.pos?ordinal(m.pos):'–'}</dd></div><div><dt>Record</dt><dd>${games?`${w}–${d}–${l}`:'–'}</dd></div><div><dt>Trophies</dt><dd>${m.trophies}</dd></div></dl>
+ <div class="mm-foot"><small>Saved ${ago(m.savedAt)}</small>
+ ${confirm?`<span class="mm-confirm">Delete this career? <button class="btn danger" data-act="menu-del-yes" data-v="${n}">Delete</button><button class="btn" data-act="menu-del-no">Keep</button></span>`
+ :`<span class="mm-act">${over?`<button class="btn" data-act="menu-new" data-v="${n}" data-over="1">Overwrite</button>`:`<button class="btn ghost" data-act="menu-del" data-v="${n}" aria-label="Delete slot ${n}">Delete</button><button class="btn pri" data-act="menu-load" data-v="${n}">Load ${ARROW}</button>`}</span>`}</div></article>`;
+}
+
+function viewMenu(){
+ const last=latestSlot(),lm=last?ui.metas[last-1]:null,full=ui.metas&&!firstFree();
+ const item=(act,label,note,dis,v)=>`<li><button class="mm-item" data-act="${act}"${v!=null?` data-v="${v}"`:''}${dis?' disabled':''}><span class="mm-l">${label}</span><span class="mm-n">${note}</span></button></li>`;
+ return`<div class="mm fresh">${MENU_PITCH}<div class="mm-glow" aria-hidden="true"></div>
+ <div class="mm-in">
+  <section class="mm-left">
+   <div class="mm-mark">${LOGO}<div><h1>DUGOUT</h1><p>Football management</p></div></div>
+   <ul class="mm-list">
+    ${item('menu-load','Continue',lm?`${esc(lm.club.short)} · ${esc(lm.season)} · MD ${Math.min(lm.md+1,MDAYS)}`:'No saved career yet',!lm,last)}
+    ${item('menu-new','New career',full?'All slots in use: choose one to overwrite':`Into slot ${firstFree()||1} · clubs from ${COUNTRIES.length} countries`,false,full?'':firstFree()||1)}
+    ${item('menu-help','How to play','Matchdays, tactics, transfers',false)}
+   </ul>
+   <p class="mm-note">Careers are saved automatically to this browser after every action.</p>
+  </section>
+  <section class="mm-right" aria-label="Save slots">
+   <div class="mm-head"><h2>Careers</h2><small>${ui.slotIntent==='new'?'Choose a slot to overwrite · <button class="link" data-act="menu-cancel">Cancel</button>':`${SLOTS} slots`}</small></div>
+   <div class="mm-slots">${[1,2,3].slice(0,SLOTS).map(slotCard).join('')}</div>
+  </section>
+ </div></div>`;
+}
+
+const HELP=`<div class="eyebrow">How to play</div><h2 style="font-size:28px;margin:6px 0 14px">Running your club</h2>
+<div class="help-grid">
+<div><b>Matchdays</b><p>Press Continue in the top bar to move to the next fixture. Watch it live in 2D or 3D, or get an instant result. Give team talks before kick-off and at half-time.</p></div>
+<div><b>Tactics</b><p>Pick a shape out of possession and in possession, give each slot a role, and set how the side reacts when it wins or loses the ball. Weather and fatigue change what works.</p></div>
+<div><b>Transfers</b><p>Windows open in pre-season and mid-season. Make bids in the negotiation room: fee, add-ons and instalments first, then personal terms within your wage budget.</p></div>
+<div><b>Office</b><p>Move money between the transfer and wage budgets, check finances and ask the board for support. Keep the board happy or you will be looking for a new job.</p></div>
+</div><div style="text-align:right;margin-top:16px"><button class="btn pri" data-act="close">Got it</button></div>`;
+
+async function refreshMetas(){try{ui.metas=await readMetas()}catch(e){ui.metas=[null,null,null]}}
+async function toMenu(){
+ await flushSave();await savePending;
+ if(typeof leaveMatch==='function'&&view==='match')leaveMatch();
+ closeModal();fxQueue.length=0;fxClose();
+ S=null;M=null;W=null;view='home';sub='overview';ui.mode='menu';ui.slotIntent=null;ui.confirmDel=null;ui.metas=null;
+ render();await refreshMetas();render();window.scrollTo(0,0);
+}
+function askMenu(){
+ // A finished match is banked before leaving, so the result can't be lost or replayed.
+ if(view==='match'&&M&&M.phase==='done'){processMatchday(applyUserMatch(M.E));M=null;toMenu();return}
+ if(!(view==='match'&&M&&M.phase==='live')){toMenu();return}
+ openModal(`<div class="eyebrow">Main menu</div><h2 style="font-size:26px;margin:6px 0 10px">Leave this match?</h2><p class="muted" style="line-height:1.6">The match is not saved until it finishes and you continue. Your career will reload from before kick-off.</p>
+ <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn" data-act="close">Stay</button><button class="btn pri" data-act="menu-go">Leave to menu</button></div>`);
+}
+async function menuLoad(n){
+ if(ui.busy)return;ui.busy=true;
+ try{const s=await loadSlot(n);if(!s){toast('That save could not be read');await refreshMetas();render();return}
+  S=s;W=null;M=null;view='home';sub='overview';ui.mode='game';render();window.scrollTo(0,0)}
+ catch(e){toast('That save could not be read')}
+ finally{ui.busy=false}
+}
+function menuNew(n,over){
+ if(!n){ui.slotIntent='new';render();return}
+ ui.newSlot=n;ui.overwrite=!!over;ui.slotIntent=null;ui.mode='new';W=null;ui.pickClub=null;render();window.scrollTo(0,0);
+}
 /* ================= match day ================= */
 let M=null;
 const MODES={key:{label:'Key highlights',ff:40},ext:{label:'Extended',ff:14},full:{label:'Full match',ff:0}};
@@ -2788,7 +2979,14 @@ async function create3D(stage,cv,E){
 }
 /* ================= app shell ================= */
 function render(){
- if(!S){$('#bar').innerHTML='';$('#view').innerHTML=viewStart();return}
+ $('#bar').hidden=!S;
+ if(!S){$('#bar').innerHTML='';
+  if(ui.mode==='new'){$('#view').innerHTML=viewStart();return}
+  // Keep the menu backdrop mounted so the intro animation plays once, not on every click.
+  const ex=$('#view .mm'),html=viewMenu();
+  if(ex){const tmp=document.createElement('div');tmp.innerHTML=html;ex.querySelector('.mm-in').replaceWith(tmp.querySelector('.mm-in'))}
+  else{$('#view').innerHTML=html;const mm=$('#view .mm');setTimeout(()=>mm.classList.remove('fresh'),1200)}
+  return}
  renderBar();
  const fn={home:viewHome,squad:viewSquad,player:viewPlayer,tactics:viewTactics,transfers:viewTransfers,comps:viewComps,office:viewOffice,club:viewClub,match:viewMatch}[view]||viewHome;
  const html=fn(),side=['home','squad','club'].includes(view)&&!(view==='home'&&sub==='news');
@@ -2823,8 +3021,17 @@ document.addEventListener('click',e=>{
   case'pickNation':ui.pickNation=v;ui.pickLeague=null;ui.pickClub=null;render();break;
   case'pickLeague':ui.pickLeague=+v;ui.pickClub=null;render();break;
   case'pickClub':ui.pickClub=id;render();break;
-  case'start':S=W;W=null;startCareer(id);view='home';sub='overview';render();break;
-  case'resume':S=loadSave();W=null;view='home';sub='overview';render();break;
+  case'start':S=W;W=null;S.slot=ui.newSlot||1;ui.mode='game';startCareer(id);flushSave();view='home';sub='overview';render();window.scrollTo(0,0);break;
+  case'menu':askMenu();break;
+  case'menu-go':toMenu();break;
+  case'menu-back':W=null;ui.mode='menu';render();break;
+  case'menu-load':if(v)menuLoad(+v);break;
+  case'menu-new':menuNew(v?+v:null,t.dataset.over);break;
+  case'menu-cancel':ui.slotIntent=null;render();break;
+  case'menu-help':openModal(HELP);break;
+  case'menu-del':ui.confirmDel=+v;render();break;
+  case'menu-del-no':ui.confirmDel=null;render();break;
+  case'menu-del-yes':ui.confirmDel=null;deleteSlot(+v).then(refreshMetas).then(render);break;
   case'nav':closeModal();go(v);break;
   case'sub':sub=v;render();window.scrollTo(0,0);break;
   case'back':{const b=ui.back||['home','overview'];go(b[0],b[1]);break}
@@ -2894,7 +3101,13 @@ document.addEventListener('keydown',e=>{
  if(e.key==='Escape'&&!$('#modal').hidden)closeModal();
  if(e.key===' '&&view==='match'&&M&&M.phase==='live'&&!/INPUT|SELECT|BUTTON/.test(e.target.tagName)){e.preventDefault();M.paused=!M.paused;const b=$('#m-pause');if(b)b.textContent=M.paused?'Resume':'Pause'}
 });
-function boot(data){if(data&&data.S){S=data.S;view='home';sub='overview'}render()}
+async function boot(data){
+ if(data&&data.S&&data.S.slot){S=data.S;ui.mode='game';view='home';sub='overview';render();return}
+ render();await migrateLegacy();await refreshMetas();if(!S)render();
+}
+// Write the pending save before the tab closes or is hidden (mobile browsers rarely fire unload).
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&S)flushSave()});
+window.addEventListener('pagehide',()=>{if(S)flushSave()});
 if(window.claude&&window.claude.hot&&window.claude.hot.snapshot)window.claude.hot.snapshot(()=>({S}));
 window.claude?.hot?.ready?window.claude.hot.ready(boot):boot(window.claude?.hot?.data??{});
 })();
