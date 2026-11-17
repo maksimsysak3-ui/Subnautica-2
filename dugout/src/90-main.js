@@ -1,6 +1,6 @@
 /* ================= app shell ================= */
 function render(){
- $('#bar').hidden=!S;document.body.classList.toggle('ingame',!!S);
+ $('#bar').hidden=!S;setBackdrop();document.body.classList.toggle('ingame',!!S);
  if(!S){$('#bar').innerHTML='';
   if(ui.mode==='new'){$('#view').innerHTML=viewStart();return}
   // Keep the menu backdrop mounted so the intro animation plays once, not on every click.
@@ -8,9 +8,10 @@ function render(){
   if(ex){const tmp=document.createElement('div');tmp.innerHTML=html;ex.querySelector('.mm-in').replaceWith(tmp.querySelector('.mm-in'))}
   else{$('#view').innerHTML=html;const mm=$('#view .mm');setTimeout(()=>mm.classList.remove('fresh'),1200)}
   return}
+ if(S.kitsV!==2){S.clubs.forEach(realKits);S.kitsV=2}
  renderBar();
  const fn={home:viewHome,squad:viewSquad,player:viewPlayer,tactics:viewTactics,transfers:viewTransfers,comps:viewComps,office:viewOffice,club:viewClub,match:viewMatch}[view]||viewHome;
- const html=fn(),side=['home','squad','club'].includes(view)&&!(view==='home'&&(sub==='news'||sub==='inbox'||sub==='calendar'));
+ const html=fn(),side=['home','squad','club'].includes(view)&&!(view==='home');
  const body=side?`<div class="layout"><div style="min-width:0">${html}</div>${newsSidebar()}</div>`:html;
  $('#view').innerHTML=(view==='match'?'':pageHead())+body;
  if(view==='transfers'&&sub==='search')renderSearch();
@@ -28,6 +29,7 @@ function assignToSlot(pid){
 function refreshAn(){const el=document.querySelector('.an');if(el&&M&&M.E)el.outerHTML=analysisHTML(M.E,M.phase==='live')}
 function pressOne(t){t.parentElement.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b===t))}
 document.addEventListener('click',e=>{
+ if(ui.dd&&!e.target.closest('.tn-item')){ui.dd=null;if(S)renderBar()}
  if(e.target.id==='modal'){closeModal();return}
  const t=e.target.closest('[data-act]');if(!t||t.disabled)return;
  const a=t.dataset.act,id=t.dataset.id!=null?+t.dataset.id:null,v=t.dataset.v,tac=S?clubOf(S.user).tac:null;
@@ -98,6 +100,8 @@ document.addEventListener('click',e=>{
   case'oc-nfs':offerCallAct('nfs');break;
   case'oc-reject':offerCallAct('reject');break;
   case'cel-skip':endCelebration();break;
+  case'dd':ui.dd=ui.dd===v?null:v;renderBar();break;
+  case'ddgo':{const[g,sb]=v.split('/');ui.dd=null;closeModal();go(g,sb||undefined);break}
   case'goto':{const[g,sb]=v.split('/');closeModal();go(g,sb);break}
   case'mailf':ui.mailF=v;ui.msg=null;render();break;
   case'mail-read-all':S.inbox.forEach(m=>m.read=true);save();render();renderBar();break;
@@ -182,4 +186,4 @@ window.addEventListener('pagehide',()=>{if(S)flushSave()});
 if(window.claude&&window.claude.hot&&window.claude.hot.snapshot)window.claude.hot.snapshot(()=>({S}));
 window.claude?.hot?.ready?window.claude.hot.ready(boot):boot(window.claude?.hot?.data??{});
 // Test hook, only with #dbg in the address: jump a live match to full time and force a trophy celebration.
-if(location.hash==='#dbg')window.__dg={finishWithTrophy(){if(!M||M.phase!=='live')return false;M.intro=null;runToEnd(M.E);M.pt=M.E.t;M.shown=M.E.events.length;M.repQ=null;M.forceCel=true;return true}};
+if(location.hash==='#dbg')window.__dg={sample(){return S.clubs.slice(0,48).map(c=>`<div style="text-align:center;color:#999;font-size:10px">${crestSVG(c,{size:64})}<div style="width:70px;margin:auto">${kitSVG(c,'home')}</div><div style="width:50px;margin:auto">${kitSVG(c,'away')}</div>${esc(c.short)} ${crestStyle(c)}</div>`).join('')},finishWithTrophy(){if(!M||M.phase!=='live')return false;M.intro=null;runToEnd(M.E);M.pt=M.E.t;M.shown=M.E.events.length;M.repQ=null;M.forceCel=true;return true}};

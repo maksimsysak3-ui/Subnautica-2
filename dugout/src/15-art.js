@@ -86,6 +86,7 @@ function divisionSVG(div,col,c1,c){
  }
 }
 function crestSVG(c,o={}){
+ const style=crestStyle(c);if(style==='modern')return crestModern(c,o);if(style==='mono')return crestMono(c,o);
  const id=uid('c'),[c1,c2,c3]=c.colors,[shape,div,emb]=c.crest,round=shape==='round';
  const em=contrast(c1,c2)>2.4?c2:ink(c1);
  const attrs=o.w?`x="${o.x||0}" y="${o.y||0}" width="${o.w}" height="${(o.w*1.2).toFixed(1)}"`:`class="crest ${o.cls||''}"${o.size?` style="width:${o.size}px;height:${Math.round(o.size*1.2)}px"`:''}`;

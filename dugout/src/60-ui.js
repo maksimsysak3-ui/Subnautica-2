@@ -36,7 +36,7 @@ function nextLabel(){if(S.md>=MDAYS)return'Season review';if(typeof M!=='undefin
 const PAGE={home:{overview:'Club Overview',inbox:'Inbox',news:'News',calendar:'Calendar'},squad:{players:'Squad',stats:'Squad Statistics',training:'Training',development:'Development Centre',academy:'Youth Academy'},tactics:{tactics:'Tactics'},
  transfers:{hub:'Transfer Centre',search:'Player Search',scouting:'Scouting Centre',shortlist:'Shortlist',bids:'Transfer Activity',deals:'Deals Ledger'},comps:{overview:'Competition Overview',table:'Standings',fixtures:'Fixtures & Results',stats:'Player Statistics',clubs:'Clubs',history:'Roll of Honour'},
  office:{budget:'Budgets',finances:'Finances',board:'Board Room'},club:{overview:'Club Info',honours:'Manager Profile',history:'Club History',records:'Records',achievements:'Achievements'},player:{'':'Player Profile'},match:{'':'Match Day'}};
-function renderBar(){
+function renderBarSide(){
  const c=clubOf(S.user),nt=nextUserTie(),unread=S.inbox.filter(m=>!m.read).length;
  const opp=nt&&!nt.pending?clubOf(nt.h===S.user?nt.a:nt.h):null,tc=c.colors[0]==='#ffffff'?c.colors[1]:c.colors[0];
  document.body.classList.add('ingame');document.body.style.setProperty('--tc',tc);
@@ -47,7 +47,7 @@ function renderBar(){
   ${view===k&&subs.length>1?`<div class="sb-subs">${subs.map(([sk,sl])=>`<button data-act="sub" data-v="${sk}" aria-current="${sub===sk}">${sl}${sk==='inbox'&&unread?` <em class="sb-badge">${unread}</em>`:''}</button>`).join('')}</div>`:''}</div>`).join('')}</nav>
  <div class="sb-next">${nt?`<div class="sb-next-h">${compBadge(nt.comp,16)}<span>${esc(nt.short)}</span><small>${shortDate(nt.date)}</small></div>${opp?`<div class="sb-next-m">${crest(opp.id,30)}<span><b>${esc(opp.name)}</b><small>${nt.neutral?'Neutral venue':nt.h===S.user?'Home':'Away'}</small></span></div>`:`<p class="muted" style="margin:6px 0 0;font-size:12px">Opponent to be drawn</p>`}`:'<p class="muted" style="margin:0;font-size:12px">The season is complete.</p>'}</div>`;
 }
-function pageHead(){
+function pageHeadSide(){
  const nav=NAV.find(n=>n[0]===view),secName=nav?nav[1]:view==='player'?'Squad':view==='match'?'Match':'',title=(PAGE[view]||{})[sub]||(PAGE[view]||{})['']||secName;
  const nt=nextUserTie(),tabs=nav&&nav[2].length>1?`<div class="ph-tabs" role="tablist">${nav[2].map(([k,l])=>`<button role="tab" data-act="sub" data-v="${k}" aria-selected="${sub===k}">${l}</button>`).join('')}</div>`:view==='player'?`<div class="ph-tabs"><button data-act="back">‹ Back</button></div>`:'';
  return`<header class="pghead"><div class="pg-l"><div class="pg-crumb">${esc(clubOf(S.user).short)} <i>/</i> ${esc(secName)}</div><h1>${esc(title)}</h1></div>
@@ -78,6 +78,7 @@ function viewHome(){
  if(sub==='inbox')return inboxView();
  if(sub==='news')return newsView(S.news);
  if(sub==='calendar')return viewCalendar();
+ if(sub==='overview'||!sub)return homeHub();
  const c=clubOf(S.user),ct=curTie(),fx=ct?[ct.h,ct.a]:null,tb=table(c.league),lg=S.leagues[c.league],sch=userSchedule(),wb=wageBill(S.user);
  const next=sch.filter(f=>!f.res).slice(0,5),last=sch.filter(f=>f.res).slice(-3);
  const sq=squadOf(S.user),unavailable=sq.filter(p=>p.inj||p.ban),tired=sq.filter(p=>p.cond<75).sort((a,b)=>a.cond-b.cond).slice(0,4),top=sq.filter(p=>p.s.ap>=2).sort((a,b)=>avg(b)-avg(a)).slice(0,5);

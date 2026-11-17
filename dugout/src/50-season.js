@@ -18,7 +18,7 @@ function roundRobin(ids){
 }
 function genWorld(seed){
  const rng=R(seed);
- S={v:3,seed,season:1,md:0,user:-1,clubs:[],players:{},leagues:[],fixtures:{},results:{},inbox:[],news:[],nid:1,npid:1,shortlist:[],hist:[],bidLog:{},deals:[],bids:[],compHist:{},board:62,fin:newFin(),train:{focus:'balanced',int:1},mgr:{rep:45,w:0,d:0,l:0,trophies:[],clubs:[],seasons:0}};
+ S={v:3,kitsV:2,seed,season:1,md:0,user:-1,clubs:[],players:{},leagues:[],fixtures:{},results:{},inbox:[],news:[],nid:1,npid:1,shortlist:[],hist:[],bidLog:{},deals:[],bids:[],compHist:{},board:62,fin:newFin(),train:{focus:'balanced',int:1},mgr:{rep:45,w:0,d:0,l:0,trophies:[],clubs:[],seasons:0}};
  const forms=Object.keys(FORMATIONS);
  COUNTRIES.forEach(co=>{
   const used=new Set();
@@ -26,7 +26,7 @@ function genWorld(seed){
    const lid=S.leagues.length,lg={id:lid,name:lname,nation:co.code,tier,clubs:[]};S.leagues.push(lg);
    for(let i=0;i<PER;i++){
     const rep=Math.round(clamp((tier?67-i*1.0:92-i*1.6)*co.f+rng.n(0,1.5),35,96));
-    const c=Object.assign({id:S.clubs.length,nation:co.code,league:lid,rep,hist:[]},makeClubIdentity(rng,co.lang,used));
+    const c=Object.assign({id:S.clubs.length,nation:co.code,league:lid,rep,hist:[]},makeClubIdentity(rng,co.lang,used));realKits(c);
     c.cap=Math.round((tier?9000:22000)+rep*rep*(tier?2.2:6)+rng.i(0,6000));
     c.tac=newTactic(rng.pick(forms));c.tac.ins.ment=2;c.tac.ins.press=rng.i(0,2);c.tac.ins.passing=rng.i(0,2);c.tac.ins.tempo=rng.i(0,2);c.tac.ins.line=rng.i(0,2);
     c.squad=[];S.clubs.push(c);lg.clubs.push(c.id);
@@ -186,7 +186,7 @@ function weakestSlot(cid){const c=clubOf(cid),xi=pickXI(cid,c.tac.form),slots=FO
  slots.forEach(([pos],i)=>{const p=S.players[xi[i]];const v=p?rateAt(p,pos):30;if(!w||v<w.v)w={pos,v}});return w}
 function moveP(pid,to,fee){
  const p=S.players[pid],from=p.club,fc=clubOf(from),tc=clubOf(to);
- fc.squad=fc.squad.filter(x=>x!==pid);p.club=to;p.num=assignNum(to,p.pos);tc.squad.push(pid);
+ fc.squad=fc.squad.filter(x=>x!==pid);p.club=to;p.moved=S.season;p.num=assignNum(to,p.pos);tc.squad.push(pid);
  fc.budget+=fee;tc.budget-=fee;p.mor=clamp(p.mor+5,30,95);p.con=Math.max(p.con,3);
  if(fc.tac.xi)fc.tac.xi=fc.tac.xi.map(x=>x===pid?null:x);if(fc.tac.bench)fc.tac.bench=fc.tac.bench.filter(x=>x!==pid);
  if(from===S.user||to===S.user)ensureLineup(S.user);
@@ -199,12 +199,12 @@ function aiTransfers(){
   const c=G.pick(S.clubs);if(c.id===S.user||c.squad.length>=30||c.budget<5e5)continue;
   const w=weakestSlot(c.id);if(!w)continue;
   let best=null;
-  for(const p of Object.values(S.players)){if(p.club===c.id||p.club===S.user)continue;const pc=clubOf(p.club);if(pc.rep>c.rep-2||pc.squad.length<=20)continue;
+  for(const p of Object.values(S.players)){if(p.club===c.id||p.club===S.user||p.moved===S.season)continue;const pc=clubOf(p.club);if(pc.rep>c.rep-2||pc.squad.length<=20)continue;
    const v=rateAt(p,w.pos);if(v<w.v+3||p.val*1.15>c.budget*.7||p.age>31)continue;const sc=v-p.val/1.5e7+(p.age<24?2:0);if(!best||sc>best.s)best={p,s:sc}}
   if(!best||G.f()<.25)continue;
   const p=best.p,fee=Math.round(p.val*(1.05+G.f()*.35)/5e4)*5e4,from=p.club;
   moveP(p.id,c.id,fee);logDeal(p.id,from,c.id,fee);
-  if(c.squad.length>28){const worst=squadOf(c.id).filter(x=>x.id!==p.id).sort((a,b)=>a.ovr-b.ovr)[0];const to=G.pick(S.clubs.filter(x=>x.rep<c.rep-8&&x.id!==S.user&&x.squad.length<28))||clubOf(from);const f2=Math.round(worst.val*.8/5e4)*5e4;moveP(worst.id,to.id,f2);logDeal(worst.id,c.id,to.id,f2)}
+  if(c.squad.length>28){const worst=squadOf(c.id).filter(x=>x.id!==p.id&&x.moved!==S.season).sort((a,b)=>a.ovr-b.ovr)[0];if(worst){const to=G.pick(S.clubs.filter(x=>x.rep<c.rep-8&&x.id!==S.user&&x.squad.length<28))||clubOf(from);const f2=Math.round(worst.val*.8/5e4)*5e4;moveP(worst.id,to.id,f2);logDeal(worst.id,c.id,to.id,f2)}}
   const big=fee>=2e7;
   news(`${p.fn} ${p.ln} (${p.pos}, ${p.age}) completes his move from ${clubOf(from).name}. The fee is ${money(fee)}.`,'transfer',[c.id,from],{title:big?`${c.short} smash the bank for ${p.ln}`:`${c.short} sign ${p.ln}`});
  }
