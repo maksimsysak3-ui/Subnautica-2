@@ -16,7 +16,7 @@ function roundRobin(ids){
 }
 function genWorld(seed){
  const rng=R(seed);
- S={v:3,seed,season:1,md:0,user:-1,clubs:[],players:{},leagues:[],fixtures:{},results:{},inbox:[],news:[],nid:1,npid:1,shortlist:[],hist:[],bidLog:{},deals:[],bids:[],compHist:{},board:62,fin:newFin()};
+ S={v:3,seed,season:1,md:0,user:-1,clubs:[],players:{},leagues:[],fixtures:{},results:{},inbox:[],news:[],nid:1,npid:1,shortlist:[],hist:[],bidLog:{},deals:[],bids:[],compHist:{},board:62,fin:newFin(),train:{focus:'balanced',int:1},mgr:{rep:45,w:0,d:0,l:0,trophies:[],clubs:[],seasons:0}};
  const forms=Object.keys(FORMATIONS);
  COUNTRIES.forEach(co=>{
   const used=new Set();
@@ -59,7 +59,7 @@ function expectation(cid){const c=clubOf(cid),lg=leagueOf(cid),rank=lg.clubs.map
 const targetPos=cid=>{const e=expectation(cid);return{'Win the title':1,'Finish in the top four':4,'Finish in the top half':10,'Finish mid-table':14,'Avoid relegation':17,'Win promotion':3,'Challenge for promotion':6}[e]||10};
 function mail(from,subj,body,action,kind){S.inbox.unshift({id:S.nid++,from,subj,body,md:S.md,season:S.season,read:false,action:action||null,kind:kind||'info'});if(S.inbox.length>60)S.inbox.length=60}
 function news(text,kind,clubs,extra){S.news.unshift(Object.assign({id:S.nid++,md:S.md,season:S.season,text,kind,clubs:clubs||[]},extra||{}));if(S.news.length>90)S.news.length=90}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S));return true}catch(e){return false}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));return true}catch(e){if(typeof toast==='function'&&!save.warned){save.warned=1;toast('Could not save: browser storage is full or blocked')}return false}}
 function loadSave(){try{const t=localStorage.getItem(KEY);if(!t)return null;const s=JSON.parse(t);return s&&s.v===3&&s.user>=0?s:null}catch(e){return null}}
 const newFin=()=>({gate:0,tv:0,prize:0,sponsor:0,sales:0,wages:0,buys:0});
 function table(lid){
@@ -114,7 +114,7 @@ function applyUserMatch(E){
  return res;
 }
 function processMatchday(userRes){
- const md=S.md;
+ const md=S.md;S.devNews=[];
  for(const lg of S.leagues){
   for(const[h,a]of S.fixtures[lg.id][md]){
    if(userRes&&userRes.h===h&&userRes.a===a){S.results[lg.id].push(userRes);continue}
@@ -125,8 +125,11 @@ function processMatchday(userRes){
   p.cond=Math.min(100,p.cond+24);
   if(p.inj){p.inj--;if(p.inj<=0)delete p.inj}
   if(p.ban){p.ban--;if(p.ban<=0)delete p.ban}
-  if(p.age<=23&&p.ovr<p.pot&&G.f()<.055)bump(p,1);
-  else if(p.age>=31&&G.f()<.03)bump(p,-1);
+  const mine=p.club===S.user,tr=S.train,ti=[.6,1,1.45][tr.int];
+  if(p.age<=23&&p.ovr<p.pot&&G.f()<.055*(mine?ti*(tr.focus==='youth'?1.5:1):1)){if(mine)trainBump(p);else bump(p,1);if(mine){p.dev=(p.dev||0)+1;if(p.ovr>=p.lastNote+2||!p.lastNote){p.lastNote=p.ovr;S.devNews=(S.devNews||[]).concat(p.id)}}}
+  else if(p.age>=31&&G.f()<.03*(mine&&tr.focus==='fitness'?.6:1))bump(p,-1);
+  if(mine){if(tr.focus==='fitness')p.cond=Math.min(100,p.cond+6);if(tr.int===2){p.cond=Math.max(40,p.cond-5);if(G.f()<.004)p.inj=G.i(1,3)}if(tr.int===0)p.cond=Math.min(100,p.cond+5)}
+  p.val=valueOf(p);if(md%4===0){(p.vh=p.vh||[]).push(Math.round(p.val/1e4));if(p.vh.length>10)p.vh.shift()}
  }
  const uc=clubOf(S.user),mine=S.results[uc.league].find(r=>r.md===md&&(r.h===S.user||r.a===S.user));
  if(mine){const home=mine.h===S.user,gf=home?mine.hg:mine.ag,ga=home?mine.ag:mine.hg,d=gf>ga?6:gf<ga?-6:0;
@@ -134,7 +137,10 @@ function processMatchday(userRes){
   if(home){const g=Math.round(uc.cap*.86*34);uc.balance+=g;S.fin.gate+=g}
   const tb=table(uc.league),pos=posIn(tb,S.user),tp=targetPos(S.user);S.board=clamp(S.board+(gf>ga?2.2:gf<ga?-2.6:.2)+(pos<=tp?.5:-.6),5,100);}
  {const tv=Math.round(budgetOf(uc.rep)*.035),sp=Math.round(budgetOf(uc.rep)*.012),w=Math.round(wageBill(S.user)*1.05);uc.balance+=tv+sp-w;S.fin.tv+=tv;S.fin.sponsor+=sp;S.fin.wages+=w}
+ if(mine){const home=mine.h===S.user,gf=home?mine.hg:mine.ag,ga=home?mine.ag:mine.hg;S.mgr[gf>ga?'w':gf<ga?'l':'d']++}
+ if(S.devNews.length){const ps=S.devNews.map(id=>S.players[id]);mail('Head of Coaching','Training report: players improving',`<p>${ps.map(p=>`${esc(p.fn+' '+p.ln)} (${p.pos}, ${p.age}) has developed and is now ${stars(p.ovr)} stars.`).join('<br>')}</p>`,null,'staff')}
  headlines(md);
+ if(S.board<14&&!S.sacked)S.sacked=true;
  if(windowOpen())aiTransfers();
  aiManagers();
  if(windowOpen()&&G.f()<.3)incomingOffer();
@@ -209,7 +215,7 @@ function incomingOffer(){
 }
 function wageBill(cid){return squadOf(cid).reduce((a,p)=>a+p.wage,0)}
 function wageDemand(p){const uc=clubOf(S.user),pc=clubOf(p.club);return Math.round(p.wage*(1.12+Math.max(0,(pc.rep-uc.rep)/80))/100)*100}
-function sellerStance(p){const sel=clubOf(p.club),keyP=squadOf(sel.id).sort((a,b)=>b.ovr-a.ovr).slice(0,3).some(x=>x.id===p.id);return{keyP,mult:(keyP?1.35:1.12)*(sel.squad.length<=21?1.15:1)*(p.con<=1?.8:1)}}
+function sellerStance(p){const sel=clubOf(p.club),keyP=squadOf(sel.id).sort((a,b)=>b.ovr-a.ovr).slice(0,3).some(x=>x.id===p.id);return{keyP,mult:(keyP?1.22:1.05)*(sel.squad.length<=21?1.1:1)}}
 function bidVerdict(pid,fee){
  const p=S.players[pid],sel=clubOf(p.club),uc=clubOf(S.user),key=S.season+':'+S.md+':'+pid;
  if(!windowOpen())return{ok:false,msg:`The transfer window is closed. It reopens at matchday ${WIN2[0]+1}.`};
@@ -246,6 +252,10 @@ function endSeason(){
   top.clubs=top.clubs.filter(x=>!down.includes(x)).concat(up);bot.clubs=bot.clubs.filter(x=>!up.includes(x)).concat(down);
  });
  S.hist.unshift({season:seasonLabel(),league:uLeague,pos:uPos});
+ {const lg0=S.leagues[uc0.league],tp=targetPos(S.user);S.mgr.seasons++;S.mgr.rep=clamp(S.mgr.rep+(tp-uPos)*1.6+(uPos===1?6:0),5,99);
+  S.lastSeason={pos:uPos,league:uLeague,tier:lg0.tier,champ:uPos===1,promoted:lg0.tier===1&&uPos<=DROP,relegated:lg0.tier===0&&uPos>PER-DROP,club:S.user};
+  if(uPos===1)S.mgr.trophies.push({t:uLeague,season:seasonLabel(),club:S.user});
+  if(lg0.tier===1&&uPos<=DROP)S.mgr.trophies.push({t:`Promotion from ${uLeague}`,season:seasonLabel(),club:S.user,minor:1})}
  for(const c of S.clubs){c.budget=Math.max(c.budget,0)+budgetOf(c.rep)*.8;c.budget=Math.round(c.budget/1e5)*1e5;c.wageBudget=Math.round(Math.max(c.wageBudget,wageBill(c.id)*1.08)/1000)*1000}
  for(const p of Object.values(S.players)){
   p.age++;if(p.age<=23&&p.ovr<p.pot)bump(p,Math.min(p.pot-p.ovr,G.i(1,5)));else if(p.age>=31)bump(p,-G.i(0,3));
@@ -263,8 +273,26 @@ function endSeason(){
  {const uc=clubOf(S.user),prize=Math.round(budgetOf(uc.rep)*(1-(uPos-1)/PER)*.6);uc.balance+=prize;uc.budget+=Math.round(prize*.5);S.fin=newFin();S.fin.prize=prize}
  if(S.owed){clubOf(S.user).budget-=Math.round(S.owed);S.fin.buys+=Math.round(S.owed);S.owed=0}
  S.season++;S.md=0;S.bidLog={};S.bids=[];
+ S.youth=youthIntake(S.user,G.i(3,5)).map(p=>p.id);for(const c of S.clubs)if(c.id!==S.user&&c.squad.length<30)youthIntake(c.id,G.i(1,2));
+ S.offers=S.lastSeason&&S.mgr.rep>clubOf(S.user).rep+4?jobOffers(2,clubOf(S.user).rep+3,Math.min(96,S.mgr.rep+8)).map(c=>c.id):[];
+ for(const p of Object.values(S.players)){p.dev=0;p.ovr0=p.ovr;p.val0=p.val}
  for(const lg of S.leagues){S.fixtures[lg.id]=roundRobin(shuffled(lg.clubs));S.results[lg.id]=[]}
  S.clubs.forEach(c=>{c.tac.xi=c.tac.xi||[];if(c.id!==S.user)c.tac.xi=[]});ensureLineup(S.user);
  mail('Board of Directors',`Season ${seasonLabel()} begins`,`<p>You are in the ${esc(S.leagues[clubOf(S.user).league].name)}. The board's objective: <b>${expectation(S.user)}</b>. Transfer budget: <b>${money(clubOf(S.user).budget)}</b>.</p>`,null,'board');
  save();return report;
 }
+
+/* ---------- training ---------- */
+const TRAIN={balanced:{n:'Balanced',d:'Even work across all areas.',a:null},attack:{n:'Attacking',d:'Finishing, passing, dribbling and movement.',a:['fin','pas','dri','fir','vis','cmp']},defend:{n:'Defending',d:'Tackling, marking, positioning and heading.',a:['tck','mar','pos','hea','dec']},
+ fitness:{n:'Fitness',d:'Faster recovery between matches and slower decline for veterans.',a:['sta','pac','acc','str','agi']},tactical:{n:'Tactical',d:'Decisions, positioning, work rate and vision.',a:['dec','pos','wor','vis']},youth:{n:'Youth development',d:'Young players develop 50% faster.',a:null}};
+function trainBump(p){const f=TRAIN[S.train.focus].a;if(!f){bump(p,1);return}
+ for(let k=0;k<3;k++){const a=G.pick(f),i=AIX[a];p.at[i]=Math.min(99,p.at[i]+2)}p.ovr=calcOvr(p.pos,p.at);if(p.pot<p.ovr)p.pot=p.ovr;p.val=valueOf(p)}
+/* ---------- manager career ---------- */
+function jobOffers(n,minRep,maxRep){return shuffled(S.clubs.filter(c=>c.id!==S.user&&c.rep>=minRep&&c.rep<=maxRep)).slice(0,n)}
+function takeJob(cid,reason){const old=S.user;S.mgr.clubs.push({club:old,season:seasonLabel(),reason});S.user=cid;S.board=60;S.sacked=false;S.fin=newFin();S.shortlist=[];S.bids=[];
+ const c=clubOf(cid);ensureLineup(cid);mail('Board of Directors',`Welcome to ${c.name}`,`<p>We are delighted to appoint you. Your objective: <b>${expectation(cid)}</b>. Transfer budget: <b>${money(c.budget)}</b>.</p>`,null,'board');
+ news(`${c.name} have appointed a new manager.`,'club',[cid],{title:`${c.short} name new manager`});save()}
+function youthIntake(cid,n){const c=clubOf(cid),co=COUNTRIES.find(x=>x.code===c.nation),rng=R((Math.random()*2e9)|0),out=[];
+ for(let k=0;k<n;k++){const pos=rng.pick(['GK','CB','CB','LB','RB','DM','CM','CM','AM','LW','RW','ST','ST']),roll=rng.f(),pot=clamp(Math.round(repToOvr(c.rep)+(roll<.08?rng.i(12,20):roll<.35?rng.i(4,11):rng.i(-8,3))),45,96);
+  const y=genPlayer(rng,pos,clamp(pot-rng.i(16,26),35,70),cid,rng.chance(.75)?co.code:rng.pick(NAT_BAG),{age:rng.i(16,17),pot});y.con=3;y.wage=Math.max(500,Math.round(y.wage*.5/100)*100);y.id=S.npid++;S.players[y.id]=y;c.squad.push(y.id);y.num=assignNum(cid,pos);y.youth=S.season;out.push(y)}
+ return out}

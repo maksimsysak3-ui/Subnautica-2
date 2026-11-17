@@ -7,6 +7,7 @@ function kickOff(){
  const team=c=>({club:c,tac:clubOf(c).tac,bench:clubOf(c).tac.bench.slice(),ai:c!==S.user});
  M.E=createMatch({seed:(S.seed^(S.season*1000+S.md*17+h*3))>>>0,getP:id=>S.players[id],teams:[team(h),team(a)],weather:M.wx});
  M.us=h===S.user?0:1;M.phase='live';M.pt=0;
+ if(M.preTalk){const d=talkEffect(M.preTalk,0,false);applyTalk(M.E,M.us,d);setTimeout(()=>toast(talkWord(d)),400)}
 }
 const clockAt=(E,t)=>{const c=t<E.h1?Math.min(t,E.h1):2700+(t-E.h1);const m=Math.floor(c/60);if(t<E.h1&&c>=2700)return`45+${Math.floor((c-2700)/60)+1}'`;if(c>=5400)return`90+${Math.floor((c-5400)/60)+1}'`;return`${m+1}'`};
 function evText(e){
@@ -44,6 +45,7 @@ function surface(){
  while(M.shown<E.events.length&&E.events[M.shown].t<=M.pt+1e-6){
   const e=E.events[M.shown++],ss=M.ss;
   if(e.type==='goal'){M.score=e.score.slice();flash(e.s)}
+  if(e.type==='ht'&&!M.htDone){M.htDone=true;M.paused=true;const b=$('#m-pause');if(b)b.textContent='Resume';openModal(talkHTML(true))}
   if(e.type==='shot'){ss.sh[e.s]++;ss.xg[e.s]+=e.x;if(e.out==='goal'||e.out==='save')ss.sot[e.s]++;continue}
   if(e.type==='corner')ss.cor[e.s]++;if(e.type==='foul'){ss.fo[e.s]++;if(e.card)ss.yc[e.s]++}if(e.type==='offside')ss.off[e.s]++;
   const tx=evText(e);if(!tx)continue;changed=true;
@@ -79,6 +81,7 @@ function viewMatch(){
   const sH=strength(H.tac.xi,H.tac.form),sA=strength(A.tac.xi,A.tac.form);
   return bar+`<div class="grid">${sheet(h)}<section class="panel c4"><div class="ph"><h3>Match preview</h3></div><div class="pb">${['Attack','Midfield','Defence'].map((l,i)=>{const x=[sH.att,sH.mid,sH.def][i],y=[sA.att,sA.mid,sA.def][i];return`<div class="srow" style="padding:6px 0"><span>${at20(x)}</span><div>${l}</div><span>${at20(y)}</span><span class="bar"><i style="width:${x/(x+y)*100}%"></i><i style="width:${y/(x+y)*100}%"></i></span></div>`}).join('')}
   <p class="muted" style="font-size:13px">${fmtDate(mdDate(S.md))} · ${esc(H.stadium)}</p><div class="forecast">${wxIcon(M.wx.type)}<div><b>${WX[M.wx.type].n}, ${M.wx.temp}°C</b><small>${kickLabel(M.wx.kick)} kick-off${daylight(M.wx,0)<.5?' under the floodlights':daylight(M.wx,6000)<.5?' · finishes under the lights':''} · wind ${M.wx.wSpd} km/h</small><small>${wxAdvice(M.wx.type)}</small></div></div>
+  <div class="eyebrow" style="color:var(--muted);margin-top:12px">Team talk</div><div class="seg" role="group" aria-label="Team talk" style="display:flex;margin-top:6px">${TALKS.map(([k,l])=>`<button style="flex:1" data-act="pretalk" data-v="${k}" aria-pressed="${M.preTalk===k}">${l}</button>`).join('')}</div>
   <div style="display:grid;gap:8px;margin-top:12px"><button class="btn pri lg" data-act="kickoff">Kick off ${ARROW}</button><button class="btn" data-act="nav" data-v="tactics">Edit tactics</button><button class="btn" data-act="instant">Instant result</button></div></div></section>${sheet(a)}</div>`;
  }
  if(M.phase==='done')return bar+postHTML();
@@ -150,7 +153,7 @@ function instantResult(){
 function finishMatchday(){
  const E=M.E,res=applyUserMatch(E);processMatchday(res);
  const us=M.us,gf=E.score[us],ga=E.score[1-us],opp=clubOf(E.T[1-us].club);M=null;
- save();go('home');toast(`${gf>ga?'Won':gf<ga?'Lost':'Drew'} ${gf}–${ga} against ${opp.short}`);
+ save();go('home');toast(`${gf>ga?'Won':gf<ga?'Lost':'Drew'} ${gf}–${ga} against ${opp.short}`);if(S.sacked)setTimeout(sackedFlow,600);
 }
 
 /* ---------- interpolated frame access (shared by 2D/3D) ---------- */

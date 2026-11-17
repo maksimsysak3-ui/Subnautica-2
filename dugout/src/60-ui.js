@@ -3,7 +3,7 @@ let view='home',sub='overview',W=null;
 const ui={trNat:'all',trExp:false,dealLeague:'all',sort:{squad:['ovr',-1],search:['ovr',-1]},group:'all',tSel:null,tSwap:null,trPos:'all',trLeague:'all',trMax:0,trAge:40,trMin:0,trQ:'',lg:null,lgMd:null,kitBack:false,pickNation:'ENG',pickLeague:null,pickClub:null,pid:null,back:null};
 const ARROW='<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 const LOGO=`<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="1" y="1" width="38" height="38" rx="10" fill="#ffb43a"/><path d="M11 10 H19 A10 10 0 0 1 19 30 H11 Z" fill="none" stroke="#2b1900" stroke-width="3.4" stroke-linejoin="round"/><path d="M15 20 H24 M21 16.5 L24.5 20 L21 23.5" fill="none" stroke="#2b1900" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-const NAV=[['home','Home',[['overview','Overview'],['inbox','Inbox'],['news','News']]],['squad','Squad',[['players','Players'],['stats','Statistics']]],['tactics','Tactics',[['tactics','Tactics']]],['transfers','Transfers',[['hub','Transfer hub'],['search','Player search'],['shortlist','Shortlist'],['bids','My bids'],['deals','Deals']]],['comps','Competitions',[['overview','Overview'],['table','Table'],['fixtures','Fixtures'],['stats','Stats'],['clubs','Clubs'],['history','History']]],['office','Office',[['budget','Budgets'],['finances','Finances'],['board','Board']]],['club','Club',[['overview','Overview'],['history','History']]]];
+const NAV=[['home','Home',[['overview','Overview'],['inbox','Inbox'],['news','News']]],['squad','Squad',[['players','Players'],['stats','Statistics'],['training','Training']]],['tactics','Tactics',[['tactics','Tactics']]],['transfers','Transfers',[['hub','Transfer hub'],['search','Player search'],['shortlist','Shortlist'],['bids','My bids'],['deals','Deals']]],['comps','Competitions',[['overview','Overview'],['table','Table'],['fixtures','Fixtures'],['stats','Stats'],['clubs','Clubs'],['history','History']]],['office','Office',[['budget','Budgets'],['finances','Finances'],['board','Board']]],['club','Club',[['overview','Overview'],['honours','Honours'],['history','History']]]];
 const NAV_ICON={home:'<path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"/>',squad:'<path d="M8 3 4 6 2 11l4 1v9h12v-9l4-1-2-5-4-3q-4 3-8 0z"/>',tactics:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="14" r="1.5"/><path d="M10.5 11.5q3-4 6.5-2M15 15l3 3M18 15l-3 3"/>',transfers:'<path d="M4 8h15l-4-4M20 16H5l4 4"/>',comps:'<path d="M7 4h10v5a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 5M17 6h3a3 3 0 0 1-3 5M12 14v4M8 20h8"/>',office:'<rect x="3" y="7" width="18" height="13" rx="1"/><path d="M9 7V4h6v3M3 12h18"/>',club:'<path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z"/>'};
 function storyArt(n,big){
  if(n.score){const[h,a,hg,ag]=n.score,ch=clubOf(h),ca=clubOf(a);return`<div class="story-art" style="background:linear-gradient(115deg,${ch.colors[0]} 0 48%,${ca.colors[0]} 52% 100%)">${crest(h,big?62:30)}<span class="sc">${hg}–${ag}</span>${crest(a,big?62:30)}</div>`}
@@ -36,6 +36,7 @@ function nextLabel(){if(S.md>=MDAYS)return'Season review';if(typeof M!=='undefin
 function renderBar(){
  const c=clubOf(S.user),fx=userFixture(),unread=S.inbox.filter(m=>!m.read).length,nav=NAV.find(n=>n[0]===view);
  const opp=fx?clubOf(fx[0]===S.user?fx[1]:fx[0]):null;
+ $('#bar').style.setProperty('--tc',c.colors[0]===('#ffffff')?c.colors[1]:c.colors[0]);
  $('#bar').innerHTML=`<div class="bar-row"><div class="logo">${LOGO}<span>DUGOUT</span></div>
  <button class="club-chip" data-act="nav" data-v="club">${crest(S.user)}<b>${esc(c.short)}</b></button>
  <nav class="nav" aria-label="Sections">${NAV.map(([k,l])=>`<button data-act="nav" data-v="${k}" ${view===k?'aria-current="page"':''}><svg viewBox="0 0 24 24">${NAV_ICON[k]}</svg>${l}${k==='home'&&unread?'<span class="dot"></span>':''}</button>`).join('')}</nav>
@@ -108,6 +109,7 @@ function sortable(key,cols,list){const[sk,dir]=ui.sort[key];const col=cols.find(
 
 /* ---------- squad ---------- */
 function viewSquad(){
+ if(sub==='training')return viewTraining();
  const c=clubOf(S.user),inXI=new Set(c.tac.xi),inB=new Set(c.tac.bench),grp=p=>ui.group==='all'||GROUP[p.pos]===ui.group;
  const list=squadOf(S.user).filter(grp);
  const head=`<div class="toolbar"><div class="seg" role="group" aria-label="Position group">${['all','GK','DEF','MID','ATT'].map(g=>`<button data-act="group" data-v="${g}" aria-pressed="${ui.group===g}">${g==='all'?'All':g}</button>`).join('')}</div><span class="grow"></span><small>${c.squad.length} players · wage bill ${money(wageBill(S.user))} p/w</small></div>`;
@@ -115,10 +117,11 @@ function viewSquad(){
   const cols=[['num','#',p=>p.num,'c'],['name','Name',null],['pos','Pos',p=>POS.indexOf(p.pos)],['ap','Apps',p=>p.s.ap,'r'],['g','Goals',p=>p.s.g,'r'],['a','Assists',p=>p.s.a,'r'],['mom','PoM',p=>p.s.mom,'r'],['avg','Av rating',p=>avg(p)||0,'r']];
   return head+`<div class="panel"><div class="tw"><table class="tbl"><thead><tr>${sortable('squad',cols,list)}</tr></thead><tbody>${list.map(p=>`<tr class="click" data-act="player" data-id="${p.id}"><td class="c"><span class="num-badge">${p.num}</span></td><td><div class="who">${flagSVG(p.nat)}<b>${esc(p.fn+' '+p.ln)}</b></div></td><td>${posChip(p.pos)}</td><td class="r">${p.s.ap}</td><td class="r">${p.s.g}</td><td class="r">${p.s.a}</td><td class="r">${p.s.mom}</td><td class="r">${avg(p)?`<span class="rt" style="background:${rtColor(avg(p))}">${avg(p).toFixed(2)}</span>`:'–'}</td></tr>`).join('')}</tbody></table></div></div>`;
  }
- const cols=[['num','#',p=>p.num,'c'],['name','Name',null],['pos','Pos',p=>POS.indexOf(p.pos)],['sel','Status',p=>inXI.has(p.id)?2:inB.has(p.id)?1:0],['age','Age',p=>p.age,'r'],['ovr','Ability',p=>p.ovr],['pot','Potential',p=>p.pot],['cond','Cond',p=>p.cond,'r'],['mor','Morale',p=>p.mor,'r hide-sm'],['val','Value',p=>p.val,'r'],['wage','Wage',p=>p.wage,'r hide-sm'],['con','Contract',p=>p.con,'r hide-sm']];
+ const cols=[['num','#',p=>p.num,'c'],['name','Name',null],['pos','Pos',p=>POS.indexOf(p.pos)],['sel','Status',p=>inXI.has(p.id)?2:inB.has(p.id)?1:0],['age','Age',p=>p.age,'r'],['ovr','Ability',p=>p.ovr],['pot','Potential',p=>p.pot],['cond','Cond',p=>p.cond,'r'],['mor','Morale',p=>p.mor,'r hide-sm'],['val','Value',p=>p.val,'r'],['trend','Trend',p=>p.val/(p.val0||p.val),'r'],['wage','Wage',p=>p.wage,'r hide-sm'],['con','Contract',p=>p.con,'r hide-sm']];
  return head+`<div class="panel"><div class="tw"><table class="tbl"><thead><tr>${sortable('squad',cols,list)}</tr></thead><tbody>
- ${list.map(p=>`<tr class="click" data-act="player" data-id="${p.id}"><td class="c"><span class="num-badge">${p.num}</span></td><td><div class="who">${flagSVG(p.nat)}<b>${esc(p.fn+' '+p.ln)}</b>${p.inj?'<span class="chip bad">Inj</span>':''}${p.ban?'<span class="chip bad">Ban</span>':''}</div></td><td>${posChip(p.pos)}${p.sec.length?` <small>${p.sec.join(' ')}</small>`:''}</td><td>${inXI.has(p.id)?'<span class="chip ok">Starting</span>':inB.has(p.id)?'<span class="chip">Sub</span>':''}</td><td class="r">${p.age}</td><td>${starHTML(stars(p.ovr))}</td><td>${starHTML(stars(p.pot))}</td><td class="r"><span class="${p.cond<70?'v2':p.cond<85?'v3':'v5'}">${p.cond}%</span></td><td class="r hide-sm">${moraleWord(p.mor)}</td><td class="r">${money(p.val)}</td><td class="r hide-sm">${money(p.wage)}</td><td class="r hide-sm">${p.con} yr${p.con>1?'s':''}</td></tr>`).join('')}</tbody></table></div></div>`;
+ ${list.map(p=>`<tr class="click" data-act="player" data-id="${p.id}"><td class="c"><span class="num-badge">${p.num}</span></td><td><div class="who">${flagSVG(p.nat)}<b>${esc(p.fn+' '+p.ln)}</b>${p.inj?'<span class="chip bad">Inj</span>':''}${p.ban?'<span class="chip bad">Ban</span>':''}</div></td><td>${posChip(p.pos)}${p.sec.length?` <small>${p.sec.join(' ')}</small>`:''}</td><td>${inXI.has(p.id)?'<span class="chip ok">Starting</span>':inB.has(p.id)?'<span class="chip">Sub</span>':''}</td><td class="r">${p.age}</td><td>${starHTML(stars(p.ovr))}</td><td>${starHTML(stars(p.pot))}</td><td class="r"><span class="${p.cond<70?'v2':p.cond<85?'v3':'v5'}">${p.cond}%</span></td><td class="r hide-sm">${moraleWord(p.mor)}</td><td class="r">${money(p.val)}</td><td class="r">${trendHTML(p)}</td><td class="r hide-sm">${money(p.wage)}</td><td class="r hide-sm">${p.con} yr${p.con>1?'s':''}</td></tr>`).join('')}</tbody></table></div></div>`;
 }
+const trendHTML=p=>{const r=p.val/(p.val0||p.val)-1;return Math.abs(r)<.01?'<small>–</small>':`<b class="${r>0?'v5':'v2'}">${r>0?'▲':'▼'} ${Math.abs(Math.round(r*100))}%</b>`};
 const moraleWord=m=>m>=85?'<span class="v6">Superb</span>':m>=72?'<span class="v5">Good</span>':m>=55?'<span class="v3">Okay</span>':m>=40?'<span class="v2">Poor</span>':'<span class="v1">Very poor</span>';
 
 /* ---------- player profile ---------- */
@@ -135,6 +138,7 @@ function viewPlayer(){
  <section class="panel c4"><div class="ph"><h3>Positions</h3></div><div class="pb"><div class="posmap">${posmap}</div></div></section>
  <section class="panel c4"><div class="ph"><h3>Contract</h3></div><div class="pb"><dl class="facts"><div><dt>Value</dt><dd>${money(p.val)}</dd></div><div><dt>Wage</dt><dd>${money(p.wage)} p/w</dd></div><div><dt>Contract</dt><dd>${p.con} year${p.con>1?'s':''}</dd></div><div><dt>Condition</dt><dd>${p.cond}%</dd></div><div><dt>Morale</dt><dd>${moraleWord(p.mor)}</dd></div><div><dt>Status</dt><dd>${p.inj?`Injured (${p.inj} md)`:p.ban?`Suspended (${p.ban} md)`:'Available'}</dd></div></dl>
  <div class="toolbar" id="pp-actions" style="margin:0">${mine?`<button class="btn" data-act="sell" data-id="${p.id}">Find a buyer</button>`:`<button class="btn pri" data-act="negotiate" data-id="${p.id}">Make an offer</button><button class="btn" data-act="shortlist" data-id="${p.id}">${shortl?'Remove from shortlist':'Add to shortlist'}</button>`}</div></div></section>
+ <section class="panel c4"><div class="ph"><h3>Market value</h3>${trendHTML(p)}</div><div class="pb"><div class="kpi sm">${money(p.val)}</div>${sparkSVG((p.vh||[]).map(v=>v*1e4).concat([p.val]))}<small>Season start: ${money(p.val0||p.val)} · driven by ability, potential, age, form and contract</small></div></section>
  <section class="panel c4"><div class="ph"><h3>This season</h3></div><div class="pb"><dl class="facts"><div><dt>Appearances</dt><dd>${p.s.ap}</dd></div><div><dt>Goals</dt><dd>${p.s.g}</dd></div><div><dt>Assists</dt><dd>${p.s.a}</dd></div><div><dt>Player of the match</dt><dd>${p.s.mom}</dd></div><div><dt>Average rating</dt><dd>${avg(p)?avg(p).toFixed(2):'–'}</dd></div></dl></div></section>
  <section class="panel c4"><div class="ph"><h3>Scout report</h3></div><div class="pb" style="font-size:13px;line-height:1.6">${scoutReport(p)}</div></section></div>`;
 }
@@ -166,12 +170,11 @@ function viewTactics(){
  const grp=g=>INSTR.filter(i=>i[4]===g).map(([k,l,o])=>opt(k,l,o,t.ins[k])).join('');
  const r=strength(t.xi,t.form);
  return`<div class="tac">
- <section class="panel tac-pitch"><div class="ph"><h3>Shape</h3><button class="btn" data-act="autoxi">Pick best XI</button></div><div class="pb">
+ <div class="tac-pitch tac-left"><section class="panel"><div class="ph"><h3>Shape</h3><button class="btn" data-act="autoxi">Pick best XI</button></div><div class="pb">
  <div class="toolbar"><label for="f-out">Without the ball <select id="f-out" data-change="form">${Object.keys(FORMATIONS).map(f=>`<option ${f===t.form?'selected':''}>${f}</option>`).join('')}</select></label>
  <label for="f-in">With the ball <select id="f-in" data-change="formIn">${Object.keys(FORMATIONS).map(f=>`<option ${f===(t.formIn||t.form)?'selected':''}>${f}</option>`).join('')}</select></label></div>
  <div class="pitch">${PITCH_SVG}<svg viewBox="0 0 68 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"><defs><marker id="ah" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#ffb43a"/></marker></defs>${arrows}</svg>${players}</div>
- ${teamAnalysis(t)}
- <p class="muted" style="font-size:12px;margin:10px 0 0">Players stand in their defensive shape. Dashed arrows show where each one moves when you have the ball, from your attacking shape and their role. The number on each shirt is his ability in that slot (out of 20); the ring shows positional fit.</p></div></section>
+ <p class="muted" style="font-size:12px;margin:10px 0 0">Players stand in their defensive shape. Dashed arrows show where each one moves when you have the ball, from your attacking shape and their role. The number on each shirt is his ability in that slot (out of 20); the ring shows positional fit.</p></div></section>${tacticsCharts(t)}</div>
  <section class="panel"><div class="ph"><h3>${POS_NAME[sPos]} <small>slot ${sel+1}</small></h3></div><div class="pb">
  <div class="row ins"><div class="row"><small>Role</small><div class="seg" role="group" aria-label="Role">${roles.map(([id,l])=>`<button data-act="role" data-v="${id}" aria-pressed="${t.roles[sel]===id}">${l}</button>`).join('')}</div></div></div>
  <p class="role-desc">${esc(roleDesc)}</p>${cur?slotDetail(cur,sPos,t.roles[sel]):''}</div>
@@ -185,6 +188,7 @@ function viewTactics(){
 
 /* ---------- club ---------- */
 function viewClub(){
+ if(sub==='honours')return viewHonours();
  const c=clubOf(S.user),wb=wageBill(S.user);
  if(sub==='history')return`<div class="panel"><div class="ph"><h3>Club history</h3></div>${S.hist.length?`<div class="tw"><table class="tbl"><thead><tr><th>Season</th><th>Competition</th><th class="r">Finish</th></tr></thead><tbody>${S.hist.map(h=>`<tr><td>${h.season}</td><td>${esc(h.league)}</td><td class="r"><b>${ordinal(h.pos)}</b></td></tr>`).join('')}</tbody></table></div>`:'<p class="pb muted">Your first season is under way.</p>'}</div>`;
  const best=squadOf(S.user).sort((a,b)=>b.ovr-a.ovr)[0];

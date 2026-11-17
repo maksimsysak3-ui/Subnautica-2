@@ -108,7 +108,7 @@ function renderNeg(){
  }else if(n.stage==='terms'){
   const need=termsNeed(n,p);
   body=`<div class="nr-body"><div class="nr-col"><h3>Contract offer</h3>
-  <label class="neg-lbl" for="nw">Weekly wage <output id="nw-o">${money(n.wage)}</output></label><input type="range" id="nw" min="${Math.round(need*.55/500)*500}" max="${Math.round(need*1.7/500)*500}" step="500" value="${n.wage}" data-input="neg" data-k="wage">
+  ${(()=>{const room=uc.wageBudget-wageBill(S.user),lo=Math.round(need*.55/500)*500,hi=Math.max(lo+500,Math.min(Math.round(need*1.7/500)*500,Math.floor(room/500)*500));if(n.wage>hi)n.wage=hi;return`<label class="neg-lbl" for="nw">Weekly wage <output id="nw-o">${money(n.wage)}</output></label><input type="range" id="nw" min="${lo}" max="${hi}" step="500" value="${n.wage}" data-input="neg" data-k="wage">${room<need?`<p class="neg-warn">His demand is above your wage room of ${money(room)} a week. Raise the wage budget in the Office or offer a bigger signing bonus.</p>`:''}`})()}
   <label class="neg-lbl" for="nb">Signing-on bonus <output id="nb-o">${money(n.bonus)}</output></label><input type="range" id="nb" min="0" max="${Math.round(p.wage*60/1e4)*1e4}" step="10000" value="${n.bonus}" data-input="neg" data-k="bonus">
   <div class="neg-lbl">Contract length</div><div class="seg" role="group" aria-label="Contract length">${[1,2,3,4,5].map(y=>`<button data-act="neg-years" data-v="${y}" aria-pressed="${n.years===y}">${y} yr</button>`).join('')}</div>
   <div class="neg-lbl" style="margin-top:12px">Squad role</div><div class="seg" role="group" aria-label="Squad role">${ROLES_SQ.map(([k,l])=>`<button data-act="neg-role" data-v="${k}" aria-pressed="${n.role===k}">${l}</button>`).join('')}</div>
@@ -155,7 +155,7 @@ function negTerms(){
   const b=S.bids.find(x=>x.pid===p.id&&x.status==='Fee agreed');if(b){b.status='Signed';b.wage=n.wage}
   mail('Director of Football',`${p.ln} signs from ${clubOf(from).short}`,`<p>${esc(p.fn+' '+p.ln)} has joined for <b>${money(n.fee)}</b>${n.addons?` plus ${money(n.addons)} in add-ons`:''} on ${money(n.wage)} a week until ${2026+S.season+n.years}. He will wear number ${p.num}.</p>`,null,'transfer');
   news(`${p.fn} ${p.ln} (${p.pos}, ${p.age}) joins ${uc.name} from ${clubOf(from).name} for ${money(n.fee)}.`,'transfer',[S.user,from],{title:`${uc.short} complete ${p.ln} signing`});
-  n.log.push({who:'agent',t:'We have a deal. He is delighted to join.'});n.stage='done';save();renderNeg();return}
+  n.log.push({who:'agent',t:'We have a deal. He is delighted to join.'});n.stage='done';save();renderNeg();celebrateSigning(p,n.fee);return}
  if(n.tries>=4){n.log.push({who:'agent',t:'We cannot reach an agreement. He will stay where he is.'});const b=S.bids.find(x=>x.pid===p.id&&x.status==='Fee agreed');if(b)b.status='Terms refused';save();renderNeg();setTimeout(closeModal,1800);return}
  n.log.push({who:'agent',t:n.wage<need*.9?`That is well short. He wants at least ${money(Math.round(need/500)*500)} a week.`:n.role!==n.expect&&ROLES_SQ.findIndex(r=>r[0]===n.role)>ROLES_SQ.findIndex(r=>r[0]===n.expect)?'He expects a bigger role than that.':'Close. Improve the offer a little and we can sign.'});
  renderNeg();

@@ -105,20 +105,23 @@ function genAttrs(rng,pos,target,age){
  for(let k=0;k<3;k++){const d=target-ovrRaw(pos,at);at=at.map(v=>v+d)}
  return at.map(v=>clamp(Math.round(v),5,99));
 }
-function valueOf(p){const af=p.age<=21?1.5:p.age<=25?1.3:p.age<=29?1:p.age<=31?.65:.35;return Math.max(25e3,Math.round(9e5*Math.pow(1.13,p.ovr-60)*af*(1+Math.max(0,p.pot-p.ovr)/28)/25e3)*25e3)}
+// Live valuation: ability, potential, age, current form and contract length. Recomputed every matchday.
+function valueOf(p){const af=p.age<=21?1.5:p.age<=24?1.32:p.age<=27?1.08:p.age<=29?.92:p.age<=31?.6:.3;
+ const form=p.s&&p.s.ap>=3?clamp(1+(p.s.rs/p.s.ap-6.7)*.24,.8,1.32):1,con=p.con<=1?.62:p.con===2?.86:1;
+ return Math.max(25e3,Math.round(6e5*Math.pow(1.116,p.ovr-60)*af*(1+Math.max(0,p.pot-p.ovr)/32)*form*con/25e3)*25e3)}
 const wageOf=p=>Math.max(500,Math.round(700*Math.pow(1.12,p.ovr-50)/100)*100);
 function genPlayer(rng,pos,target,club,nat,o={}){
  const pool=NAMES[NATIONS[nat].pool],age=o.age??rng.i(18,33),at=genAttrs(rng,pos,target,age);
  const p={id:0,fn:rng.pick(pool.f),ln:rng.pick(pool.l),nat,pos,sec:NEAR[pos].filter(()=>rng.chance(.3)).slice(0,2),age,at,ovr:calcOvr(pos,at),pot:0,club,num:0,foot:rng.chance(.25)?'L':'R',ht:pos==='GK'?rng.i(185,198):pos==='CB'?rng.i(181,195):rng.i(167,190),cond:100,mor:70,con:rng.i(1,4),s:{ap:0,g:0,a:0,rs:0,mom:0}};
  p.pot=clamp(o.pot??p.ovr+Math.max(0,Math.round((24-age)*rng.f()*2.4)),p.ovr,96);
- p.val=valueOf(p);p.wage=wageOf(p);return p;
+ p.val=valueOf(p);p.wage=wageOf(p);p.ovr0=p.ovr;p.val0=p.val;return p;
 }
 function bump(p,d){p.at=p.at.map((v,i)=>{const a=ATTRS[i];const phys=['pac','acc','sta','agi'].includes(a);return clamp(v+(d<0&&phys?d*1.5:d),5,99)});p.ovr=calcOvr(p.pos,p.at);if(p.pot<p.ovr)p.pot=p.ovr;p.val=valueOf(p)}
 const NUMS={GK:[1,13,31],CB:[5,4,6,15,24,26],LB:[3,12,33],RB:[2,22,25],DM:[16,8,18],CM:[8,14,18,20,23],AM:[10,19,21],LW:[11,17,27],RW:[7,19,28],ST:[9,10,20,29,39]};
 function assignNum(club,pos){const used=new Set(S.clubs[club].squad.map(id=>S.players[id].num));for(const n of NUMS[pos])if(!used.has(n))return n;for(let n=2;n<99;n++)if(!used.has(n))return n;return 99}
 const TEMPLATE=['GK','GK','GK','CB','CB','CB','CB','LB','LB','RB','RB','DM','DM','CM','CM','CM','AM','AM','LW','LW','RW','RW','ST','ST','ST'];
 const repToOvr=rep=>18+rep*.7;
-const budgetOf=rep=>Math.round(2.6e6*Math.exp((rep-50)*.088)/1e5)*1e5;
+const budgetOf=rep=>Math.round(2e6*Math.exp((rep-50)*.085)/1e5)*1e5;
 
 /* club identity */
 function makeClubIdentity(rng,lang,used){

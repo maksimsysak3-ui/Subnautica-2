@@ -8,7 +8,8 @@ function render(){
  if(view==='transfers'&&sub==='search')renderSearch();
  if(view==='match')mountMatch();
 }
-function onContinue(){if(S.md>=MDAYS){openSeasonReview();return}go('match')}
+function onContinue(){if(S.sacked){sackedFlow();return}if(S.md>=MDAYS){openSeasonReview();return}go('match')}
+function sackedFlow(){const c=clubOf(S.user),ids=jobOffers(3,Math.max(30,c.rep-22),c.rep-4).map(x=>x.id);jobsModal(ids.length?ids:jobOffers(3,30,70).map(x=>x.id),'You have been sacked',`${c.name} have relieved you of your duties`,true)}
 function assignToSlot(pid){
  const t=clubOf(S.user).tac,i=ui.tSel??9,j=t.xi.indexOf(pid);
  if(j===i)return;
@@ -23,6 +24,13 @@ document.addEventListener('click',e=>{
  const a=t.dataset.act,id=t.dataset.id!=null?+t.dataset.id:null,v=t.dataset.v,tac=S?clubOf(S.user).tac:null;
  switch(a){
   case'close':closeModal();break;
+  case'fx-close':fxClose();break;
+  case'train':S.train.focus=v;save();render();break;
+  case'train-int':S.train.int=+v;save();render();break;
+  case'pretalk':M.preTalk=v;pressOne(t);break;
+  case'talk':{const E=M.E,diff=E.score[M.us]-E.score[1-M.us],d=talkEffect(v,diff,true);applyTalk(E,M.us,d);closeModal();M.paused=false;const b=$('#m-pause');if(b)b.textContent='Pause';toast(talkWord(d));break}
+  case'talk-skip':closeModal();M.paused=false;{const b=$('#m-pause');if(b)b.textContent='Pause'}break;
+  case'job':closeModal();takeJob(id,S.sacked?'Sacked':'Left for a new job');S.offers=[];M=null;go('home');toast(`Welcome to ${clubOf(id).name}`);break;
   case'go-news':go('home','news');break;
   case'pickNation':ui.pickNation=v;ui.pickLeague=null;ui.pickClub=null;render();break;
   case'pickLeague':ui.pickLeague=+v;ui.pickClub=null;render();break;
@@ -59,7 +67,11 @@ document.addEventListener('click',e=>{
   case'autoxi':tac.xi=pickXI(S.user,tac.form);tac.bench=pickBench(S.user,tac.xi);save();render();toast('Best XI selected');break;
   case'md':ui.lgMd=clamp((ui.lgMd??Math.min(S.md,MDAYS-1))+ +t.dataset.d,0,MDAYS-1);render();break;
   case'kitflip':ui.kitBack=!ui.kitBack;render();break;
-  case'new-season':closeModal();endSeason();M=null;go('home');toast(`Season ${seasonLabel()} has begun`);break;
+  case'new-season':{closeModal();endSeason();M=null;go('home');const ls=S.lastSeason;
+   if(ls&&(ls.champ||ls.promoted))fxQueue.push(()=>celebrateTrophy(ls.champ?`${ls.league} champions`:`Promoted from ${ls.league}`,`${seasonLabel()} · ${clubOf(ls.club).name}`,ls.club));
+   if(S.youth&&S.youth.length)fxQueue.push(()=>revealYouth(S.youth));
+   if(S.offers&&S.offers.length)fxQueue.push(()=>jobsModal(S.offers,'Job offers','Your reputation is growing',false));
+   if(fxQueue.length)fxQueue.shift()();else toast(`Season ${seasonLabel()} has begun`);break}
   case'kickoff':kickOff();render();break;
   case'instant':instantResult();break;
   case'match-finish':finishMatchday();break;

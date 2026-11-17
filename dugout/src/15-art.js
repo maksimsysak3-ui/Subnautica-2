@@ -67,19 +67,20 @@ function crestSVG(c,o={}){
  const em=contrast(c1,c2)>2.4?c2:ink(c1);
  const attrs=o.w?`x="${o.x||0}" y="${o.y||0}" width="${o.w}" height="${(o.w*1.2).toFixed(1)}"`:`class="crest ${o.cls||''}"${o.size?` style="width:${o.size}px;height:${Math.round(o.size*1.2)}px"`:''}`;
  const inner=round?'':SHAPES[shape],sc='transform="translate(50 60) scale(.86) translate(-50 -60)"';
- let s=`<svg ${attrs} viewBox="0 0 100 120" role="img" aria-label="${esc(c.name)} crest"><defs><clipPath id="${id}k">${round?'<circle cx="50" cy="60" r="35"/>':`<path d="${inner}" ${sc}/>`}</clipPath><linearGradient id="${id}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".3"/><stop offset=".48" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".2"/></linearGradient>`;
+ let s=`<svg ${attrs} viewBox="0 0 100 120" role="img" aria-label="${esc(c.name)} crest"><defs><clipPath id="${id}k">${round?'<circle cx="50" cy="60" r="35"/>':`<path d="${inner}" ${sc}/>`}</clipPath><linearGradient id="${id}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".16"/><stop offset=".42" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".14"/></linearGradient><linearGradient id="${id}f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${mix(c1,'#ffffff',.1)}"/><stop offset="1" stop-color="${mix(c1,'#000000',.2)}"/></linearGradient>`;
  if(round)s+=`<path id="${id}t" d="M11.5,60 A38.5,38.5 0 0,1 88.5,60"/><path id="${id}b" d="M8,60 A42,42 0 0,0 92,60"/>`;
  else s+=`<path id="${id}r" d="M15,95.5 Q50,88.5 85,95.5"/>`;
  s+='</defs>';
  if(round){
-  s+=`<circle cx="50" cy="61.5" r="48" fill="#000" opacity=".3"/><circle cx="50" cy="60" r="48" fill="${mix(c2,'#000',.3)}"/><circle cx="50" cy="60" r="46.5" fill="${c2}"/><circle cx="50" cy="60" r="44.5" fill="${c1}"/><circle cx="50" cy="60" r="36.6" fill="${c2}"/>`;
+  s+=`<circle cx="50" cy="61.5" r="48" fill="#000" opacity=".3"/><circle cx="50" cy="60" r="48" fill="${mix(c2,'#000',.3)}"/><circle cx="50" cy="60" r="46.5" fill="${c2}"/><circle cx="50" cy="60" r="44.5" fill="url(#${id}f)"/><circle cx="50" cy="60" r="36.6" fill="${c2}"/>`;
   s+=`<text ${FONT} font-weight="700" font-size="${c.name.length>16?7.2:8.4}" letter-spacing="1.1" fill="${em}"><textPath href="#${id}t" startOffset="50%" text-anchor="middle">${esc(c.name.toUpperCase())}</textPath></text>`;
   s+=`<text ${FONT} font-weight="700" font-size="7" letter-spacing="1.6" fill="${em}"><textPath href="#${id}b" startOffset="50%" text-anchor="middle">EST · ${c.est}</textPath></text>`;
   s+=`<polygon points="${starPts(9.6,60,2.6,1.1)}" fill="${em}"/><polygon points="${starPts(90.4,60,2.6,1.1)}" fill="${em}"/>`;
  }else{
-  s+=`<path d="${inner}" fill="#000" opacity=".3" transform="translate(0 1.6)"/><path d="${inner}" fill="${c2}"/><path d="${inner}" fill="none" stroke="${mix(c2,'#000',.35)}" stroke-width="1"/><path d="${inner}" fill="${c1}" ${sc}/>`;
+  s+=`<path d="${inner}" fill="#000" opacity=".3" transform="translate(0 1.6)"/><path d="${inner}" fill="${c2}"/><path d="${inner}" fill="none" stroke="${mix(c2,'#000',.35)}" stroke-width="1"/><path d="${inner}" fill="url(#${id}f)" ${sc}/>`;
  }
- s+=`<g clip-path="url(#${id}k)">${round?`<rect width="100" height="120" fill="${c1}"/>`:''}${divisionSVG(div,c2,c1,c)}</g>`;
+ s+=`<g clip-path="url(#${id}k)">${round?`<rect width="100" height="120" fill="url(#${id}f)"/>`:''}${divisionSVG(div,c2,c1,c)}</g>`;
+ if(!round)s+=`<path d="${inner}" fill="none" stroke="${c2}" stroke-opacity=".5" stroke-width="1.2" transform="translate(50 60) scale(.78) translate(-50 -60)"/>`;else s+=`<circle cx="50" cy="60" r="32.5" fill="none" stroke="${c2}" stroke-opacity=".45" stroke-width="1"/>`;
  let ey=round?60:div==='chief'?59:52,es=round?42:div==='chief'?30:36;
  if(['pale','quarters','bend','stripes','chevron'].includes(div)){s+=`<circle cx="50" cy="${ey}" r="${(es*.6).toFixed(1)}" fill="${c1}" stroke="${c2}" stroke-width="2.4"/>`;es*=.76}
  s+=emblemSVG(emb,50,ey,es,em);

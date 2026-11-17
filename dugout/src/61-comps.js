@@ -4,11 +4,13 @@ function compStyle(lid){const lg=S.leagues[lid],[c1,c2,em]=COMP_STYLE[lg.nation]
 const compAbbr=lid=>{const n=S.leagues[lid].name.split(' ');return(n[0][0]+(n[1]||'')[0]).toUpperCase()+(S.leagues[lid].tier?'2':'')};
 function leagueLogo(lid,size=48){
  const st=compStyle(lid),lg=S.leagues[lid],id=uid('lg');
- return`<svg class="lgo" width="${size}" height="${Math.round(size*1.15)}" viewBox="0 0 100 115" role="img" aria-label="${esc(lg.name)} logo"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${mix(st.c1,'#ffffff',.2)}"/><stop offset="1" stop-color="${mix(st.c1,'#000000',.3)}"/></linearGradient></defs>
- <path d="M50 4 L92 20 V64 C92 89 72 104 50 111 C28 104 8 89 8 64 V20 Z" fill="url(#${id})" stroke="${st.c2}" stroke-width="3.2"/>
- <path d="M50 13 L84 26 V63 C84 83 68 96 50 102 C32 96 16 83 16 63 V26 Z" fill="none" stroke="${st.c2}" stroke-opacity=".35" stroke-width="1.3"/>
- ${emblemSVG(st.em,50,47,38,st.c2)}
- <text x="50" y="87" text-anchor="middle" ${FONT} font-weight="800" font-size="14" letter-spacing="2" fill="${st.c2}">${compAbbr(lid)}</text></svg>`;
+ return`<svg class="lgo" width="${size}" height="${size}" viewBox="0 0 100 100" role="img" aria-label="${esc(lg.name)} logo"><defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${mix(st.c1,'#ffffff',.14)}"/><stop offset="1" stop-color="${mix(st.c1,'#000000',.32)}"/></linearGradient><clipPath id="${id}c"><rect x="5" y="5" width="90" height="90" rx="22"/></clipPath></defs>
+ <rect x="5" y="5" width="90" height="90" rx="22" fill="url(#${id})"/>
+ <g clip-path="url(#${id}c)"><path d="M5 72 L95 30 L95 46 L5 88 Z" fill="${st.c2}" opacity=".1"/></g>
+ <rect x="5" y="5" width="90" height="90" rx="22" fill="none" stroke="${st.c2}" stroke-opacity=".9" stroke-width="2.4"/>
+ <rect x="11" y="11" width="78" height="78" rx="17" fill="none" stroke="${st.c2}" stroke-opacity=".28" stroke-width="1"/>
+ ${emblemSVG(st.em,50,42,40,st.c2)}
+ <rect x="27" y="68" width="46" height="15" rx="2" fill="${st.c2}"/><text x="50" y="79.5" text-anchor="middle" ${FONT} font-weight="800" font-size="12" letter-spacing="2" fill="${mix(st.c1,'#000000',.25)}">${compAbbr(lid)}</text></svg>`;
 }
 function compStrip(lid){return`<div class="comp-strip">${S.leagues.map(l=>`<button class="comp-pick" data-act="pickComp" data-v="${l.id}" aria-pressed="${l.id===lid}" title="${esc(l.name)}">${leagueLogo(l.id,30)}<span>${esc(l.name)}</span></button>`).join('')}</div>`}
 function compHeader(lid){
