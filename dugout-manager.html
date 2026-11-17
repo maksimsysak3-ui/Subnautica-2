@@ -1241,9 +1241,9 @@ function record(E){
 function shapeTeam(E,tm){
  const s=tm.s,ins=tm.tac.ins,poss=E.poss===s,b=E.ball,bx=fX(s,b.x),by=fY(s,b.y),ol=offLine(E,s);
  const ctr=counterOn(E,s),rg=regroupOn(E,s);
- let line=[23,31,39][ins.line]+(bx-52)*.42+(poss?6+ins.ment*2.5:(ins.ment-2)*1.5)-(rg?7:0)+(ins.onWin===2&&poss?2:0);
+ let line=[23,31,39][ins.line]+(bx-52)*.42+(poss?6+ins.ment*1.6:(ins.ment-2)*1.5)-(rg?7:0)+(ins.onWin===2&&poss?2:0);
  line=clamp(line,9,poss?58:46);if(!poss)line=Math.min(line,Math.max(9,bx-7));
- const len=(poss?31+ins.ment*3:24+ins.line*2)+(ctr?8:0),hw=poss?[22,27,31][ins.width]:20,sh=(by-34)*(poss?.18:.42);
+ const len=(poss?31+ins.ment*2:24+ins.line*2)+(ctr?8:0),hw=poss?[22,27,31][ins.width]:20,sh=(by-34)*(poss?.18:.42);
  for(const p of tm.pl){
   if(p.off)continue;
   const pos=tm.slots[p.slot][0],sl=poss?tm.slotsIn[tm.inMap[p.slot]]:tm.slots[p.slot],lat=sl[1],dep=sl[2],rf=ROLE_FX[p.role]||{};let fx,fy;
@@ -1339,8 +1339,8 @@ function blockers(c,op,s){let n=0;const gx=fX(s,PW),dx=gx-c.x,dy=34-c.y,d=Math.h
  for(const o of op){if(o.pos==='GK')continue;const f=((o.x-c.x)*dx+(o.y-c.y)*dy)/(d*d);if(f<.02||f>.6)continue;const perp=Math.hypot(o.x-(c.x+dx*f),o.y-(c.y+dy*f));if(perp<1.3)n++}return n}
 function decide(E,c,pr){
  const s=c.s,tm=E.T[s],ins=tm.tac.ins,rf=ROLE_FX[c.role]||{},fx=fX(s,c.x),fy=fY(s,c.y),base=threat(fx,fy),opts=[];
- const prog=clamp((E.t-E.gain[s]-7)/18,0,1)*(ins.ment<=1?1.7:1),ms=mates(E,s,c),op=opps(E,s),ol=offLine(E,s),urg=clamp((E.t-E.gain[s]-10)/25,0,1)*(fx>55?1:0)*[.6,.8,1,1.15,1.3][ins.ment];
- const ctr=counterOn(E,s),strOpp=E.T[1-s].tac.ins.ment>=3&&E.t-E.gain[s]<9,keep=ins.onWin===2&&E.t-E.gain[s]<6,lossCost=(fx<35?.42:fx<65?.24:.1)*(keep?1.5:1),tempoW=[.8,1,1.25][ins.tempo]*(ctr?1.45:1)*(strOpp?1.3:1)*(keep?.75:1),riskW=(rf.risk||1)*[.8,.9,1,1.12,1.25][ins.ment];
+ const prog=clamp((E.t-E.gain[s]-7)/18,0,1)*(ins.ment<=1?1.7:1),ms=mates(E,s,c),op=opps(E,s),ol=offLine(E,s),urg=clamp((E.t-E.gain[s]-10)/25,0,1)*(fx>55?1:0)*[.75,.88,1,1.08,1.15][ins.ment];
+ const ctr=counterOn(E,s),strOpp=E.T[1-s].tac.ins.ment>=3&&E.t-E.gain[s]<9,keep=ins.onWin===2&&E.t-E.gain[s]<6,lossCost=(fx<35?.42:fx<65?.24:.1)*(keep?1.5:1),tempoW=[.8,1,1.25][ins.tempo]*(ctr?1.45:1)*(strOpp?1.3:1)*(keep?.75:1),riskW=(rf.risk||1)*[.88,.94,1,1.06,1.1][ins.ment];
  c.dribT=null;
  for(const m of ms){
   if(m.pos==='GK'&&fx>38)continue;
