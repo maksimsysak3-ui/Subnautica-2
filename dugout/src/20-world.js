@@ -108,7 +108,7 @@ function genAttrs(rng,pos,target,age){
 // Live valuation: ability, potential, age, current form and contract length. Recomputed every matchday.
 function valueOf(p){const af=p.age<=21?1.5:p.age<=24?1.32:p.age<=27?1.08:p.age<=29?.92:p.age<=31?.6:.3;
  const form=p.s&&p.s.ap>=3?clamp(1+(p.s.rs/p.s.ap-6.7)*.24,.8,1.32):1,con=p.con<=1?.62:p.con===2?.86:1;
- return Math.max(25e3,Math.round(6e5*Math.pow(1.116,p.ovr-60)*Math.pow(1.2,Math.max(0,p.ovr-78))*af*(1+Math.max(0,p.pot-p.ovr)/32)*form*con/25e3)*25e3)}
+ return Math.max(25e3,Math.round(6e5*Math.pow(1.116,p.ovr-60)*Math.pow(1.22,clamp(p.ovr-74,0,10))*Math.pow(1.08,Math.max(0,p.ovr-84))*af*(1+Math.max(0,p.pot-p.ovr)/32)*form*con/25e3)*25e3)}
 const wageOf=p=>Math.max(500,Math.round(700*Math.pow(1.12,p.ovr-50)*Math.pow(1.08,Math.max(0,p.ovr-80))/100)*100);
 function genPlayer(rng,pos,target,club,nat,o={}){
  const pool=NAMES[NATIONS[nat].pool],age=o.age??rng.i(18,33),at=genAttrs(rng,pos,target,age);

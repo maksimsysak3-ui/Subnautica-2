@@ -15,7 +15,7 @@ function createMatch(cfg){
  const E={t:0,rng,events:[],score:[0,0],done:false,half:1,h1:2700+rng.i(1,3)*60,poss:0,P:[],T:[],old:[],
   ball:{x:52.5,y:34,z:.11,vx:0,vy:0,vz:0,owner:-1,recv:-1,lastS:0,lastP:-1,shot:null,tgt:{x:52.5,y:34},aerial:false,kt:0,cross:false},
   restart:null,lastPass:null,nextSub:3300,wxPlan:cfg.weather||{type:'clear',changes:[],wDir:0,wSpd:5},wxType:(cfg.weather||{}).type||'clear',wxNext:0,gain:[0,0],prevPoss:0,getP:cfg.getP,
-  st:{pos:[0,0],sh:[0,0],sot:[0,0],xg:[0,0],pa:[0,0],pc:[0,0],cor:[0,0],fo:[0,0],yc:[0,0],rc:[0,0],off:[0,0],tk:[0,0]},
+  st:{pos:[0,0],sh:[0,0],sot:[0,0],xg:[0,0],pa:[0,0],pc:[0,0],cor:[0,0],fo:[0,0],yc:[0,0],rc:[0,0],off:[0,0],tk:[0,0],thru:[0,0],crs:[0,0],drib:[0,0],runs:[0,0]},
   rec:{buf:new Float32Array(CAP*STRIDE),own:new Int8Array(CAP),n:0}};
  E.ft=E.h1+2700+rng.i(2,5)*60;E.wx=WX[E.wxType]||WX.clear;
  cfg.teams.forEach((T,s)=>{
@@ -120,7 +120,7 @@ function assign(E){
    const bxd=fX(s,b.x),eng=[42,66,120][ins.press]+clamp((E.t-E.gain[1-s]-8)*2.2,0,45),cp=cpressOn(E,s),n=cp?3:regroupOn(E,s)?1:bxd<eng?[1,2,2][ins.press]:1;
    const cand=pl.filter(p=>p.pos!=='GK').map(p=>({p,d:Math.hypot(p.x-b.x,p.y-b.y)*(1-((ROLE_FX[p.role]||{}).press||0)*.3)})).sort((a,c)=>a.d-c.d);
    const pressers=new Set();
-   cand.slice(0,n).forEach(({p},k)=>{pressers.add(p);const gap=k===0?(cp?1.1:1.7):3.2,ang=k===0?0:(k===1?.9:-.9);p.tx=b.x-dir*gap*Math.cos(ang);p.ty=b.y+gap*Math.sin(ang);p.sprint=k===0||bxd<eng||cp});
+   cand.slice(0,n).forEach(({p},k)=>{pressers.add(p);const gap=k===0?(cp?1.1:1.7):3.2,ang=k===0?0:(k===1?.9:-.9);p.tx=b.x+(b.owner>=0?b.vx*.45:0)-dir*gap*Math.cos(ang);p.ty=b.y+(b.owner>=0?b.vy*.45:0)+gap*Math.sin(ang);p.sprint=k===0||bxd<eng||cp});
    for(const p of pl){
     if(pressers.has(p)||p.pos==='GK')continue;
     let best=null,bd=10;for(const o of E.T[1-s].pl){if(o.off||o===owner)continue;const d=Math.hypot(o.x-p.tx,o.y-p.ty);if(d<bd){bd=d;best=o}}
@@ -134,7 +134,7 @@ function assign(E){
    else if(def&&b.recv>=0){const r=E.P[b.recv],m=nearestTo(pl.filter(p=>p.pos!=='GK'),r.tgtX??b.tgt.x,b.tgt.y);if(m){m.tx=b.tgt.x;m.ty=b.tgt.y;m.sprint=true}}
   }
   if(!def&&owner&&owner.s===s&&fX(s,owner.x)>35){
-   const oppLine=fX(s,E.T[1-s].pl.filter(o=>!o.off&&o.pos!=='GK').reduce((m,o)=>s?Math.max(m,o.x):Math.min(m,o.x),s?-1:999)),highLine=oppLine<68?1+(68-oppLine)/5:1,boost=(counterOn(E,s)?3.5:1)*highLine;for(const p of pl){const rf=ROLE_FX[p.role]||{};const rr=(rf.run||(GROUP[p.pos]==='ATT'?.07:GROUP[p.pos]==='MID'&&highLine>1.6?.04:0))*(highLine>1.6?1.6:1);if(!rr||p===owner||p.run>E.t)continue;if(E.rng.f()<rr*.012*boost)p.run=E.t+3.2}
+   const oppLine=fX(s,E.T[1-s].pl.filter(o=>!o.off&&o.pos!=='GK').reduce((m,o)=>s?Math.max(m,o.x):Math.min(m,o.x),s?-1:999)),highLine=oppLine<68?1+(68-oppLine)/5:1,boost=(counterOn(E,s)?3.5:1)*highLine;for(const p of pl){const rf=ROLE_FX[p.role]||{};const rr=(rf.run||(GROUP[p.pos]==='ATT'?.07:GROUP[p.pos]==='MID'&&highLine>1.6?.04:0))*(highLine>1.6?1.6:1);if(!rr||p===owner||p.run>E.t)continue;if(E.rng.f()<rr*.012*boost){p.run=E.t+3.2;E.st.runs[s]++}}
   }
   for(const p of pl)if(p.run>E.t&&p!==owner)p.sprint=true;
  }
@@ -142,7 +142,9 @@ function assign(E){
 
 /* ---------- movement ---------- */
 function movePlayer(E,p){
- const dx=p.tx-p.x,dy=p.ty-p.y,d=Math.hypot(dx,dy),fat=.72+.28*clamp(p.en,0,1);
+ // Off-ball players never freeze: a slow personal drift around their target keeps them shuffling and walking.
+ const wob=E.ball.owner===p.i||p.pos==='GK'?0:Math.hypot(E.ball.x-p.x,E.ball.y-p.y)>15?.9:.35;
+ const dx=p.tx+Math.sin(E.t*.45+p.i*2.1)*wob-p.x,dy=p.ty+Math.cos(E.t*.37+p.i*1.3)*wob-p.y,d=Math.hypot(dx,dy),fat=.72+.28*clamp(p.en,0,1);
  if(d>5&&E.poss!==p.s)p.sprint=true;else if(d>9)p.sprint=true;
  let vmax=(5.4+p.a.pac*3.4)*fat*(p.sprint?1:.68)*E.wx.spd;
  if(p.stun>E.t)vmax*=.35;
@@ -150,7 +152,7 @@ function movePlayer(E,p){
  let vx=0,vy=0;if(d>.12){const sp=Math.min(vmax,d*1.8);vx=dx/d*sp;vy=dy/d*sp}
  const acc=(4+p.a.acc*5)*fat*DT;let ax=vx-p.vx,ay=vy-p.vy;const am=Math.hypot(ax,ay);if(am>acc){ax*=acc/am;ay*=acc/am}
  p.vx+=ax;p.vy+=ay;p.x=clamp(p.x+p.vx*DT,-2,PW+2);p.y=clamp(p.y+p.vy*DT,-2,PH+2);
- const sp=Math.hypot(p.vx,p.vy);const ti=E.T[p.s].tac.ins;p.en=Math.max(.2,p.en-(3e-5+3.4e-6*sp*sp)*(1.3-p.a.sta)*DT*(ti.press===2?1.45:1)*(ti.line===2?1.1:1)*E.wx.fat);
+ const sp=Math.hypot(p.vx,p.vy);const ti=E.T[p.s].tac.ins;p.en=Math.max(.2,p.en-(3e-5+3.4e-6*sp*sp)*(1.3-p.a.sta)*DT*(ti.press===2?2.1:ti.press===0?.85:1)*(ti.ment>=3?1.15:1)*(ti.line===2?1.1:1)*E.wx.fat);
  p.sprint=false;
 }
 function placeBall(c,b){const sp=Math.hypot(c.vx,c.vy);let dx,dy;if(sp>.4){dx=c.vx/sp;dy=c.vy/sp}else{dx=c.s?-1:1;dy=0}b.x=c.x+dx*.55;b.y=c.y+dy*.55;b.z=.11;b.vx=c.vx;b.vy=c.vy;b.vz=0}
@@ -161,7 +163,15 @@ function carrier(E,c){
  const pr=pressure(E,c);
  if(c.cool<=0||(pr<1.2&&c.cool>.3&&E.rng.f()<.1))decide(E,c,pr);
  if(E.ball.owner!==c.i)return;
- if(c.dribT){c.tx=c.dribT.x;c.ty=c.dribT.y;c.sprint=true}else{c.tx=c.x+c.vx*.3;c.ty=c.y+c.vy*.3}
+ if(c.dribT){c.tx=c.dribT.x;c.ty=c.dribT.y;c.sprint=true}
+ else{
+  // Carry the ball while deciding: drift into space, away from the nearest opponent, shield when closed down.
+  const s=c.s,dir=s?-1:1,fx=fX(s,c.x);let n=null,nd=99;for(const o of E.T[1-s].pl){if(o.off)continue;const q=Math.hypot(o.x-c.x,o.y-c.y);if(q<nd){nd=q;n=o}}
+  const space=clamp((nd-4)/8,0,1);let ax=dir*.35*space*(fx>66?0:1),ay=Math.sin(E.t*.7+c.i*1.7)*.8+(fY(s,c.y)<34?-.15:.15)*dir*0;
+  if(n&&nd<10){const k=(10-nd)/10*(fx>66?.5:1.6);ax-=(n.x-c.x)/nd*k;ay-=(n.y-c.y)/nd*k}
+  const m=Math.hypot(ax,ay)||1,spd=c.pos==='GK'?.6:nd<3.2||fx>66?.6:.9+space*.8;
+  c.tx=c.x+ax/m*spd/1.8;c.ty=c.y+ay/m*spd/1.8;c.sprint=false;
+ }
  // a goal-side defender in front blocks the line: the carrier is slowed and pushed wide
  const dir=c.s?-1:1;for(const o of E.T[1-c.s].pl){if(o.off)continue;const ax=(o.x-c.x)*dir,ay=o.y-c.y;if(ax>0&&ax<1.8&&Math.abs(ay)<1.1){c.tx=c.x+dir*.4;c.ty=c.y+(ay>0?-2.2:2.2);c.sprint=false;if(c.cool>.6)c.cool=.6;break}}
  c.tx=clamp(c.tx,1,PW-1);c.ty=clamp(c.ty,2,PH-2);
@@ -208,7 +218,7 @@ function decide(E,c,pr){
  if(fx>66&&dg<34){
   const x=xgAt(fx,fy)*Math.pow(.7,blockers(c,op,s))*Math.pow(.8,density(c,op,s)),sk=dg>20?c.a.lon:c.a.fin;
   const mul=(rf.shoot||1)*[1,1,1.6,.9][ins.final]*(ins.final===0&&dg>18?.55:1);
-  if(x*mul>(ins.final===2?.1:.16)*(1-.4*urg))opts.push({k:'shot',u:x*1.1*mul*(.7+.6*sk)*(pr<1.5?.75:1)-.09+.02*urg});
+  if(x*mul>(ins.final===2?.16:.25)*(1-.4*urg))opts.push({k:'shot',u:x*1.1*mul*(.7+.6*sk)*(pr<1.5?.75:1)-.12+.02*urg});
  }
  if((fy<15||fy>53)&&fx>72){let n=0,h=0;for(const m of ms){const mx=fX(s,m.x),my=fY(s,m.y);if(mx>86&&my>22&&my<46){n++;h=Math.max(h,m.a.hea)}}
   if(n)opts.push({k:'cross',u:(.03+.034*n*h+.05*c.a.cro)*(rf.cross||1)*(ins.final===3?1.6:1)*(1+urg)})}
@@ -226,10 +236,10 @@ function decide(E,c,pr){
 }
 function exec(E,c,o,op){
  const s=c.s;
- if(o.k==='pass'){if(offside(E,c,o.m))return;doPass(E,c,o.tx,o.ty,o.m,o.lofted,op,false)}
+ if(o.k==='pass'){if(offside(E,c,o.m))return;if(o.thru)E.st.thru[s]++;doPass(E,c,o.tx,o.ty,o.m,o.lofted,op,false)}
  else if(o.k==='shot')shoot(E,c,false,false);
- else if(o.k==='cross'){const blk=op.find(q=>q.pos!=='GK'&&Math.hypot(q.x-c.x,q.y-c.y)<3.2);if(blk&&E.rng.f()<.4){c.st.pa++;E.st.pa[s]++;ev(E,'block',s,c.i,{by:blk.i,cross:1});setRestart(E,'corner',s,s?0:PW,c.y<34?0:PH);return}const t=crossTarget(E,c);doPass(E,c,t.x,t.y,t.m,true,op,true)}
- else if(o.k==='drib'){const fx=fX(s,c.x),fy=fY(s,c.y),n=nearestTo(op,c.x,c.y);let tfy=fy;if(n){tfy+=fY(s,n.y)>fy?-3.5:3.5}if(fx>86)tfy+=(34-tfy)*.4;
+ else if(o.k==='cross'){const blk=op.find(q=>q.pos!=='GK'&&Math.hypot(q.x-c.x,q.y-c.y)<3.2);if(blk&&E.rng.f()<.4){c.st.pa++;E.st.pa[s]++;ev(E,'block',s,c.i,{by:blk.i,cross:1});setRestart(E,'corner',s,s?0:PW,c.y<34?0:PH);return}const t=crossTarget(E,c);E.st.crs[s]++;doPass(E,c,t.x,t.y,t.m,true,op,true)}
+ else if(o.k==='drib'){E.st.drib[s]++;const fx=fX(s,c.x),fy=fY(s,c.y),n=nearestTo(op,c.x,c.y);let tfy=fy;if(n){tfy+=fY(s,n.y)>fy?-3.5:3.5}if(fx>86)tfy+=(34-tfy)*.4;
   c.dribT={x:fX(s,Math.min(PW-3,fx+8)),y:fY(s,clamp(tfy,3,PH-3))};c.cool=.6+E.rng.f()*.6}
  else if(o.k==='clear'){const fx=fX(s,c.x);doPass(E,c,fX(s,clamp(fx+40+E.rng.f()*18,0,100)),fY(s,12+E.rng.f()*44),null,true,op,false)}
  else c.cool=.5;
@@ -366,10 +376,10 @@ function goal(E,s,sh){
 function tackles(E,c){
  for(const o of E.T[1-c.s].pl){
   if(o.off||o.tkCool>E.t)continue;const d=Math.hypot(o.x-c.x,o.y-c.y);if(d>1.7)continue;
-  const ins=E.T[o.s].tac.ins,box=inBox(o.s,c.x,c.y);if(d>1.9||E.rng.f()>(.019+.008*ins.tackle)*(box?2.4:1))continue;
+  const ins=E.T[o.s].tac.ins,box=inBox(o.s,c.x,c.y);if(d>1.9||E.rng.f()>(.012+.005*ins.tackle)*(box?2.4:1))continue;
   o.tkCool=E.t+1.2;setPose(o,POSE.tackle);
-  const win=sig(((o.a.tck*1.1+o.a.str*.3+o.a.pos*.2)-(c.a.dri*1.1+c.a.agi*.3+c.a.str*.2))*4)*(.6+.08*ins.tackle)*((ROLE_FX[o.role]||{}).tackle||1);
-  const foulP=clamp(.1+o.a.agg*.08+ins.tackle*.05-o.a.tck*.06,.04,.28)*(box?.12:1),r=E.rng.f();
+  const win=sig(((o.a.tck*1.1+o.a.str*.3+o.a.pos*.2)-(c.a.dri*1.1+c.a.agi*.3+c.a.str*.2))*4)*(.6+.08*ins.tackle)*((ROLE_FX[o.role]||{}).tackle||1)*(.7+.3*clamp(o.en,0,1));
+  const foulP=clamp(.1+o.a.agg*.08+ins.tackle*.05+(ins.press===2?.05:0)-o.a.tck*.06,.04,.32)*(box?.12:1),r=E.rng.f();
   if(r<foulP){foul(E,o,c);return}
   if(r<foulP+win*(1-foulP)){
    o.st.tk++;E.st.tk[o.s]++;E.lastPass=null;

@@ -10,7 +10,7 @@ function render(){
   return}
  renderBar();
  const fn={home:viewHome,squad:viewSquad,player:viewPlayer,tactics:viewTactics,transfers:viewTransfers,comps:viewComps,office:viewOffice,club:viewClub,match:viewMatch}[view]||viewHome;
- const html=fn(),side=['home','squad','club'].includes(view)&&!(view==='home'&&sub==='news');
+ const html=fn(),side=['home','squad','club'].includes(view)&&!(view==='home'&&(sub==='news'||sub==='inbox'));
  $('#view').innerHTML=side?`<div class="layout"><div style="min-width:0">${html}</div>${newsSidebar()}</div>`:html;
  if(view==='transfers'&&sub==='search')renderSearch();
  if(view==='match')mountMatch();
@@ -59,6 +59,9 @@ document.addEventListener('click',e=>{
   case'continue':closeModal();onContinue();break;
   case'player':closeModal();openPlayer(id);break;
   case'msg':openMsg(id);break;
+  case'goto':{const[g,sb]=v.split('/');closeModal();go(g,sb);break}
+  case'mailf':ui.mailF=v;ui.msg=null;render();break;
+  case'mail-read-all':S.inbox.forEach(m=>m.read=true);save();render();renderBar();break;
   case'offer-yes':case'offer-no':{const m=S.inbox.find(x=>x.id===id),o=m&&m.action;if(!o||o.done)break;const p=S.players[o.pid];
    if(a==='offer-yes'){const why=canSell(p);if(p.club!==S.user){toast('He is no longer at the club.');break}if(why){toast(why);break}moveP(p.id,o.club,o.fee);S.fin.sales+=o.fee;logDeal(p.id,S.user,o.club,o.fee);o.done='yes';news(`${p.fn} ${p.ln} joins ${clubOf(o.club).name} from ${clubOf(S.user).name} for ${money(o.fee)}.`,'transfer',[o.club,S.user]);toast(`${p.ln} sold for ${money(o.fee)}`)}else{o.done='no';toast('Offer rejected')}
    save();closeModal();render();break}

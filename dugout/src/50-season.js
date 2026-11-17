@@ -50,9 +50,9 @@ function genWorld(seed){
 function startCareer(cid){
  S.user=cid;const c=clubOf(cid);
  aiTransfers();aiTransfers();ensureLineup(cid);
- mail('Board of Directors',`Welcome to ${c.name}`,`<p>Welcome to ${esc(c.stadium)}. The board has made <b>${money(c.budget)}</b> available for transfers and a wage budget of <b>${money(c.wageBudget)}</b> per week.</p><p>Our objective this season: <b>${expectation(cid)}</b>.</p><p>The transfer window is open until matchday ${WIN1}.</p>`,null,'board');
+ mail('Board of Directors',`Welcome to ${c.name}`,`<p>Welcome to ${esc(c.stadium)}. The board has made <b>${money(c.budget)}</b> available for transfers and a wage budget of <b>${money(c.wageBudget)}</b> per week.</p><p>Our objective this season: <b>${expectation(cid)}</b>.</p><p>The transfer window is open until matchday ${WIN1}.</p><p>Welcome aboard, and good luck.</p>`,null,'board',{att:{t:'stadium',cid},links:[['Club overview','nav','club'],['Office','nav','office']]});
  const best=squadOf(cid).sort((a,b)=>b.ovr-a.ovr)[0];
- mail('Assistant Manager','Squad assessment',`<p>${esc(best.fn+' '+best.ln)} is our standout player. I have set us up in a ${c.tac.form}. Review the shape, roles and instructions on the Tactics screen before the opener.</p>`,null,'staff');
+ mail('Assistant Manager','Squad assessment',`<p>${esc(best.fn+' '+best.ln)} is our standout player. I have set us up in a ${c.tac.form}. Review the shape, roles and instructions on the Tactics screen before the opener.</p><p>Here are the three players I think we build around.</p>`,null,'staff',{att:{t:'squad'},links:[['Open tactics','nav','tactics'],['View squad','nav','squad']]});
  news(`The board hopes the new appointment can deliver: ${expectation(cid).toLowerCase()}.`,'club',[cid],{title:`${c.short} name new manager`});
  save();
 }
@@ -60,7 +60,7 @@ function expectation(cid){const c=clubOf(cid),lg=leagueOf(cid),rank=lg.clubs.map
  if(lg.tier===1)return rank<=3?'Win promotion':rank<=8?'Challenge for promotion':rank<=15?'Finish mid-table':'Avoid relegation';
  return rank<=2?'Win the title':rank<=5?'Finish in the top four':rank<=10?'Finish in the top half':rank<=15?'Finish mid-table':'Avoid relegation'}
 const targetPos=cid=>{const e=expectation(cid);return{'Win the title':1,'Finish in the top four':4,'Finish in the top half':10,'Finish mid-table':14,'Avoid relegation':17,'Win promotion':3,'Challenge for promotion':6}[e]||10};
-function mail(from,subj,body,action,kind){S.inbox.unshift({id:S.nid++,from,subj,body,md:S.md,season:S.season,read:false,action:action||null,kind:kind||'info'});if(S.inbox.length>60)S.inbox.length=60}
+function mail(from,subj,body,action,kind,extra){S.inbox.unshift(Object.assign({id:S.nid++,from,subj,body,md:S.md,season:S.season,read:false,action:action||null,kind:kind||'info'},extra||{}));if(S.inbox.length>60)S.inbox.length=60}
 function news(text,kind,clubs,extra){S.news.unshift(Object.assign({id:S.nid++,md:S.md,season:S.season,text,kind,clubs:clubs||[]},extra||{}));if(S.news.length>90)S.news.length=90}
 const newFin=()=>({gate:0,tv:0,prize:0,sponsor:0,sales:0,wages:0,buys:0});
 function table(lid){
@@ -77,7 +77,14 @@ function fixturesOf(cid){const lid=clubOf(cid).league;return S.fixtures[lid].map
 function prepAI(cid,oppId){
  const c=clubOf(cid);if(cid===S.user)return;
  const opp=oppId!=null?clubOf(oppId):null;c.tac.xi=pickXI(cid,c.tac.form);c.tac.bench=pickBench(cid,c.tac.xi);
- if(opp){const d=c.rep-opp.rep;c.tac.ins.ment=d>8?3:d<-10?1:2}
+ if(opp){const d=c.rep-opp.rep,ins=c.tac.ins,oi=opp.tac.ins;ins.ment=d>8?3:d<-10?1:2;
+  // AI managers scout the opponent and adapt: go direct over a high press, sit deeper and counter an all-out attack.
+  if(!c.tac.base)c.tac.base={passing:ins.passing,tempo:ins.tempo,onWin:ins.onWin,line:ins.line,press:ins.press};
+  Object.assign(ins,c.tac.base);
+  if(oi.press===2){ins.passing=2;ins.tempo=Math.max(ins.tempo,1);ins.onWin=0}
+  if(oi.ment>=3){ins.ment=Math.min(ins.ment,2);ins.onWin=0;ins.line=Math.min(ins.line,1)}
+  if(oi.line===2&&ins.passing<2)ins.passing=2;
+ }
 }
 /* ---------- quick simulator for matches the user is not watching ---------- */
 function expG(A,B,home,iA,iB){
@@ -139,16 +146,16 @@ function processMatchday(userRes){
   const tb=table(uc.league),pos=posIn(tb,S.user),tp=targetPos(S.user);S.board=clamp(S.board+(gf>ga?2.2:gf<ga?-2.6:.2)+(pos<=tp?.5:-.6),5,100);}
  {const tv=Math.round(budgetOf(uc.rep)*.035),sp=Math.round(budgetOf(uc.rep)*.012),w=Math.round(wageBill(S.user)*1.05);uc.balance+=tv+sp-w;S.fin.tv+=tv;S.fin.sponsor+=sp;S.fin.wages+=w}
  if(mine){const home=mine.h===S.user,gf=home?mine.hg:mine.ag,ga=home?mine.ag:mine.hg;S.mgr[gf>ga?'w':gf<ga?'l':'d']++}
- if(S.devNews.length){const ps=S.devNews.map(id=>S.players[id]);mail('Head of Coaching','Training report: players improving',`<p>${ps.map(p=>`${esc(p.fn+' '+p.ln)} (${p.pos}, ${p.age}) has developed and is now ${stars(p.ovr)} stars.`).join('<br>')}</p>`,null,'staff')}
+ if(S.devNews.length){const ps=S.devNews.map(id=>S.players[id]);mail('Head of Coaching','Training report: players improving',`<p>${ps.map(p=>`${esc(p.fn+' '+p.ln)} (${p.pos}, ${p.age}) has developed and is now ${stars(p.ovr)} stars.`).join('<br>')}</p>`,null,'staff',{att:{t:'players',pids:ps.map(p=>p.id)},links:[['Training','goto','squad/training']]})}
  headlines(md);
  if(S.board<14&&!S.sacked)S.sacked=true;
  if(windowOpen())aiTransfers();
  aiManagers();
  if(windowOpen()&&G.f()<.3)incomingOffer();
  S.md++;
- if(S.md===WIN2[0])mail('Director of Football','January window opens',`<p>The winter transfer window is open until matchday ${WIN2[1]}.</p>`,null,'transfer');
- if(S.md===WIN1)mail('Director of Football','Transfer window closed',`<p>The summer window has closed. It reopens at matchday ${WIN2[0]+1}.</p>`,null,'transfer');
- if(S.md>=MDAYS)mail('Board of Directors','The season is over',`<p>Open the season review from the Continue button to see the final standings, promotions and relegations.</p>`,null,'board');
+ if(S.md===WIN2[0])mail('Director of Football','January window opens',`<p>The winter transfer window is open until matchday ${WIN2[1]}. Our current position and budget are below.</p>`,null,'transfer',{att:{t:'budget'},links:[['Transfer hub','nav','transfers']]});
+ if(S.md===WIN1)mail('Director of Football','Transfer window closed',`<p>The summer window has closed. It reopens at matchday ${WIN2[0]+1}.</p>`,null,'transfer',{att:{t:'budget'}});
+ if(S.md>=MDAYS)mail('Board of Directors','The season is over',`<p>Open the season review from the Continue button to see the final standings, promotions and relegations.</p>`,null,'board',{att:{t:'table'},links:[['Competition','nav','comps']]});
 }
 function resultTitle(r){const H=clubOf(r.h).short,A=clubOf(r.a).short,d=r.hg-r.ag;
  if(d===0)return r.hg>=3?`${H} and ${A} share six goals`:r.hg===0?`${H} and ${A} cancel each other out`:`${H} and ${A} share the points`;
@@ -212,7 +219,7 @@ function incomingOffer(){
  const p=pickW(cand,x=>Math.pow(Math.max(1,x.ovr-50),2)),uc=clubOf(S.user);
  const pool=S.clubs.filter(c=>c.id!==S.user&&c.rep>=uc.rep-6&&c.budget>p.val);if(!pool.length)return;
  const club=G.pick(pool),fee=Math.round(p.val*(1.05+G.f()*.4)/5e4)*5e4;
- mail(club.name,`Offer for ${p.ln}`,`<p>${esc(club.name)} have bid <b>${money(fee)}</b> for ${esc(p.fn+' '+p.ln)} (${p.pos}, age ${p.age}). We value him at ${money(p.val)}.</p>`,{type:'offer',pid:p.id,club:club.id,fee},'transfer');
+ mail(club.name,`Offer for ${p.ln}`,`<p>${esc(club.name)} have bid <b>${money(fee)}</b> for ${esc(p.fn+' '+p.ln)} (${p.pos}, age ${p.age}). We value him at ${money(p.val)}.</p><p>Let us know if you are willing to do business.</p>`,{type:'offer',pid:p.id,club:club.id,fee},'transfer',{att:{t:'player',pid:p.id}});
 }
 function wageBill(cid){return squadOf(cid).reduce((a,p)=>a+p.wage,0)}
 function wageDemand(p){const uc=clubOf(S.user),pc=clubOf(p.club);return Math.round(p.wage*(1.12+Math.max(0,(pc.rep-uc.rep)/80))/100)*100}
@@ -268,7 +275,7 @@ function endSeason(){
    const c=clubOf(p.club),rng=R((Math.random()*2e9)|0),co=COUNTRIES.find(x=>x.code===c.nation);
    const y=genPlayer(rng,p.pos,repToOvr(c.rep)-rng.i(10,16),c.id,rng.chance(.7)?co.code:rng.pick(NAT_BAG),{age:rng.i(16,18),pot:clamp(repToOvr(c.rep)+rng.i(-2,12),55,rng.chance(.04)?93:88)});
    y.id=S.npid++;S.players[y.id]=y;c.squad=c.squad.filter(x=>x!==p.id).concat(y.id);y.num=p.num;delete S.players[p.id];
-   if(c.id===S.user)mail('Head of Youth',`${p.ln} retires`,`<p>${esc(p.fn+' '+p.ln)} has retired. ${esc(y.fn+' '+y.ln)} (${y.pos}, 17) has been promoted from the academy.</p>`,null,'staff');
+   if(c.id===S.user)mail('Head of Youth',`${p.ln} retires`,`<p>${esc(p.fn+' '+p.ln)} has retired. ${esc(y.fn+' '+y.ln)} (${y.pos}, 17) has been promoted from the academy.</p>`,null,'staff',{att:{t:'player',pid:y.id,note:'Academy graduate'},links:[['View player','player',y.id,1]]});
   }
  }
  {const uc=clubOf(S.user),prize=Math.round(budgetOf(uc.rep)*(1-(uPos-1)/PER)*.6);uc.balance+=prize;uc.budget+=Math.round(prize*.5);S.fin=newFin();S.fin.prize=prize}
@@ -279,7 +286,7 @@ function endSeason(){
  for(const p of Object.values(S.players)){p.dev=0;p.ovr0=p.ovr;p.val0=p.val}
  for(const lg of S.leagues){S.fixtures[lg.id]=roundRobin(shuffled(lg.clubs));S.results[lg.id]=[]}
  S.clubs.forEach(c=>{c.tac.xi=c.tac.xi||[];if(c.id!==S.user)c.tac.xi=[]});ensureLineup(S.user);
- mail('Board of Directors',`Season ${seasonLabel()} begins`,`<p>You are in the ${esc(S.leagues[clubOf(S.user).league].name)}. The board's objective: <b>${expectation(S.user)}</b>. Transfer budget: <b>${money(clubOf(S.user).budget)}</b>.</p>`,null,'board');
+ mail('Board of Directors',`Season ${seasonLabel()} begins`,`<p>You are in the ${esc(S.leagues[clubOf(S.user).league].name)}. The board's objective: <b>${expectation(S.user)}</b>. Transfer budget: <b>${money(clubOf(S.user).budget)}</b>.</p>`,null,'board',{att:{t:'budget'},links:[['Office','nav','office'],['Transfer hub','nav','transfers']]});
  save();return report;
 }
 
@@ -291,7 +298,7 @@ function trainBump(p){const f=TRAIN[S.train.focus].a;if(!f){bump(p,1);return}
 /* ---------- manager career ---------- */
 function jobOffers(n,minRep,maxRep){return shuffled(S.clubs.filter(c=>c.id!==S.user&&c.rep>=minRep&&c.rep<=maxRep)).slice(0,n)}
 function takeJob(cid,reason){const old=S.user;S.mgr.clubs.push({club:old,season:seasonLabel(),reason});S.user=cid;S.board=60;S.sacked=false;S.fin=newFin();S.shortlist=[];S.bids=[];
- const c=clubOf(cid);ensureLineup(cid);mail('Board of Directors',`Welcome to ${c.name}`,`<p>We are delighted to appoint you. Your objective: <b>${expectation(cid)}</b>. Transfer budget: <b>${money(c.budget)}</b>.</p>`,null,'board');
+ const c=clubOf(cid);ensureLineup(cid);mail('Board of Directors',`Welcome to ${c.name}`,`<p>We are delighted to appoint you. Your objective: <b>${expectation(cid)}</b>. Transfer budget: <b>${money(c.budget)}</b>.</p>`,null,'board',{att:{t:'stadium',cid},links:[['Club overview','nav','club']]});
  news(`${c.name} have appointed a new manager.`,'club',[cid],{title:`${c.short} name new manager`});save()}
 function youthIntake(cid,n){const c=clubOf(cid),co=COUNTRIES.find(x=>x.code===c.nation),rng=R((Math.random()*2e9)|0),out=[];
  for(let k=0;k<n;k++){const pos=rng.pick(['GK','CB','CB','LB','RB','DM','CM','CM','AM','LW','RW','ST','ST']),roll=rng.f(),pot=clamp(Math.round(repToOvr(c.rep)+(roll<.08?rng.i(12,20):roll<.35?rng.i(4,11):rng.i(-8,3))),45,roll<.015?95:89);

@@ -91,19 +91,10 @@ function viewHome(){
  ${tired.map(p=>`<button class="li" data-act="player" data-id="${p.id}">${posChip(p.pos)}<span><b>${pName(p)}</b><small>Match fitness</small></span><span class="chip">${p.cond}%</span></button>`).join('')}</div></section>
  </div>`;
 }
-const msgRow=m=>`<button class="li ${m.read?'':'unread'}" data-act="msg" data-id="${m.id}"><i class="dotc"></i><span><b>${esc(m.subj)}</b><small>${esc(m.from)}</small></span><small>MD ${m.md+1}</small></button>`;
 const newsRow=n=>`<div class="ns" style="grid-template-columns:46px 1fr auto">${newsTile(n)}<span><b>${esc(n.title||n.text)}</b>${n.title?`<small style="display:block;color:var(--muted);font-size:12px;margin-top:2px">${esc(n.text)}</small>`:''}</span><small>MD ${n.md+1}</small></div>`;
 function fixtureRow(f){const home=f.h===S.user,opp=home?f.a:f.h,r=f.res;let res='';if(r){const gf=home?r.hg:r.ag,ga=home?r.ag:r.hg;res=`<span class="rt" style="background:${gf>ga?'var(--win)':gf<ga?'var(--loss)':'var(--draw)'}">${gf}–${ga}</span>`}
  return`<div class="li">${crest(opp,22)}<span><b>${esc(clubOf(opp).name)} <small style="display:inline">(${home?'H':'A'})</small></b><small>${shortDate(mdDate(f.md))} · Matchday ${f.md+1}</small></span>${res||'<small>–</small>'}</div>`}
-function inboxView(){return`<div class="grid"><section class="panel c12"><div class="ph"><h3>Inbox <small>${S.inbox.length} messages</small></h3></div><div class="list">${S.inbox.map(msgRow).join('')}</div></section></div>`}
 function newsView(list){return`<div class="grid"><section class="panel c12"><div class="ph"><h3>News</h3></div><div class="list">${list.map(newsRow).join('')||'<p class="pb muted">Nothing yet.</p>'}</div></section></div>`}
-function openMsg(id){
- const m=S.inbox.find(x=>x.id===id);if(!m)return;m.read=true;save();const a=m.action;let act='';
- if(a&&a.type==='offer'&&!a.done){const p=S.players[a.pid];act=p&&p.club===S.user&&windowOpen()?`<div class="toolbar" style="margin:16px 0 0"><button class="btn pri" data-act="offer-yes" data-id="${m.id}">Accept ${money(a.fee)}</button><button class="btn" data-act="offer-no" data-id="${m.id}">Reject</button></div>`:'<p class="muted">This offer has lapsed.</p>'}
- else if(a&&a.type==='offer')act=`<p class="muted">${a.done==='yes'?'You accepted this offer.':'You rejected this offer.'}</p>`;
- openModal(`<div class="eyebrow">${esc(m.from)} · Matchday ${m.md+1}</div><h2 style="font-size:26px;margin:6px 0 10px">${esc(m.subj)}</h2><div style="line-height:1.6">${m.body}</div>${act}`);renderBar();
-}
-
 function sortable(key,cols,list){const[sk,dir]=ui.sort[key];const col=cols.find(c=>c[0]===sk);if(col&&col[2])list.sort((a,b)=>(col[2](a)-col[2](b))*dir||0);
  return cols.map(([k,l,f,cls])=>`<th class="${f?'s':''} ${k===sk?'on':''} ${cls||''}" ${f?`data-act="sort" data-k="${key}" data-v="${k}"`:''}>${l}${k===sk?(dir<0?' ▾':' ▴'):''}</th>`).join('')}
 

@@ -141,6 +141,53 @@ input[type=range]{accent-color:var(--accent);width:100%}
 .hero p{margin:4px 0 0;color:var(--muted)}
 .start-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
 
+/* ---------- mail ---------- */
+.mail{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:12px;align-items:start}
+.m-list{position:sticky;top:120px;max-height:calc(100vh - 140px);display:flex;flex-direction:column}
+.m-tools{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.m-tools .seg button{padding:6px 9px;font-size:12px}
+.m-rows{overflow:auto}
+.mrow{display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:10px;align-items:start;width:100%;text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);position:relative}
+.mrow:hover{background:var(--hover)}
+.mrow.on{background:var(--panel2);box-shadow:inset 3px 0 0 var(--accent)}
+.mrow.unread::after{content:"";position:absolute;left:4px;top:24px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.mrow.unread .mr-top b,.mrow.unread .mr-subj{color:#fff;font-weight:700}
+.mr-main{display:flex;flex-direction:column;gap:2px;min-width:0}
+.mr-top{display:flex;justify-content:space-between;gap:8px}.mr-top b{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mr-top small{font-size:11px;flex:none}
+.mr-subj{font-size:13px;color:#d6d4cd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mr-prev{font-size:12px;color:var(--dim);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mr-tag{font-style:normal;font:700 10px var(--fd);letter-spacing:.12em;text-transform:uppercase;color:var(--ink);background:var(--accent);padding:2px 6px;align-self:center}
+.av{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:color-mix(in srgb,var(--ac) 22%,#1a1a1d);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ac) 60%,transparent);color:var(--ac);flex:none}
+.av svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.av b{font:700 16px var(--fd)}
+.crest-av{background:#1a1a1d;box-shadow:inset 0 0 0 1px var(--line2)}.crest-av .crest{width:24px;height:29px}
+.m-pane{min-height:420px}
+.m-read{padding:18px 22px 22px;max-width:860px}
+.m-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.m-head .av{width:46px;height:46px}
+.m-who{display:flex;flex-direction:column;gap:2px;min-width:0}.m-who b{font-size:15px}.m-who small{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.m-when{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.m-subj{font:700 clamp(22px,2.6vw,30px)/1.1 var(--fd);letter-spacing:.02em;margin:16px 0 12px;text-transform:none}
+.m-hero{display:block;width:100%;height:auto;max-height:240px;border-radius:6px;margin:4px 0 14px;border:1px solid var(--line)}
+.m-body{line-height:1.65;font-size:14.5px;color:#dcdad3}.m-body p{margin:0 0 10px}.m-body b{color:#fff}
+.m-att{margin:14px 0 4px}
+.m-card{display:grid;grid-template-columns:120px minmax(0,1fr);gap:16px;align-items:center;padding:14px;border:1px solid var(--line2);border-radius:6px;background:linear-gradient(120deg,#1c1c20,#141416)}
+.m-card+.m-card{margin-top:0}
+.m-kit .kit{width:100%;height:auto}
+.m-pc h4{font:700 22px/1.1 var(--fd);text-transform:uppercase;letter-spacing:.03em;margin:4px 0 6px}
+.m-pr{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin:4px 0;font-size:13px}.m-pr small{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.1em}
+.m-pr .flag{width:20px;height:14px}
+.m-attrs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 14px;margin:8px 0}
+.m-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}
+.m-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.m-kpis>div{padding:12px;border:1px solid var(--line2);border-radius:6px;background:var(--bg2);display:flex;flex-direction:column;gap:4px}
+.m-kpis small{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em}.m-kpis b{font:700 20px var(--fd)}
+.m-table{border:1px solid var(--line2);border-radius:6px;overflow:hidden}
+.m-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.m-sign{margin-top:18px;color:#cfcdc6;font-size:14px;line-height:1.5}
+.m-empty{display:grid;place-items:center;align-content:center;gap:10px;min-height:420px;color:var(--dim)}.m-empty svg{width:42px;height:42px;fill:none;stroke:currentColor;stroke-width:1.5}
+@media (max-width:900px){.mail{grid-template-columns:1fr}.m-list{position:static;max-height:360px}.m-card{grid-template-columns:84px minmax(0,1fr)}.m-read{padding:14px}}
+
 /* ---------- main menu ---------- */
 .mm{position:relative;min-height:100vh;min-height:100svh;display:grid;place-items:center;overflow:hidden;margin:-16px calc(-1*max(14px,env(safe-area-inset-left,0px))) -60px;padding:40px max(16px,env(safe-area-inset-left,0px));isolation:isolate}
 .mm-pitch{position:absolute;inset:0;width:100%;height:100%;color:#fff;opacity:.05;z-index:-2}
@@ -272,7 +319,7 @@ button.logo:hover{color:var(--accent2)}
 .stage:fullscreen{height:100%;border:0;border-radius:0}
 /* broadcast overlays */
 .stage [class^="ov-"]{position:absolute;pointer-events:none;opacity:0;transition:opacity .45s,transform .55s cubic-bezier(.2,.7,.2,1)}
-.stage .on{opacity:1}
+.stage [class^="ov-"].on{opacity:1}
 .ov-sbug{top:14px;left:14px;display:flex;align-items:stretch;height:30px;font:700 15px/30px var(--fd);letter-spacing:.06em;box-shadow:0 6px 18px -6px rgba(0,0,0,.7);opacity:1!important}
 .ov-sbug .sb-t{padding:0 10px;background:#111114;color:#fff;border-left:4px solid var(--k)}
 .ov-sbug .sb-t:nth-of-type(2){border-left:0;border-right:4px solid var(--k)}
@@ -937,7 +984,7 @@ function genAttrs(rng,pos,target,age){
 // Live valuation: ability, potential, age, current form and contract length. Recomputed every matchday.
 function valueOf(p){const af=p.age<=21?1.5:p.age<=24?1.32:p.age<=27?1.08:p.age<=29?.92:p.age<=31?.6:.3;
  const form=p.s&&p.s.ap>=3?clamp(1+(p.s.rs/p.s.ap-6.7)*.24,.8,1.32):1,con=p.con<=1?.62:p.con===2?.86:1;
- return Math.max(25e3,Math.round(6e5*Math.pow(1.116,p.ovr-60)*Math.pow(1.2,Math.max(0,p.ovr-78))*af*(1+Math.max(0,p.pot-p.ovr)/32)*form*con/25e3)*25e3)}
+ return Math.max(25e3,Math.round(6e5*Math.pow(1.116,p.ovr-60)*Math.pow(1.22,clamp(p.ovr-74,0,10))*Math.pow(1.08,Math.max(0,p.ovr-84))*af*(1+Math.max(0,p.pot-p.ovr)/32)*form*con/25e3)*25e3)}
 const wageOf=p=>Math.max(500,Math.round(700*Math.pow(1.12,p.ovr-50)*Math.pow(1.08,Math.max(0,p.ovr-80))/100)*100);
 function genPlayer(rng,pos,target,club,nat,o={}){
  const pool=NAMES[NATIONS[nat].pool],age=o.age??rng.i(18,33),at=genAttrs(rng,pos,target,age);
@@ -1117,7 +1164,7 @@ function createMatch(cfg){
  const E={t:0,rng,events:[],score:[0,0],done:false,half:1,h1:2700+rng.i(1,3)*60,poss:0,P:[],T:[],old:[],
   ball:{x:52.5,y:34,z:.11,vx:0,vy:0,vz:0,owner:-1,recv:-1,lastS:0,lastP:-1,shot:null,tgt:{x:52.5,y:34},aerial:false,kt:0,cross:false},
   restart:null,lastPass:null,nextSub:3300,wxPlan:cfg.weather||{type:'clear',changes:[],wDir:0,wSpd:5},wxType:(cfg.weather||{}).type||'clear',wxNext:0,gain:[0,0],prevPoss:0,getP:cfg.getP,
-  st:{pos:[0,0],sh:[0,0],sot:[0,0],xg:[0,0],pa:[0,0],pc:[0,0],cor:[0,0],fo:[0,0],yc:[0,0],rc:[0,0],off:[0,0],tk:[0,0]},
+  st:{pos:[0,0],sh:[0,0],sot:[0,0],xg:[0,0],pa:[0,0],pc:[0,0],cor:[0,0],fo:[0,0],yc:[0,0],rc:[0,0],off:[0,0],tk:[0,0],thru:[0,0],crs:[0,0],drib:[0,0],runs:[0,0]},
   rec:{buf:new Float32Array(CAP*STRIDE),own:new Int8Array(CAP),n:0}};
  E.ft=E.h1+2700+rng.i(2,5)*60;E.wx=WX[E.wxType]||WX.clear;
  cfg.teams.forEach((T,s)=>{
@@ -1222,7 +1269,7 @@ function assign(E){
    const bxd=fX(s,b.x),eng=[42,66,120][ins.press]+clamp((E.t-E.gain[1-s]-8)*2.2,0,45),cp=cpressOn(E,s),n=cp?3:regroupOn(E,s)?1:bxd<eng?[1,2,2][ins.press]:1;
    const cand=pl.filter(p=>p.pos!=='GK').map(p=>({p,d:Math.hypot(p.x-b.x,p.y-b.y)*(1-((ROLE_FX[p.role]||{}).press||0)*.3)})).sort((a,c)=>a.d-c.d);
    const pressers=new Set();
-   cand.slice(0,n).forEach(({p},k)=>{pressers.add(p);const gap=k===0?(cp?1.1:1.7):3.2,ang=k===0?0:(k===1?.9:-.9);p.tx=b.x-dir*gap*Math.cos(ang);p.ty=b.y+gap*Math.sin(ang);p.sprint=k===0||bxd<eng||cp});
+   cand.slice(0,n).forEach(({p},k)=>{pressers.add(p);const gap=k===0?(cp?1.1:1.7):3.2,ang=k===0?0:(k===1?.9:-.9);p.tx=b.x+(b.owner>=0?b.vx*.45:0)-dir*gap*Math.cos(ang);p.ty=b.y+(b.owner>=0?b.vy*.45:0)+gap*Math.sin(ang);p.sprint=k===0||bxd<eng||cp});
    for(const p of pl){
     if(pressers.has(p)||p.pos==='GK')continue;
     let best=null,bd=10;for(const o of E.T[1-s].pl){if(o.off||o===owner)continue;const d=Math.hypot(o.x-p.tx,o.y-p.ty);if(d<bd){bd=d;best=o}}
@@ -1236,7 +1283,7 @@ function assign(E){
    else if(def&&b.recv>=0){const r=E.P[b.recv],m=nearestTo(pl.filter(p=>p.pos!=='GK'),r.tgtX??b.tgt.x,b.tgt.y);if(m){m.tx=b.tgt.x;m.ty=b.tgt.y;m.sprint=true}}
   }
   if(!def&&owner&&owner.s===s&&fX(s,owner.x)>35){
-   const oppLine=fX(s,E.T[1-s].pl.filter(o=>!o.off&&o.pos!=='GK').reduce((m,o)=>s?Math.max(m,o.x):Math.min(m,o.x),s?-1:999)),highLine=oppLine<68?1+(68-oppLine)/5:1,boost=(counterOn(E,s)?3.5:1)*highLine;for(const p of pl){const rf=ROLE_FX[p.role]||{};const rr=(rf.run||(GROUP[p.pos]==='ATT'?.07:GROUP[p.pos]==='MID'&&highLine>1.6?.04:0))*(highLine>1.6?1.6:1);if(!rr||p===owner||p.run>E.t)continue;if(E.rng.f()<rr*.012*boost)p.run=E.t+3.2}
+   const oppLine=fX(s,E.T[1-s].pl.filter(o=>!o.off&&o.pos!=='GK').reduce((m,o)=>s?Math.max(m,o.x):Math.min(m,o.x),s?-1:999)),highLine=oppLine<68?1+(68-oppLine)/5:1,boost=(counterOn(E,s)?3.5:1)*highLine;for(const p of pl){const rf=ROLE_FX[p.role]||{};const rr=(rf.run||(GROUP[p.pos]==='ATT'?.07:GROUP[p.pos]==='MID'&&highLine>1.6?.04:0))*(highLine>1.6?1.6:1);if(!rr||p===owner||p.run>E.t)continue;if(E.rng.f()<rr*.012*boost){p.run=E.t+3.2;E.st.runs[s]++}}
   }
   for(const p of pl)if(p.run>E.t&&p!==owner)p.sprint=true;
  }
@@ -1244,7 +1291,9 @@ function assign(E){
 
 /* ---------- movement ---------- */
 function movePlayer(E,p){
- const dx=p.tx-p.x,dy=p.ty-p.y,d=Math.hypot(dx,dy),fat=.72+.28*clamp(p.en,0,1);
+ // Off-ball players never freeze: a slow personal drift around their target keeps them shuffling and walking.
+ const wob=E.ball.owner===p.i||p.pos==='GK'?0:Math.hypot(E.ball.x-p.x,E.ball.y-p.y)>15?.9:.35;
+ const dx=p.tx+Math.sin(E.t*.45+p.i*2.1)*wob-p.x,dy=p.ty+Math.cos(E.t*.37+p.i*1.3)*wob-p.y,d=Math.hypot(dx,dy),fat=.72+.28*clamp(p.en,0,1);
  if(d>5&&E.poss!==p.s)p.sprint=true;else if(d>9)p.sprint=true;
  let vmax=(5.4+p.a.pac*3.4)*fat*(p.sprint?1:.68)*E.wx.spd;
  if(p.stun>E.t)vmax*=.35;
@@ -1252,7 +1301,7 @@ function movePlayer(E,p){
  let vx=0,vy=0;if(d>.12){const sp=Math.min(vmax,d*1.8);vx=dx/d*sp;vy=dy/d*sp}
  const acc=(4+p.a.acc*5)*fat*DT;let ax=vx-p.vx,ay=vy-p.vy;const am=Math.hypot(ax,ay);if(am>acc){ax*=acc/am;ay*=acc/am}
  p.vx+=ax;p.vy+=ay;p.x=clamp(p.x+p.vx*DT,-2,PW+2);p.y=clamp(p.y+p.vy*DT,-2,PH+2);
- const sp=Math.hypot(p.vx,p.vy);const ti=E.T[p.s].tac.ins;p.en=Math.max(.2,p.en-(3e-5+3.4e-6*sp*sp)*(1.3-p.a.sta)*DT*(ti.press===2?1.45:1)*(ti.line===2?1.1:1)*E.wx.fat);
+ const sp=Math.hypot(p.vx,p.vy);const ti=E.T[p.s].tac.ins;p.en=Math.max(.2,p.en-(3e-5+3.4e-6*sp*sp)*(1.3-p.a.sta)*DT*(ti.press===2?2.1:ti.press===0?.85:1)*(ti.ment>=3?1.15:1)*(ti.line===2?1.1:1)*E.wx.fat);
  p.sprint=false;
 }
 function placeBall(c,b){const sp=Math.hypot(c.vx,c.vy);let dx,dy;if(sp>.4){dx=c.vx/sp;dy=c.vy/sp}else{dx=c.s?-1:1;dy=0}b.x=c.x+dx*.55;b.y=c.y+dy*.55;b.z=.11;b.vx=c.vx;b.vy=c.vy;b.vz=0}
@@ -1263,7 +1312,15 @@ function carrier(E,c){
  const pr=pressure(E,c);
  if(c.cool<=0||(pr<1.2&&c.cool>.3&&E.rng.f()<.1))decide(E,c,pr);
  if(E.ball.owner!==c.i)return;
- if(c.dribT){c.tx=c.dribT.x;c.ty=c.dribT.y;c.sprint=true}else{c.tx=c.x+c.vx*.3;c.ty=c.y+c.vy*.3}
+ if(c.dribT){c.tx=c.dribT.x;c.ty=c.dribT.y;c.sprint=true}
+ else{
+  // Carry the ball while deciding: drift into space, away from the nearest opponent, shield when closed down.
+  const s=c.s,dir=s?-1:1,fx=fX(s,c.x);let n=null,nd=99;for(const o of E.T[1-s].pl){if(o.off)continue;const q=Math.hypot(o.x-c.x,o.y-c.y);if(q<nd){nd=q;n=o}}
+  const space=clamp((nd-4)/8,0,1);let ax=dir*.35*space*(fx>66?0:1),ay=Math.sin(E.t*.7+c.i*1.7)*.8+(fY(s,c.y)<34?-.15:.15)*dir*0;
+  if(n&&nd<10){const k=(10-nd)/10*(fx>66?.5:1.6);ax-=(n.x-c.x)/nd*k;ay-=(n.y-c.y)/nd*k}
+  const m=Math.hypot(ax,ay)||1,spd=c.pos==='GK'?.6:nd<3.2||fx>66?.6:.9+space*.8;
+  c.tx=c.x+ax/m*spd/1.8;c.ty=c.y+ay/m*spd/1.8;c.sprint=false;
+ }
  // a goal-side defender in front blocks the line: the carrier is slowed and pushed wide
  const dir=c.s?-1:1;for(const o of E.T[1-c.s].pl){if(o.off)continue;const ax=(o.x-c.x)*dir,ay=o.y-c.y;if(ax>0&&ax<1.8&&Math.abs(ay)<1.1){c.tx=c.x+dir*.4;c.ty=c.y+(ay>0?-2.2:2.2);c.sprint=false;if(c.cool>.6)c.cool=.6;break}}
  c.tx=clamp(c.tx,1,PW-1);c.ty=clamp(c.ty,2,PH-2);
@@ -1310,7 +1367,7 @@ function decide(E,c,pr){
  if(fx>66&&dg<34){
   const x=xgAt(fx,fy)*Math.pow(.7,blockers(c,op,s))*Math.pow(.8,density(c,op,s)),sk=dg>20?c.a.lon:c.a.fin;
   const mul=(rf.shoot||1)*[1,1,1.6,.9][ins.final]*(ins.final===0&&dg>18?.55:1);
-  if(x*mul>(ins.final===2?.1:.16)*(1-.4*urg))opts.push({k:'shot',u:x*1.1*mul*(.7+.6*sk)*(pr<1.5?.75:1)-.09+.02*urg});
+  if(x*mul>(ins.final===2?.16:.25)*(1-.4*urg))opts.push({k:'shot',u:x*1.1*mul*(.7+.6*sk)*(pr<1.5?.75:1)-.12+.02*urg});
  }
  if((fy<15||fy>53)&&fx>72){let n=0,h=0;for(const m of ms){const mx=fX(s,m.x),my=fY(s,m.y);if(mx>86&&my>22&&my<46){n++;h=Math.max(h,m.a.hea)}}
   if(n)opts.push({k:'cross',u:(.03+.034*n*h+.05*c.a.cro)*(rf.cross||1)*(ins.final===3?1.6:1)*(1+urg)})}
@@ -1328,10 +1385,10 @@ function decide(E,c,pr){
 }
 function exec(E,c,o,op){
  const s=c.s;
- if(o.k==='pass'){if(offside(E,c,o.m))return;doPass(E,c,o.tx,o.ty,o.m,o.lofted,op,false)}
+ if(o.k==='pass'){if(offside(E,c,o.m))return;if(o.thru)E.st.thru[s]++;doPass(E,c,o.tx,o.ty,o.m,o.lofted,op,false)}
  else if(o.k==='shot')shoot(E,c,false,false);
- else if(o.k==='cross'){const blk=op.find(q=>q.pos!=='GK'&&Math.hypot(q.x-c.x,q.y-c.y)<3.2);if(blk&&E.rng.f()<.4){c.st.pa++;E.st.pa[s]++;ev(E,'block',s,c.i,{by:blk.i,cross:1});setRestart(E,'corner',s,s?0:PW,c.y<34?0:PH);return}const t=crossTarget(E,c);doPass(E,c,t.x,t.y,t.m,true,op,true)}
- else if(o.k==='drib'){const fx=fX(s,c.x),fy=fY(s,c.y),n=nearestTo(op,c.x,c.y);let tfy=fy;if(n){tfy+=fY(s,n.y)>fy?-3.5:3.5}if(fx>86)tfy+=(34-tfy)*.4;
+ else if(o.k==='cross'){const blk=op.find(q=>q.pos!=='GK'&&Math.hypot(q.x-c.x,q.y-c.y)<3.2);if(blk&&E.rng.f()<.4){c.st.pa++;E.st.pa[s]++;ev(E,'block',s,c.i,{by:blk.i,cross:1});setRestart(E,'corner',s,s?0:PW,c.y<34?0:PH);return}const t=crossTarget(E,c);E.st.crs[s]++;doPass(E,c,t.x,t.y,t.m,true,op,true)}
+ else if(o.k==='drib'){E.st.drib[s]++;const fx=fX(s,c.x),fy=fY(s,c.y),n=nearestTo(op,c.x,c.y);let tfy=fy;if(n){tfy+=fY(s,n.y)>fy?-3.5:3.5}if(fx>86)tfy+=(34-tfy)*.4;
   c.dribT={x:fX(s,Math.min(PW-3,fx+8)),y:fY(s,clamp(tfy,3,PH-3))};c.cool=.6+E.rng.f()*.6}
  else if(o.k==='clear'){const fx=fX(s,c.x);doPass(E,c,fX(s,clamp(fx+40+E.rng.f()*18,0,100)),fY(s,12+E.rng.f()*44),null,true,op,false)}
  else c.cool=.5;
@@ -1468,10 +1525,10 @@ function goal(E,s,sh){
 function tackles(E,c){
  for(const o of E.T[1-c.s].pl){
   if(o.off||o.tkCool>E.t)continue;const d=Math.hypot(o.x-c.x,o.y-c.y);if(d>1.7)continue;
-  const ins=E.T[o.s].tac.ins,box=inBox(o.s,c.x,c.y);if(d>1.9||E.rng.f()>(.019+.008*ins.tackle)*(box?2.4:1))continue;
+  const ins=E.T[o.s].tac.ins,box=inBox(o.s,c.x,c.y);if(d>1.9||E.rng.f()>(.012+.005*ins.tackle)*(box?2.4:1))continue;
   o.tkCool=E.t+1.2;setPose(o,POSE.tackle);
-  const win=sig(((o.a.tck*1.1+o.a.str*.3+o.a.pos*.2)-(c.a.dri*1.1+c.a.agi*.3+c.a.str*.2))*4)*(.6+.08*ins.tackle)*((ROLE_FX[o.role]||{}).tackle||1);
-  const foulP=clamp(.1+o.a.agg*.08+ins.tackle*.05-o.a.tck*.06,.04,.28)*(box?.12:1),r=E.rng.f();
+  const win=sig(((o.a.tck*1.1+o.a.str*.3+o.a.pos*.2)-(c.a.dri*1.1+c.a.agi*.3+c.a.str*.2))*4)*(.6+.08*ins.tackle)*((ROLE_FX[o.role]||{}).tackle||1)*(.7+.3*clamp(o.en,0,1));
+  const foulP=clamp(.1+o.a.agg*.08+ins.tackle*.05+(ins.press===2?.05:0)-o.a.tck*.06,.04,.32)*(box?.12:1),r=E.rng.f();
   if(r<foulP){foul(E,o,c);return}
   if(r<foulP+win*(1-foulP)){
    o.st.tk++;E.st.tk[o.s]++;E.lastPass=null;
@@ -1630,9 +1687,9 @@ function genWorld(seed){
 function startCareer(cid){
  S.user=cid;const c=clubOf(cid);
  aiTransfers();aiTransfers();ensureLineup(cid);
- mail('Board of Directors',`Welcome to ${c.name}`,`<p>Welcome to ${esc(c.stadium)}. The board has made <b>${money(c.budget)}</b> available for transfers and a wage budget of <b>${money(c.wageBudget)}</b> per week.</p><p>Our objective this season: <b>${expectation(cid)}</b>.</p><p>The transfer window is open until matchday ${WIN1}.</p>`,null,'board');
+ mail('Board of Directors',`Welcome to ${c.name}`,`<p>Welcome to ${esc(c.stadium)}. The board has made <b>${money(c.budget)}</b> available for transfers and a wage budget of <b>${money(c.wageBudget)}</b> per week.</p><p>Our objective this season: <b>${expectation(cid)}</b>.</p><p>The transfer window is open until matchday ${WIN1}.</p><p>Welcome aboard, and good luck.</p>`,null,'board',{att:{t:'stadium',cid},links:[['Club overview','nav','club'],['Office','nav','office']]});
  const best=squadOf(cid).sort((a,b)=>b.ovr-a.ovr)[0];
- mail('Assistant Manager','Squad assessment',`<p>${esc(best.fn+' '+best.ln)} is our standout player. I have set us up in a ${c.tac.form}. Review the shape, roles and instructions on the Tactics screen before the opener.</p>`,null,'staff');
+ mail('Assistant Manager','Squad assessment',`<p>${esc(best.fn+' '+best.ln)} is our standout player. I have set us up in a ${c.tac.form}. Review the shape, roles and instructions on the Tactics screen before the opener.</p><p>Here are the three players I think we build around.</p>`,null,'staff',{att:{t:'squad'},links:[['Open tactics','nav','tactics'],['View squad','nav','squad']]});
  news(`The board hopes the new appointment can deliver: ${expectation(cid).toLowerCase()}.`,'club',[cid],{title:`${c.short} name new manager`});
  save();
 }
@@ -1640,7 +1697,7 @@ function expectation(cid){const c=clubOf(cid),lg=leagueOf(cid),rank=lg.clubs.map
  if(lg.tier===1)return rank<=3?'Win promotion':rank<=8?'Challenge for promotion':rank<=15?'Finish mid-table':'Avoid relegation';
  return rank<=2?'Win the title':rank<=5?'Finish in the top four':rank<=10?'Finish in the top half':rank<=15?'Finish mid-table':'Avoid relegation'}
 const targetPos=cid=>{const e=expectation(cid);return{'Win the title':1,'Finish in the top four':4,'Finish in the top half':10,'Finish mid-table':14,'Avoid relegation':17,'Win promotion':3,'Challenge for promotion':6}[e]||10};
-function mail(from,subj,body,action,kind){S.inbox.unshift({id:S.nid++,from,subj,body,md:S.md,season:S.season,read:false,action:action||null,kind:kind||'info'});if(S.inbox.length>60)S.inbox.length=60}
+function mail(from,subj,body,action,kind,extra){S.inbox.unshift(Object.assign({id:S.nid++,from,subj,body,md:S.md,season:S.season,read:false,action:action||null,kind:kind||'info'},extra||{}));if(S.inbox.length>60)S.inbox.length=60}
 function news(text,kind,clubs,extra){S.news.unshift(Object.assign({id:S.nid++,md:S.md,season:S.season,text,kind,clubs:clubs||[]},extra||{}));if(S.news.length>90)S.news.length=90}
 const newFin=()=>({gate:0,tv:0,prize:0,sponsor:0,sales:0,wages:0,buys:0});
 function table(lid){
@@ -1657,7 +1714,14 @@ function fixturesOf(cid){const lid=clubOf(cid).league;return S.fixtures[lid].map
 function prepAI(cid,oppId){
  const c=clubOf(cid);if(cid===S.user)return;
  const opp=oppId!=null?clubOf(oppId):null;c.tac.xi=pickXI(cid,c.tac.form);c.tac.bench=pickBench(cid,c.tac.xi);
- if(opp){const d=c.rep-opp.rep;c.tac.ins.ment=d>8?3:d<-10?1:2}
+ if(opp){const d=c.rep-opp.rep,ins=c.tac.ins,oi=opp.tac.ins;ins.ment=d>8?3:d<-10?1:2;
+  // AI managers scout the opponent and adapt: go direct over a high press, sit deeper and counter an all-out attack.
+  if(!c.tac.base)c.tac.base={passing:ins.passing,tempo:ins.tempo,onWin:ins.onWin,line:ins.line,press:ins.press};
+  Object.assign(ins,c.tac.base);
+  if(oi.press===2){ins.passing=2;ins.tempo=Math.max(ins.tempo,1);ins.onWin=0}
+  if(oi.ment>=3){ins.ment=Math.min(ins.ment,2);ins.onWin=0;ins.line=Math.min(ins.line,1)}
+  if(oi.line===2&&ins.passing<2)ins.passing=2;
+ }
 }
 /* ---------- quick simulator for matches the user is not watching ---------- */
 function expG(A,B,home,iA,iB){
@@ -1719,16 +1783,16 @@ function processMatchday(userRes){
   const tb=table(uc.league),pos=posIn(tb,S.user),tp=targetPos(S.user);S.board=clamp(S.board+(gf>ga?2.2:gf<ga?-2.6:.2)+(pos<=tp?.5:-.6),5,100);}
  {const tv=Math.round(budgetOf(uc.rep)*.035),sp=Math.round(budgetOf(uc.rep)*.012),w=Math.round(wageBill(S.user)*1.05);uc.balance+=tv+sp-w;S.fin.tv+=tv;S.fin.sponsor+=sp;S.fin.wages+=w}
  if(mine){const home=mine.h===S.user,gf=home?mine.hg:mine.ag,ga=home?mine.ag:mine.hg;S.mgr[gf>ga?'w':gf<ga?'l':'d']++}
- if(S.devNews.length){const ps=S.devNews.map(id=>S.players[id]);mail('Head of Coaching','Training report: players improving',`<p>${ps.map(p=>`${esc(p.fn+' '+p.ln)} (${p.pos}, ${p.age}) has developed and is now ${stars(p.ovr)} stars.`).join('<br>')}</p>`,null,'staff')}
+ if(S.devNews.length){const ps=S.devNews.map(id=>S.players[id]);mail('Head of Coaching','Training report: players improving',`<p>${ps.map(p=>`${esc(p.fn+' '+p.ln)} (${p.pos}, ${p.age}) has developed and is now ${stars(p.ovr)} stars.`).join('<br>')}</p>`,null,'staff',{att:{t:'players',pids:ps.map(p=>p.id)},links:[['Training','goto','squad/training']]})}
  headlines(md);
  if(S.board<14&&!S.sacked)S.sacked=true;
  if(windowOpen())aiTransfers();
  aiManagers();
  if(windowOpen()&&G.f()<.3)incomingOffer();
  S.md++;
- if(S.md===WIN2[0])mail('Director of Football','January window opens',`<p>The winter transfer window is open until matchday ${WIN2[1]}.</p>`,null,'transfer');
- if(S.md===WIN1)mail('Director of Football','Transfer window closed',`<p>The summer window has closed. It reopens at matchday ${WIN2[0]+1}.</p>`,null,'transfer');
- if(S.md>=MDAYS)mail('Board of Directors','The season is over',`<p>Open the season review from the Continue button to see the final standings, promotions and relegations.</p>`,null,'board');
+ if(S.md===WIN2[0])mail('Director of Football','January window opens',`<p>The winter transfer window is open until matchday ${WIN2[1]}. Our current position and budget are below.</p>`,null,'transfer',{att:{t:'budget'},links:[['Transfer hub','nav','transfers']]});
+ if(S.md===WIN1)mail('Director of Football','Transfer window closed',`<p>The summer window has closed. It reopens at matchday ${WIN2[0]+1}.</p>`,null,'transfer',{att:{t:'budget'}});
+ if(S.md>=MDAYS)mail('Board of Directors','The season is over',`<p>Open the season review from the Continue button to see the final standings, promotions and relegations.</p>`,null,'board',{att:{t:'table'},links:[['Competition','nav','comps']]});
 }
 function resultTitle(r){const H=clubOf(r.h).short,A=clubOf(r.a).short,d=r.hg-r.ag;
  if(d===0)return r.hg>=3?`${H} and ${A} share six goals`:r.hg===0?`${H} and ${A} cancel each other out`:`${H} and ${A} share the points`;
@@ -1792,7 +1856,7 @@ function incomingOffer(){
  const p=pickW(cand,x=>Math.pow(Math.max(1,x.ovr-50),2)),uc=clubOf(S.user);
  const pool=S.clubs.filter(c=>c.id!==S.user&&c.rep>=uc.rep-6&&c.budget>p.val);if(!pool.length)return;
  const club=G.pick(pool),fee=Math.round(p.val*(1.05+G.f()*.4)/5e4)*5e4;
- mail(club.name,`Offer for ${p.ln}`,`<p>${esc(club.name)} have bid <b>${money(fee)}</b> for ${esc(p.fn+' '+p.ln)} (${p.pos}, age ${p.age}). We value him at ${money(p.val)}.</p>`,{type:'offer',pid:p.id,club:club.id,fee},'transfer');
+ mail(club.name,`Offer for ${p.ln}`,`<p>${esc(club.name)} have bid <b>${money(fee)}</b> for ${esc(p.fn+' '+p.ln)} (${p.pos}, age ${p.age}). We value him at ${money(p.val)}.</p><p>Let us know if you are willing to do business.</p>`,{type:'offer',pid:p.id,club:club.id,fee},'transfer',{att:{t:'player',pid:p.id}});
 }
 function wageBill(cid){return squadOf(cid).reduce((a,p)=>a+p.wage,0)}
 function wageDemand(p){const uc=clubOf(S.user),pc=clubOf(p.club);return Math.round(p.wage*(1.12+Math.max(0,(pc.rep-uc.rep)/80))/100)*100}
@@ -1848,7 +1912,7 @@ function endSeason(){
    const c=clubOf(p.club),rng=R((Math.random()*2e9)|0),co=COUNTRIES.find(x=>x.code===c.nation);
    const y=genPlayer(rng,p.pos,repToOvr(c.rep)-rng.i(10,16),c.id,rng.chance(.7)?co.code:rng.pick(NAT_BAG),{age:rng.i(16,18),pot:clamp(repToOvr(c.rep)+rng.i(-2,12),55,rng.chance(.04)?93:88)});
    y.id=S.npid++;S.players[y.id]=y;c.squad=c.squad.filter(x=>x!==p.id).concat(y.id);y.num=p.num;delete S.players[p.id];
-   if(c.id===S.user)mail('Head of Youth',`${p.ln} retires`,`<p>${esc(p.fn+' '+p.ln)} has retired. ${esc(y.fn+' '+y.ln)} (${y.pos}, 17) has been promoted from the academy.</p>`,null,'staff');
+   if(c.id===S.user)mail('Head of Youth',`${p.ln} retires`,`<p>${esc(p.fn+' '+p.ln)} has retired. ${esc(y.fn+' '+y.ln)} (${y.pos}, 17) has been promoted from the academy.</p>`,null,'staff',{att:{t:'player',pid:y.id,note:'Academy graduate'},links:[['View player','player',y.id,1]]});
   }
  }
  {const uc=clubOf(S.user),prize=Math.round(budgetOf(uc.rep)*(1-(uPos-1)/PER)*.6);uc.balance+=prize;uc.budget+=Math.round(prize*.5);S.fin=newFin();S.fin.prize=prize}
@@ -1859,7 +1923,7 @@ function endSeason(){
  for(const p of Object.values(S.players)){p.dev=0;p.ovr0=p.ovr;p.val0=p.val}
  for(const lg of S.leagues){S.fixtures[lg.id]=roundRobin(shuffled(lg.clubs));S.results[lg.id]=[]}
  S.clubs.forEach(c=>{c.tac.xi=c.tac.xi||[];if(c.id!==S.user)c.tac.xi=[]});ensureLineup(S.user);
- mail('Board of Directors',`Season ${seasonLabel()} begins`,`<p>You are in the ${esc(S.leagues[clubOf(S.user).league].name)}. The board's objective: <b>${expectation(S.user)}</b>. Transfer budget: <b>${money(clubOf(S.user).budget)}</b>.</p>`,null,'board');
+ mail('Board of Directors',`Season ${seasonLabel()} begins`,`<p>You are in the ${esc(S.leagues[clubOf(S.user).league].name)}. The board's objective: <b>${expectation(S.user)}</b>. Transfer budget: <b>${money(clubOf(S.user).budget)}</b>.</p>`,null,'board',{att:{t:'budget'},links:[['Office','nav','office'],['Transfer hub','nav','transfers']]});
  save();return report;
 }
 
@@ -1871,7 +1935,7 @@ function trainBump(p){const f=TRAIN[S.train.focus].a;if(!f){bump(p,1);return}
 /* ---------- manager career ---------- */
 function jobOffers(n,minRep,maxRep){return shuffled(S.clubs.filter(c=>c.id!==S.user&&c.rep>=minRep&&c.rep<=maxRep)).slice(0,n)}
 function takeJob(cid,reason){const old=S.user;S.mgr.clubs.push({club:old,season:seasonLabel(),reason});S.user=cid;S.board=60;S.sacked=false;S.fin=newFin();S.shortlist=[];S.bids=[];
- const c=clubOf(cid);ensureLineup(cid);mail('Board of Directors',`Welcome to ${c.name}`,`<p>We are delighted to appoint you. Your objective: <b>${expectation(cid)}</b>. Transfer budget: <b>${money(c.budget)}</b>.</p>`,null,'board');
+ const c=clubOf(cid);ensureLineup(cid);mail('Board of Directors',`Welcome to ${c.name}`,`<p>We are delighted to appoint you. Your objective: <b>${expectation(cid)}</b>. Transfer budget: <b>${money(c.budget)}</b>.</p>`,null,'board',{att:{t:'stadium',cid},links:[['Club overview','nav','club']]});
  news(`${c.name} have appointed a new manager.`,'club',[cid],{title:`${c.short} name new manager`});save()}
 function youthIntake(cid,n){const c=clubOf(cid),co=COUNTRIES.find(x=>x.code===c.nation),rng=R((Math.random()*2e9)|0),out=[];
  for(let k=0;k<n;k++){const pos=rng.pick(['GK','CB','CB','LB','RB','DM','CM','CM','AM','LW','RW','ST','ST']),roll=rng.f(),pot=clamp(Math.round(repToOvr(c.rep)+(roll<.08?rng.i(12,20):roll<.35?rng.i(4,11):rng.i(-8,3))),45,roll<.015?95:89);
@@ -2013,19 +2077,10 @@ function viewHome(){
  ${tired.map(p=>`<button class="li" data-act="player" data-id="${p.id}">${posChip(p.pos)}<span><b>${pName(p)}</b><small>Match fitness</small></span><span class="chip">${p.cond}%</span></button>`).join('')}</div></section>
  </div>`;
 }
-const msgRow=m=>`<button class="li ${m.read?'':'unread'}" data-act="msg" data-id="${m.id}"><i class="dotc"></i><span><b>${esc(m.subj)}</b><small>${esc(m.from)}</small></span><small>MD ${m.md+1}</small></button>`;
 const newsRow=n=>`<div class="ns" style="grid-template-columns:46px 1fr auto">${newsTile(n)}<span><b>${esc(n.title||n.text)}</b>${n.title?`<small style="display:block;color:var(--muted);font-size:12px;margin-top:2px">${esc(n.text)}</small>`:''}</span><small>MD ${n.md+1}</small></div>`;
 function fixtureRow(f){const home=f.h===S.user,opp=home?f.a:f.h,r=f.res;let res='';if(r){const gf=home?r.hg:r.ag,ga=home?r.ag:r.hg;res=`<span class="rt" style="background:${gf>ga?'var(--win)':gf<ga?'var(--loss)':'var(--draw)'}">${gf}–${ga}</span>`}
  return`<div class="li">${crest(opp,22)}<span><b>${esc(clubOf(opp).name)} <small style="display:inline">(${home?'H':'A'})</small></b><small>${shortDate(mdDate(f.md))} · Matchday ${f.md+1}</small></span>${res||'<small>–</small>'}</div>`}
-function inboxView(){return`<div class="grid"><section class="panel c12"><div class="ph"><h3>Inbox <small>${S.inbox.length} messages</small></h3></div><div class="list">${S.inbox.map(msgRow).join('')}</div></section></div>`}
 function newsView(list){return`<div class="grid"><section class="panel c12"><div class="ph"><h3>News</h3></div><div class="list">${list.map(newsRow).join('')||'<p class="pb muted">Nothing yet.</p>'}</div></section></div>`}
-function openMsg(id){
- const m=S.inbox.find(x=>x.id===id);if(!m)return;m.read=true;save();const a=m.action;let act='';
- if(a&&a.type==='offer'&&!a.done){const p=S.players[a.pid];act=p&&p.club===S.user&&windowOpen()?`<div class="toolbar" style="margin:16px 0 0"><button class="btn pri" data-act="offer-yes" data-id="${m.id}">Accept ${money(a.fee)}</button><button class="btn" data-act="offer-no" data-id="${m.id}">Reject</button></div>`:'<p class="muted">This offer has lapsed.</p>'}
- else if(a&&a.type==='offer')act=`<p class="muted">${a.done==='yes'?'You accepted this offer.':'You rejected this offer.'}</p>`;
- openModal(`<div class="eyebrow">${esc(m.from)} · Matchday ${m.md+1}</div><h2 style="font-size:26px;margin:6px 0 10px">${esc(m.subj)}</h2><div style="line-height:1.6">${m.body}</div>${act}`);renderBar();
-}
-
 function sortable(key,cols,list){const[sk,dir]=ui.sort[key];const col=cols.find(c=>c[0]===sk);if(col&&col[2])list.sort((a,b)=>(col[2](a)-col[2](b))*dir||0);
  return cols.map(([k,l,f,cls])=>`<th class="${f?'s':''} ${k===sk?'on':''} ${cls||''}" ${f?`data-act="sort" data-k="${key}" data-v="${k}"`:''}>${l}${k===sk?(dir<0?' ▾':' ▴'):''}</th>`).join('')}
 
@@ -2346,7 +2401,7 @@ function negTerms(){
   const from=p.club,now=n.fee*(n.inst?.5:1);moveP(p.id,S.user,0);uc.budget-=now+n.bonus;clubOf(from).budget+=n.fee;if(n.inst)S.owed=(S.owed||0)+n.fee/2;
   p.wage=n.wage;p.con=n.years;S.fin.buys+=now+n.bonus;logDeal(p.id,from,S.user,n.fee);
   const b=S.bids.find(x=>x.pid===p.id&&x.status==='Fee agreed');if(b){b.status='Signed';b.wage=n.wage}
-  mail('Director of Football',`${p.ln} signs from ${clubOf(from).short}`,`<p>${esc(p.fn+' '+p.ln)} has joined for <b>${money(n.fee)}</b>${n.addons?` plus ${money(n.addons)} in add-ons`:''} on ${money(n.wage)} a week until ${2026+S.season+n.years}. He will wear number ${p.num}.</p>`,null,'transfer');
+  mail('Director of Football',`${p.ln} signs from ${clubOf(from).short}`,`<p>${esc(p.fn+' '+p.ln)} has joined for <b>${money(n.fee)}</b>${n.addons?` plus ${money(n.addons)} in add-ons`:''} on ${money(n.wage)} a week until ${2026+S.season+n.years}. He will wear number ${p.num}.</p>`,null,'transfer',{att:{t:'player',pid:p.id,note:'New signing'},links:[['View player','player',p.id,1]]});
   news(`${p.fn} ${p.ln} (${p.pos}, ${p.age}) joins ${uc.name} from ${clubOf(from).name} for ${money(n.fee)}.`,'transfer',[S.user,from],{title:`${uc.short} complete ${p.ln} signing`});
   n.log.push({who:'agent',t:'We have a deal. He is delighted to join.'});n.stage='done';save();renderNeg();celebrateSigning(p,n.fee);return}
  if(n.tries>=4){n.log.push({who:'agent',t:'We cannot reach an agreement. He will stay where he is.'});const b=S.bids.find(x=>x.pid===p.id&&x.status==='Fee agreed');if(b)b.status='Terms refused';save();renderNeg();setTimeout(closeModal,1800);return}
@@ -2473,6 +2528,101 @@ function viewHonours(){
 function jobsModal(ids,title,sub,forced){
  openModal(`<div class="eyebrow">${esc(sub)}</div><h2 style="font-size:28px;margin:6px 0 14px">${esc(title)}</h2><div class="jobs">${ids.map(id=>{const c=clubOf(id);return`<div class="job" style="--cc:${c.colors[0]}">${crest(id,56)}<div><b>${esc(c.name)}</b><small>${esc(S.leagues[c.league].name)} · ${starHTML(stars(repToOvr(c.rep)))}</small><small>Budget ${money(c.budget)} · objective: ${expectation(id).toLowerCase()}</small></div><button class="btn pri" data-act="job" data-id="${id}">Accept</button></div>`}).join('')}</div>${forced?'':'<div class="toolbar" style="margin:14px 0 0"><button class="btn" data-act="close">Stay at your club</button></div>'}`);
 }
+/* ================= inbox: a two-pane mail client =================
+   Messages store only ids (player, club, kind of attachment). Images, cards and tables are drawn when a message
+   is opened, so saves stay small and attachments always show current data. */
+ui.mailF='all';ui.msg=null;
+
+const STAFF={
+ 'Board of Directors':{role:'Chairman’s office',col:'#b8944a',addr:'board',icon:'M4 20h16M6 20V10l6-5 6 5v10M10 20v-5h4v5'},
+ 'Assistant Manager':{role:'First team',col:'#4f8fd6',addr:'assistant',icon:'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c1-4 4.5-6 8-6s7 2 8 6'},
+ 'Head of Coaching':{role:'Training ground',col:'#3fb37f',addr:'coaching',icon:'M5 19l4-8 4 5 3-4 3 7M5 5h14'},
+ 'Director of Football':{role:'Recruitment',col:'#d0743c',addr:'football',icon:'M4 12h12M12 6l6 6-6 6'},
+ 'Head of Youth':{role:'Academy',col:'#9a6ad6',addr:'academy',icon:'M12 3l3 6 6 .9-4.5 4.3 1 6.3L12 17l-5.5 3.5 1-6.3L3 9.9 9 9z'},
+};
+const MAIL_KIND={board:'Board',staff:'Staff',transfer:'Transfers',info:'Club'};
+function sender(m){
+ const st=STAFF[m.from],c=clubOf(S.user),dom=(c.short||c.name).toLowerCase().replace(/[^a-z]/g,'')+'.club';
+ if(st)return{name:m.from,role:st.role,addr:`${st.addr}@${dom}`,avatar:`<span class="av" style="--ac:${st.col}"><svg viewBox="0 0 24 24"><path d="${st.icon}"/></svg></span>`};
+ const oc=S.clubs.find(x=>x.name===m.from);
+ if(oc)return{name:m.from,role:'Transfer office',addr:`transfers@${(oc.short||oc.name).toLowerCase().replace(/[^a-z]/g,'')}.club`,avatar:`<span class="av crest-av">${crest(oc.id,30)}</span>`};
+ return{name:m.from,role:'',addr:'',avatar:`<span class="av" style="--ac:#666"><b>${esc(m.from[0]||'?')}</b></span>`};
+}
+const mailTime=m=>{const h=8+(m.id*7)%11,mi=(m.id*13)%60;return`${String(h).padStart(2,'0')}:${String(mi).padStart(2,'0')}`};
+const mailDate=m=>m.season===S.season?shortDate(mdDate(Math.min(m.md,MDAYS-1))):`Season ${m.season}`;
+const preview=m=>esc(m.body.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,110));
+
+/* ---- attachments ---- */
+function stadiumBanner(c){
+ const[a,b]=c.colors,id=uid('sb');
+ return`<svg class="m-hero" viewBox="0 0 640 220" preserveAspectRatio="xMidYMid slice" role="img" aria-label="${esc(c.stadium)}">
+ <defs><linearGradient id="${id}s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${mix(a,'#0a0f1e',.75)}"/><stop offset="1" stop-color="${mix(a,'#20304a',.55)}"/></linearGradient>
+ <linearGradient id="${id}p" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f8a4a"/><stop offset="1" stop-color="#1c5e31"/></linearGradient></defs>
+ <rect width="640" height="220" fill="url(#${id}s)"/>
+ ${[80,560].map(x=>`<rect x="${x-3}" y="18" width="6" height="96" fill="#2a3446"/><rect x="${x-26}" y="10" width="52" height="16" rx="2" fill="#fff8de"/><circle cx="${x}" cy="18" r="70" fill="#fff8de" opacity=".08"/>`).join('')}
+ <path d="M0 132 L60 76 H580 L640 132 Z" fill="${mix(b,'#0b0f18',.55)}"/>
+ ${Array.from({length:7},(_,r)=>`<path d="M${12+r*7} ${126-r*7} H${628-r*7}" stroke="${r%2?mix(a,'#000',.2):mix(b,'#000',.35)}" stroke-width="5" opacity=".85"/>`).join('')}
+ <rect x="60" y="66" width="520" height="12" fill="${mix(a,'#000',.15)}"/><text x="320" y="75.5" text-anchor="middle" font-family="Barlow Condensed,Arial Narrow,sans-serif" font-weight="800" font-size="10" letter-spacing="4" fill="${ink(mix(a,'#000',.15))}">${esc(c.stadium.toUpperCase())}</text>
+ <path d="M0 132 H640 V220 H0 Z" fill="url(#${id}p)"/>${Array.from({length:8},(_,i)=>`<path d="M${i*80} 132 h40 l${40+i*6-24} 88 h-40 z" fill="#fff" opacity=".04"/>`).join('')}
+ <path d="M320 132 V220 M140 220 Q320 150 500 220" stroke="#fff" stroke-opacity=".55" stroke-width="2" fill="none"/>
+ <g transform="translate(286 150)">${crestSVG(c,{x:0,y:0,w:68})}</g></svg>`;
+}
+function playerCard(p,note){
+ if(!p)return'';const c=p.club>=0?clubOf(p.club):null,keys=(KEY_ATTRS[p.pos]||[]).slice(0,4);
+ return`<div class="m-card">${c?`<div class="m-kit">${kitSVG(c,'home',{back:true,name:p.ln,num:p.num})}</div>`:''}
+ <div class="m-pc"><div class="eyebrow">${note||posChip(p.pos)+' '+esc(c?c.short:'Free agent')}</div><h4>${esc(p.fn+' '+p.ln)}</h4>
+ <div class="m-pr">${flagSVG(p.nat)} <span>${p.age} yrs</span> ${posChip(p.pos)}</div>
+ <div class="m-pr"><small>Ability</small>${starHTML(stars(p.ovr))}<small>Potential</small>${starHTML(stars(p.pot))}</div>
+ <div class="m-attrs">${keys.map(a=>attrBar(p,a)).join('')}</div>
+ <div class="m-pr"><small>Value</small><b>${money(p.val)}</b><small>Wage</small><b>${money(p.wage)}/w</b></div></div></div>`;
+}
+function attachHTML(m){
+ const a=m.att;if(!a)return'';const c=clubOf(S.user);
+ switch(a.t){
+  case'stadium':return stadiumBanner(clubOf(a.cid??S.user));
+  case'player':return playerCard(S.players[a.pid],a.note);
+  case'players':return`<div class="m-grid">${a.pids.map(id=>S.players[id]).filter(Boolean).slice(0,4).map(p=>playerCard(p)).join('')}</div>`;
+  case'budget':{const wb=wageBill(S.user);return`<div class="m-kpis"><div><small>Transfer budget</small><b>${money(c.budget)}</b></div><div><small>Wage budget</small><b>${money(c.wageBudget)}/w</b></div><div><small>Wage bill</small><b>${money(wb)}/w</b><i class="meter"><i style="width:${clamp(wb/c.wageBudget*100,0,100)}%"></i></i></div><div><small>Objective</small><b>${esc(expectation(S.user))}</b></div></div>`}
+  case'table':return`<div class="m-table">${leagueTable(c.league,true)}</div>`;
+  case'squad':{const sq=squadOf(S.user).sort((x,y)=>y.ovr-x.ovr).slice(0,3);return`<div class="m-grid">${sq.map(p=>playerCard(p)).join('')}</div>`}
+ }
+ return'';
+}
+
+/* ---- list and reader ---- */
+function mailRow(m){
+ const sd=sender(m);
+ return`<button class="mrow ${m.read?'':'unread'} ${ui.msg===m.id?'on':''}" data-act="msg" data-id="${m.id}">${sd.avatar}
+ <span class="mr-main"><span class="mr-top"><b>${esc(sd.name)}</b><small>${mailDate(m)}</small></span><span class="mr-subj">${esc(m.subj)}</span><span class="mr-prev">${preview(m)}</span></span>
+ ${m.action&&m.action.type==='offer'&&!m.action.done?'<i class="mr-tag">Action</i>':''}</button>`;
+}
+const msgRow=mailRow;
+function readerHTML(m){
+ if(!m)return`<div class="m-empty"><svg viewBox="0 0 24 24"><path d="M3 6h18v12H3zM3 6l9 7 9-7"/></svg><p>Select a message to read it.</p></div>`;
+ const sd=sender(m),c=clubOf(S.user),a=m.action;let act='';
+ if(a&&a.type==='offer'&&!a.done){const p=S.players[a.pid];act=p&&p.club===S.user&&windowOpen()?`<button class="btn pri" data-act="offer-yes" data-id="${m.id}">Accept ${money(a.fee)}</button><button class="btn" data-act="offer-no" data-id="${m.id}">Reject offer</button>`:'<span class="muted">This offer has lapsed.</span>'}
+ else if(a&&a.type==='offer')act=`<span class="muted">${a.done==='yes'?'You accepted this offer.':'You rejected this offer.'}</span>`;
+ const links=(m.links||[]).map(([l,act2,v,isId])=>`<button class="btn" data-act="${act2}" ${isId?`data-id="${v}"`:`data-v="${v}"`}>${esc(l)} ${ARROW}</button>`).join('');
+ return`<article class="m-read"><header class="m-head">${sd.avatar}<div class="m-who"><b>${esc(sd.name)}</b>${sd.addr?`<small>&lt;${esc(sd.addr)}&gt;${sd.role?' · '+esc(sd.role):''}</small>`:''}<small>To: You (Manager, ${esc(c.name)})</small></div>
+ <div class="m-when"><small>${mailDate(m)}, ${mailTime(m)}</small><span class="chip">${MAIL_KIND[m.kind]||'Club'}</span></div></header>
+ <h2 class="m-subj">${esc(m.subj)}</h2>
+ ${m.att&&m.att.t==='stadium'?attachHTML(m):''}
+ <div class="m-body">${m.body}</div>
+ ${m.att&&m.att.t!=='stadium'?`<div class="m-att">${attachHTML(m)}</div>`:''}
+ ${act||links?`<div class="m-actions">${act}${links}</div>`:''}
+ <footer class="m-sign">${esc(sd.name)}${sd.role?`<br><small>${esc(sd.role)} · ${esc(c.name)}</small>`:''}</footer></article>`;
+}
+function inboxView(){
+ const list=S.inbox.filter(m=>ui.mailF==='all'||(ui.mailF==='unread'?!m.read:m.kind===ui.mailF));
+ if(ui.msg==null&&list[0])ui.msg=list[0].id;
+ const m=S.inbox.find(x=>x.id===ui.msg);if(m&&!m.read){m.read=true;save()}
+ const unread=S.inbox.filter(x=>!x.read).length;
+ return`<div class="mail"><aside class="m-list panel"><div class="m-tools"><div class="seg" role="group" aria-label="Filter">${[['all','All'],['unread',`Unread${unread?' '+unread:''}`],['board','Board'],['staff','Staff'],['transfer','Transfers']].map(([k,l])=>`<button data-act="mailf" data-v="${k}" aria-pressed="${ui.mailF===k}">${l}</button>`).join('')}</div>
+ <button class="btn ghost" data-act="mail-read-all">Mark all read</button></div>
+ <div class="m-rows">${list.map(mailRow).join('')||'<p class="pb muted">No messages here.</p>'}</div></aside>
+ <section class="panel m-pane">${readerHTML(m)}</section></div>`;
+}
+function openMsg(id){ui.msg=id;if(view!=='home'||sub!=='inbox'){go('home','inbox');return}render();const r=document.querySelector('.m-pane');if(r&&innerWidth<900)r.scrollIntoView({behavior:'smooth'})}
 /* ================= main menu & save slots ================= */
 ui.mode='menu';ui.metas=null;ui.slotIntent=null;ui.confirmDel=null;ui.newSlot=null;ui.busy=false;
 
@@ -2979,96 +3129,87 @@ async function create3D(stage,cv,E){
  const rim=new T.DirectionalLight('#ffe2b8',1.1);rim.position.set(35,30,-45);scene.add(rim);
  const fill=new T.DirectionalLight('#c9d4ff',.45);fill.position.set(10,25,50);scene.add(fill);
  buildStadium(sc);
- // ---- shared geometry ----
- const lathe=(pts,seg=20)=>new T.LatheGeometry(pts.map(([r,y])=>new T.Vector2(r,y)),seg);
- const G3={
-  torso:lathe([[.13,0],[.15,.05],[.165,.14],[.19,.26],[.215,.38],[.225,.45],[.2,.51],[.11,.555],[.06,.565]]),
-  shorts:lathe([[.15,0],[.175,.04],[.19,.12],[.2,.2],[.165,.24]],16),
-  shortLeg:new T.CylinderGeometry(.098,.09,.17,12),collar:new T.TorusGeometry(.06,.016,6,16),
-  delt:new T.SphereGeometry(.062,14,10),upper:new T.CapsuleGeometry(.054,.2,6,10),cuff:new T.CylinderGeometry(.058,.058,.035,10),fore:new T.CapsuleGeometry(.044,.19,6,10),hand:new T.SphereGeometry(.048,10,8),
-  thigh:lathe([[.06,-.36],[.075,-.3],[.088,-.18],[.09,-.06],[.082,0]],12),knee:new T.SphereGeometry(.062,10,8),
-  calf:lathe([[.045,-.4],[.05,-.34],[.066,-.22],[.07,-.12],[.06,0]],12),band:new T.CylinderGeometry(.064,.064,.05,12),
-  boot:new T.CapsuleGeometry(.048,.16,4,10),sole:new T.BoxGeometry(.1,.025,.27),
-  neck:new T.CylinderGeometry(.05,.058,.13,14),
-  skull:lathe([[0,-.1],[.06,-.095],[.085,-.06],[.098,-.01],[.104,.04],[.1,.08],[.085,.11],[.055,.13],[0,.138]],28),
-  jaw:new T.SphereGeometry(.075,20,14),cheek:new T.SphereGeometry(.03,10,8),ear:new T.SphereGeometry(.026,10,8),
-  eyeW:new T.SphereGeometry(.016,10,8),iris:new T.SphereGeometry(.0085,8,6),brow:new T.BoxGeometry(.042,.011,.014),
-  nose:new T.BoxGeometry(.026,.05,.03),nostril:new T.SphereGeometry(.014,8,6),mouth:new T.BoxGeometry(.04,.007,.01),lipG:new T.CapsuleGeometry(.007,.03,4,8),lid:new T.SphereGeometry(.017,10,6,0,Math.PI*2,0,Math.PI*.5),chin:new T.SphereGeometry(.03,10,8),jawBox:new T.BoxGeometry(.118,.055,.1),
-  hair:new T.SphereGeometry(.112,28,14,0,Math.PI*2,0,Math.PI*.56),buzz:new T.SphereGeometry(.108,28,12,0,Math.PI*2,0,Math.PI*.5),afro:new T.SphereGeometry(.145,20,14,0,Math.PI*2,0,Math.PI*.6),bun:new T.SphereGeometry(.042,12,10),burn:new T.BoxGeometry(.012,.04,.03),
-  blob:new T.PlaneGeometry(1,1),
- };
- // Sculpted head: a dense sphere displaced into nose, brow, sockets, cheekbones, chin and a tapering jaw.
- const gs=(x,y,z,cx,cy,cz,sx,sy,sz)=>Math.exp(-(((x-cx)/sx)**2+((y-cy)/sy)**2+((z-cz)/sz)**2));
- function sculpt(face,rad,extra){
-  const g=new T.SphereGeometry(1,48,36),pos=g.attributes.position;
-  for(let i=0;i<pos.count;i++){let x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i),d=0;
-   if(face){d+=.19*gs(x,y,z,0,-.16,1,.12,.26,.3)*(z>0?1:0);d+=.07*gs(x,y,z,0,.22,.95,.6,.09,.3);
-    d-=.08*(gs(x,y,z,.33,.07,.92,.15,.1,.2)+gs(x,y,z,-.33,.07,.92,.15,.1,.2));d+=.05*(gs(x,y,z,.56,-.2,.72,.2,.15,.25)+gs(x,y,z,-.56,-.2,.72,.2,.15,.25));
-    d+=.06*gs(x,y,z,0,-.86,.52,.42,.2,.3);d-=.035*gs(x,y,z,0,-.44,.95,.3,.05,.2);d+=.02*gs(x,y,z,0,-.5,.98,.22,.07,.2)}
-   const r=(1+d)*rad;x*=r;y*=r;z*=r;x*=.9;z*=.94;
-   if(y<0){const t=Math.min(1,-y/rad);x*=1-.2*t*t;if(z<0)z*=1-.18*t*t}
-   if(y>.45*rad)y=.45*rad+(y-.45*rad)*.82;
-   if(extra)[x,y,z]=extra(x,y,z);
-   pos.setXYZ(i,x*.11,y*.116,z*.108)}
-  g.computeVertexNormals();return g;
- }
- // Hair shell: the same skull, slightly larger, cut along a hairline (high at the forehead, low at the nape).
- function hairShell(rad,lift,hl){
-  const g=sculpt(false,rad,(x,y,z)=>[x,y>0?y*(1+lift):y,z]),pos=g.attributes.position,idx=g.index.array,keep=[];
-  const ok=i=>{const y=pos.getY(i)/.116,z=pos.getZ(i)/.108;return y>hl(z)};
-  for(let i=0;i<idx.length;i+=3)if(ok(idx[i])&&ok(idx[i+1])&&ok(idx[i+2]))keep.push(idx[i],idx[i+1],idx[i+2]);
-  g.setIndex(keep);g.computeVertexNormals();return g;
- }
- const HL=z=>-.5+.95*clamp((z+.25)/1.25,0,1);
- const HEAD={face:sculpt(true,1),short:hairShell(1.04,.03,HL),buzz:hairShell(1.018,0,HL),afro:hairShell(1.26,.08,z=>HL(z)-.05),long:hairShell(1.05,.02,z=>z<.2?-.95:HL(z))};
- const blobTex=canvasTex(64,64,x=>{const g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(0,0,0,.55)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,64,64)}),blobMat=new T.MeshBasicMaterial({map:blobTex,transparent:true,depthWrite:false});
- const [hk,ak]=kitColors(E),kits=[hk,ak],gkCols=['#c7e83a','#ff7a1a'],cache={};
- const mat=(c,r=.7,m=0)=>cache[c+r+m]||(cache[c+r+m]=new T.MeshStandardMaterial({color:c,roughness:r,metalness:m}));
+ // ---- players: a clean, boxy stylised figure dressed in the club's real kit ----
+ // The shirt front and back are the game's own kit artwork (same as the club screens), so the 3D kit matches exactly.
+ const [hk,ak]=kitColors(E),kits=[hk,ak],cache={},texCache={};
+ const mat=(c,r=.75,m=0)=>cache[c+r+m]||(cache[c+r+m]=new T.MeshStandardMaterial({color:c,roughness:r,metalness:m}));
  const SKINS=['#f3d2ba','#e8bf9f','#d9a77f','#c48a61','#a66c47','#8a5335','#6c3f28','#4c2a1b'],HAIRS=['#141010','#2c1e15','#55361f','#7a3a1b','#c9a15a','#a3a3a6'];
  const looks=pid=>{const r=R(Math.imul(pid,2654435761)>>>0),p=S.players[pid],dark=['NGA','GHA','SEN','CIV'].includes(p.nat)||(p.nat==='BRA'&&r.chance(.5))||(p.nat==='FRA'&&r.chance(.4))||(['ENG','NED','BEL'].includes(p.nat)&&r.chance(.2));
-  return{skin:SKINS[dark?r.i(5,7):r.i(0,4)],hair:p.age>=33&&r.chance(.4)?HAIRS[5]:HAIRS[dark?r.i(0,1):r.i(0,4)],style:r.pick(dark?['buzz','buzz','short','afro','bald']:['short','short','buzz','bun','long','bald']),tall:.94+(p.ht-165)/35*.14}};
- const hairTexCache={};
- function hairMat(col,style){const key=col+style;if(hairTexCache[key])return hairTexCache[key];
-  const tex=canvasTex(256,256,(x,W,H)=>{x.fillStyle=col;x.fillRect(0,0,W,H);
-   if(style==='afro'||style==='buzz'){for(let i=0;i<5200;i++){const v=Math.random();x.fillStyle=v<.5?mix(col,'#000000',.35+v*.3):mix(col,'#ffffff',.08+v*.12);x.beginPath();x.arc(Math.random()*W,Math.random()*H,style==='afro'?1.4+Math.random()*1.8:.8+Math.random(),0,7);x.fill()}}
-   else{x.lineCap='round';for(let i=0;i<3400;i++){const v=Math.random(),sx=Math.random()*W,sy=Math.random()*H,len=10+Math.random()*26,a=(Math.random()-.5)*.35;x.strokeStyle=v<.55?mix(col,'#000000',.25+v*.35):mix(col,'#ffffff',.1+(v-.55)*.35);x.lineWidth=.6+Math.random()*1.1;x.beginPath();x.moveTo(sx,sy);x.quadraticCurveTo(sx+Math.sin(a)*len*.6+2,sy+len*.5,sx+Math.sin(a)*len,sy+len);x.stroke()}}});
-  tex.wrapS=tex.wrapT=T.RepeatWrapping;tex.repeat.set(style==='afro'?3:2,style==='afro'?2:1);
-  return hairTexCache[key]=new T.MeshStandardMaterial({map:tex,bumpMap:tex,bumpScale:style==='afro'?3:1.6,roughness:.62,color:'#ffffff'});
+  return{skin:SKINS[dark?r.i(5,7):r.i(0,4)],hair:p.age>=33&&r.chance(.4)?HAIRS[5]:HAIRS[dark?r.i(0,1):r.i(0,4)],style:r.pick(dark?['buzz','buzz','short','afro','bald']:['short','short','buzz','bun','long','bald']),tall:.94+(p.ht-165)/35*.14,eye:r.pick(['#3a2a1e','#2a1d14','#4a5a6a','#3d5a3a'])}};
+ function svgTex(svg,w,h,crop,fill){
+  const cv=document.createElement('canvas');cv.width=w;cv.height=h;const x=cv.getContext('2d');x.fillStyle=fill;x.fillRect(0,0,w,h);
+  const t=new T.CanvasTexture(cv);t.colorSpace=T.SRGBColorSpace;t.anisotropy=8;
+  const img=new Image();img.onload=()=>{x.clearRect(0,0,w,h);x.fillStyle=fill;x.fillRect(0,0,w,h);x.drawImage(img,crop[0],crop[1],crop[2],crop[3],0,0,w,h);t.needsUpdate=true};
+  img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg.replace('<svg ','<svg xmlns="http://www.w3.org/2000/svg" width="400" height="424" '));return t;
  }
+ const TORSO_CROP=[84,30,232,372];
+ // Which club kit (home/away/third) each side is wearing, plus goalkeeper kits as pseudo-kits.
+ const sideKit=s=>{const c=clubOf(E.T[s].club),k=kits[s],w=Object.keys(c.kits).find(q=>c.kits[q]===k)||'home';return{c,w,k}};
+ const GK=[{base:'#c7e83a',alt:'#1d2a10',trim:'#1d2a10',pattern:'plain',collar:'crew'},{base:'#ff7a1a',alt:'#2a1405',trim:'#2a1405',pattern:'plain',collar:'crew'}];
+ function kitFor(side,gk){const{c,w,k}=sideKit(side);if(!gk)return{c,w,k};const gkk=GK[side];return{c:Object.assign({},c,{kits:Object.assign({},c.kits,{gk:gkk})}),w:'gk',k:gkk}}
+ const shortsOf=k=>k.shorts||(k.pattern==='plain'||k.pattern==='gradient'?(contrast(k.base,k.alt)>1.5?k.alt:k.trim):contrast(k.trim,k.base)>1.4?k.trim:'#17171b');
+ const socksOf=k=>k.socks||(k.pattern==='plain'?k.base:k.alt===shortsOf(k)?k.base:k.alt);
+ function sleeveTex(k){const key='sl'+k.base+k.alt+k.pattern;if(texCache[key])return texCache[key];
+  return texCache[key]=canvasTex(64,64,(x,W,H)=>{x.fillStyle=k.base;x.fillRect(0,0,W,H);x.fillStyle=k.alt;
+   if(k.pattern==='stripes')for(let i=8;i<W;i+=32)x.fillRect(i,0,14,H);else if(k.pattern==='pinstripe')for(let i=3;i<W;i+=12)x.fillRect(i,0,2,H);else if(k.pattern==='hoops')for(let y=8;y<H;y+=32)x.fillRect(0,y,W,14);else if(k.pattern==='gradient'){const g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,k.base);g.addColorStop(1,mix(k.base,k.alt,.4));x.fillStyle=g;x.fillRect(0,0,W,H)}})}
+ function faceTex(lk){const key='f'+lk.skin+lk.hair+lk.eye;if(texCache[key])return texCache[key];
+  return texCache[key]=canvasTex(128,128,(x,W,H)=>{x.fillStyle=lk.skin;x.fillRect(0,0,W,H);
+   const sh=mix(lk.skin,'#3a1a10',.22),br=mix(lk.hair,'#000000',.2);
+   x.fillStyle=mix(lk.skin,'#ffffff',.08);x.fillRect(18,22,92,18);
+   for(const q of[-1,1]){const cx=64+q*24;x.fillStyle=br;x.fillRect(cx-14,44,28,7);x.fillStyle='#f4f0ea';x.fillRect(cx-11,56,22,12);x.fillStyle=lk.eye;x.fillRect(cx-5,56,11,12);x.fillStyle='#0b0b0c';x.fillRect(cx-2,59,5,6);x.fillStyle=sh;x.fillRect(cx-12,69,24,3)}
+   x.fillStyle=sh;x.fillRect(58,62,12,26);x.fillStyle=mix(lk.skin,'#000000',.32);x.fillRect(57,86,14,4);
+   x.fillStyle=mix(lk.skin,'#7a2c2c',.35);x.fillRect(46,99,36,6);x.fillStyle=mix(lk.skin,'#2a1010',.4);x.fillRect(46,99,36,2);
+   x.fillStyle=mix(lk.skin,'#000000',.08);x.fillRect(0,112,W,16)})}
+ function hairTex(col){const key='h'+col;if(texCache[key])return texCache[key];
+  const t=canvasTex(64,64,(x,W,H)=>{x.fillStyle=col;x.fillRect(0,0,W,H);for(let i=0;i<260;i++){x.fillStyle=Math.random()<.5?mix(col,'#000000',.3):mix(col,'#ffffff',.12);x.fillRect(Math.random()*W,Math.random()*H,2,4+Math.random()*5)}});
+  return texCache[key]=new T.MeshStandardMaterial({map:t,roughness:.85})}
+ const BX=(w,h,d)=>{const k=w+'|'+h+'|'+d;return cache['g'+k]||(cache['g'+k]=new T.BoxGeometry(w,h,d))};
+ const blobTex=canvasTex(64,64,x=>{const g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(0,0,0,.55)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,64,64)}),blobMat=new T.MeshBasicMaterial({map:blobTex,transparent:true,depthWrite:false}),blobG=new T.PlaneGeometry(1,1);
  const P=[];
  function buildPlayer(k){
-  const sp=E.P[k],side=k<11?0:1,gk=sp.pos==='GK',kit=gk?{base:gkCols[side],alt:mix(gkCols[side],'#000000',.3),trim:'#111111',pattern:'plain'}:kits[side];
-  const lk=looks(sp.pid),shortsC=contrast(kit.base,'#ffffff')>3?'#efefef':'#16161a',skin=mat(lk.skin,.55),shirt=new T.MeshStandardMaterial({map:shirtTex(kit,sp.num,sp.name),roughness:.72}),base=mat(kit.base,.72),trim=mat(kit.trim,.6),sh=mat(shortsC,.75),hairM=hairMat(lk.hair,lk.style),boot=mat('#121214',.35,.2),dark=mat('#1a1010',.4);
+  const sp=E.P[k],side=k<11?0:1,gk=sp.pos==='GK',{c,w,k:kit}=kitFor(side,gk),lk=looks(sp.pid);
+  const tk='t'+side+gk;
+  const front=texCache[tk+'f']||(texCache[tk+'f']=new T.MeshStandardMaterial({map:svgTex(kitSVG(c,w),256,320,TORSO_CROP,kit.base),roughness:.78}));
+  const back=new T.MeshStandardMaterial({map:svgTex(kitSVG(c,w,{back:true,name:sp.name,num:sp.num}),256,320,TORSO_CROP,kit.base),roughness:.78});
+  const sideM=texCache[tk+'s']||(texCache[tk+'s']=new T.MeshStandardMaterial({map:sleeveTex(kit),roughness:.78}));
+  const base=mat(kit.base),trim=mat(kit.trim,.6),shorts=mat(shortsOf(kit)),socks=mat(socksOf(kit)),skin=mat(lk.skin,.62),boot=mat(side?'#16161a':'#f2f2f2',.35,.15),sole=mat('#d9d9d9',.5);
+  const headM=[skin,skin,skin,skin,new T.MeshStandardMaterial({map:faceTex(lk),roughness:.6}),skin];
   const root=new T.Group(),body=new T.Group(),pelvis=new T.Group(),spine=new T.Group(),chest=new T.Group();root.add(body);body.add(pelvis);pelvis.position.y=.95;pelvis.add(spine);spine.position.y=.06;spine.add(chest);body.rotation.order='YXZ';
   const add=(g,m,par,x=0,y=0,z=0,cast=true)=>{const o=new T.Mesh(g,m);o.position.set(x,y,z);o.castShadow=cast;par.add(o);return o};
-  add(G3.shorts,sh,pelvis,0,-.12,0).scale.z=.8;
-  const tor=add(G3.torso,shirt,spine,0,0,0);tor.scale.z=.74;
-  add(G3.collar,trim,chest,0,.555,.005).rotation.x=Math.PI/2;
-  add(G3.neck,skin,chest,0,.6,0);
-  const head=new T.Group();head.position.y=.735;head.scale.setScalar(1.06);chest.add(head);
-  const sk2=mat(mix(lk.skin,'#5a2a1a',.14),.6),white=mat('#d8d1c6',.35),iris=mat('#1a130f',.2),lip=mat(mix(lk.skin,'#8a3434',.22),.5);
-  add(HEAD.face,skin,head);
-  for(const q of[-1,1]){add(G3.ear,sk2,head,q*.084,-.004,-.006,false).scale.set(.38,1.05,.72);
-   add(G3.eyeW,white,head,q*.035,.006,.083,false).scale.set(1.15,.72,.42);add(G3.iris,iris,head,q*.035,.005,.088,false).scale.set(1.05,1.05,.45);add(G3.lid,sk2,head,q*.035,.019,.082,false).scale.set(1.12,.22,.45);
-   const br=add(G3.brow,mat(mix(lk.hair,'#000000',.3),.9),head,q*.035,.03,.094,false);br.rotation.z=q*-.1;br.scale.set(.85,.55,.7)}
-  {const l=add(G3.lipG,lip,head,0,-.056,.089,false);l.rotation.z=Math.PI/2;l.scale.set(.7,1,.6)}
-  if(lk.style!=='bald'){add(HEAD[lk.style==='bun'?'short':lk.style],hairM,head);if(lk.style==='bun')add(G3.bun,hairM,head,0,.1,-.085)}
-  const leg=s=>{const hip=new T.Group();hip.position.set(s*.092,-.06,0);pelvis.add(hip);add(G3.shortLeg,sh,hip,0,-.07,0);add(G3.thigh,skin,hip,0,-.03,0);
-   const knee=new T.Group();knee.position.y=-.4;hip.add(knee);add(G3.knee,skin,knee,0,0,.008).scale.set(1,1,.9);add(G3.calf,base,knee,0,0,0);add(G3.band,trim,knee,0,-.035,0);
-   const ank=new T.Group();ank.position.y=-.42;knee.add(ank);const b=add(G3.boot,boot,ank,0,-.035,.05);b.rotation.x=Math.PI/2;add(G3.sole,mat(kit.trim==='#111111'?'#e8e8e8':'#f2f2f2',.5),ank,0,-.075,.05);return{hip,knee,ank}};
-  const arm=s=>{const shg=new T.Group();shg.position.set(s*.23,.47,0);chest.add(shg);add(G3.delt,base,shg,s*.004,-.012,0).scale.set(.95,.9,.9);add(G3.upper,base,shg,0,-.14,0);add(G3.cuff,trim,shg,0,-.25,0);
-   const el=new T.Group();el.position.y=-.29;shg.add(el);add(G3.fore,gk?base:skin,el,0,-.13,0);add(G3.hand,gk?mat('#f0f0f0',.6):skin,el,0,-.27,0).scale.set(.8,1.1,.6);return{sh:shg,el}};
-  const blob=new T.Mesh(G3.blob,blobMat);blob.rotation.x=-Math.PI/2;blob.position.y=.02;blob.scale.set(1.3,1.3,1);root.add(blob);
-  root.scale.setScalar(1.06*lk.tall);
+  // shorts and torso
+  add(BX(.4,.2,.25),shorts,pelvis,0,-.07,0);
+  add(BX(.44,.56,.25),[sideM,sideM,base,base,front,back],chest,0,.28,0);
+  add(BX(.2,.035,.12),trim,chest,0,.565,.02);
+  add(BX(.11,.1,.11),skin,chest,0,.61,0);
+  const head=new T.Group();head.position.y=.765;chest.add(head);
+  add(BX(.23,.26,.24),headM,head,0,0,0);
+  add(BX(.03,.06,.05),skin,head,.13,-.01,0,false);add(BX(.03,.06,.05),skin,head,-.13,-.01,0,false);
+  const hm=hairTex(lk.hair),st=lk.style;
+  if(st==='short'||st==='bun'||st==='long'){add(BX(.245,.07,.255),hm,head,0,.15,-.003);add(BX(.245,.16,.05),hm,head,0,.06,-.105);add(BX(.02,.1,.2),hm,head,.12,.08,-.02,false);add(BX(.02,.1,.2),hm,head,-.12,.08,-.02,false)}
+  if(st==='buzz'){add(BX(.236,.03,.246),hm,head,0,.135,0);add(BX(.236,.12,.02),hm,head,0,.07,-.12)}
+  if(st==='afro'){add(BX(.31,.16,.31),hm,head,0,.15,-.02)}
+  if(st==='long')add(BX(.25,.26,.06),hm,head,0,-.04,-.12);
+  if(st==='bun')add(BX(.08,.08,.08),hm,head,0,.15,-.13);
+  const leg=s=>{const hip=new T.Group();hip.position.set(s*.1,-.06,0);pelvis.add(hip);
+   add(BX(.17,.2,.19),shorts,hip,0,-.1,0);add(BX(.135,.2,.15),skin,hip,0,-.29,0);
+   const knee=new T.Group();knee.position.y=-.4;hip.add(knee);
+   add(BX(.13,.36,.14),socks,knee,0,-.2,0);add(BX(.136,.045,.146),trim,knee,0,-.05,0);
+   const ank=new T.Group();ank.position.y=-.42;knee.add(ank);add(BX(.12,.08,.27),boot,ank,0,-.04,.05);add(BX(.122,.02,.27),sole,ank,0,-.085,.05,false);return{hip,knee,ank}};
+  const arm=s=>{const shg=new T.Group();shg.position.set(s*.275,.5,0);chest.add(shg);
+   add(BX(.11,.3,.11),sideM,shg,0,-.12,0);add(BX(.115,.03,.115),trim,shg,0,-.27,0);
+   const el=new T.Group();el.position.y=-.28;shg.add(el);add(BX(.088,.24,.088),gk?base:skin,el,0,-.12,0);
+   add(BX(gk?.11:.085,.1,gk?.08:.06),gk?mat('#f4f4f4',.6):skin,el,0,-.29,0);return{sh:shg,el}};
+  const blob=new T.Mesh(blobG,blobMat);blob.rotation.x=-Math.PI/2;blob.position.y=.02;blob.scale.set(1.3,1.3,1);root.add(blob);
+  root.scale.setScalar(1.04*lk.tall);
   const o={root,body,pelvis,spine,chest,head,blob,L:leg(-1),Rl:leg(1),La:arm(-1),Ra:arm(1),pid:sp.pid,ph:Math.random()*6,yaw:side?-Math.PI/2:Math.PI/2,side,k,diveSide:1};
   scene.add(root);return o;
  }
  for(let k=0;k<22;k++)P[k]=buildPlayer(k);
  const ball=new T.Mesh(new T.SphereGeometry(.11,24,18),new T.MeshStandardMaterial({map:canvasTex(256,128,(x,W,H)=>{x.fillStyle='#f7f7f7';x.fillRect(0,0,W,H);x.fillStyle='#16181d';for(let i=0;i<12;i++){const cx=(i%6)*W/6+(i<6?0:W/12),cy=i<6?H*.3:H*.72;x.beginPath();for(let q=0;q<5;q++){const a=q/5*Math.PI*2-Math.PI/2;x.lineTo(cx+Math.cos(a)*12,cy+Math.sin(a)*11)}x.fill()}}),roughness:.32}));
  ball.castShadow=true;scene.add(ball);
- const ballBlob=new T.Mesh(G3.blob,blobMat);ballBlob.rotation.x=-Math.PI/2;ballBlob.position.y=.015;scene.add(ballBlob);
+ const ballBlob=new T.Mesh(blobG,blobMat);ballBlob.rotation.x=-Math.PI/2;ballBlob.position.y=.015;scene.add(ballBlob);
  const tagCv=document.createElement('canvas');tagCv.width=256;tagCv.height=64;const tagT=new T.CanvasTexture(tagCv);tagT.colorSpace=T.SRGBColorSpace;
- const tag=new T.Sprite(new T.SpriteMaterial({map:tagT,depthTest:false,transparent:true}));tag.scale.set(3.4,.85,1);tag.renderOrder=10;scene.add(tag);let tagOwner=-2;
+ const tag=new T.Sprite(new T.SpriteMaterial({map:tagT,depthTest:false,transparent:true,sizeAttenuation:false}));tag.scale.set(.072,.018,1);tag.center.set(.5,0);tag.renderOrder=10;scene.add(tag);let tagOwner=-2;
  // ---- weather & time of day ----
  const NR=5200,rainPos=new Float32Array(NR*6),rainG=new T.BufferGeometry();rainG.setAttribute('position',new T.BufferAttribute(rainPos,3));
  for(let i=0;i<NR;i++){rainPos[i*6]=Math.random()*80-40;rainPos[i*6+1]=Math.random()*30;rainPos[i*6+2]=Math.random()*56-28}
@@ -3228,7 +3369,7 @@ function render(){
   return}
  renderBar();
  const fn={home:viewHome,squad:viewSquad,player:viewPlayer,tactics:viewTactics,transfers:viewTransfers,comps:viewComps,office:viewOffice,club:viewClub,match:viewMatch}[view]||viewHome;
- const html=fn(),side=['home','squad','club'].includes(view)&&!(view==='home'&&sub==='news');
+ const html=fn(),side=['home','squad','club'].includes(view)&&!(view==='home'&&(sub==='news'||sub==='inbox'));
  $('#view').innerHTML=side?`<div class="layout"><div style="min-width:0">${html}</div>${newsSidebar()}</div>`:html;
  if(view==='transfers'&&sub==='search')renderSearch();
  if(view==='match')mountMatch();
@@ -3277,6 +3418,9 @@ document.addEventListener('click',e=>{
   case'continue':closeModal();onContinue();break;
   case'player':closeModal();openPlayer(id);break;
   case'msg':openMsg(id);break;
+  case'goto':{const[g,sb]=v.split('/');closeModal();go(g,sb);break}
+  case'mailf':ui.mailF=v;ui.msg=null;render();break;
+  case'mail-read-all':S.inbox.forEach(m=>m.read=true);save();render();renderBar();break;
   case'offer-yes':case'offer-no':{const m=S.inbox.find(x=>x.id===id),o=m&&m.action;if(!o||o.done)break;const p=S.players[o.pid];
    if(a==='offer-yes'){const why=canSell(p);if(p.club!==S.user){toast('He is no longer at the club.');break}if(why){toast(why);break}moveP(p.id,o.club,o.fee);S.fin.sales+=o.fee;logDeal(p.id,S.user,o.club,o.fee);o.done='yes';news(`${p.fn} ${p.ln} joins ${clubOf(o.club).name} from ${clubOf(S.user).name} for ${money(o.fee)}.`,'transfer',[o.club,S.user]);toast(`${p.ln} sold for ${money(o.fee)}`)}else{o.done='no';toast('Offer rejected')}
    save();closeModal();render();break}
