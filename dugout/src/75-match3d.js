@@ -236,8 +236,41 @@ async function create3D(stage,cv,E){
    camTo(1.5+(bx*.66-1.5)*e,3.6+(18-3.6)*e,31.5+(55-31.5)*e,-3.5+(bx+3.5)*e,1.1-1.1*e,20.5+(bz*.92-20.5)*e,44-8*e,1)}
  }
  const ip=[],iv=[];
+ // ---- trophy lift ----
+ let CEL=null;const FX={fw:[],conf:null};
+ function trophy3D(info){
+  const g=new T.Group(),metal=new T.MeshStandardMaterial({color:info.metal==='silver'?'#e3e8f0':'#e8c25a',metalness:.85,roughness:.22,emissive:info.metal==='silver'?'#30343c':'#4a3608',emissiveIntensity:.4});
+  const prof={league:[[0,0],[.16,0],[.16,.05],[.06,.09],[.05,.3],[.1,.36],[.19,.46],[.22,.62],[.2,.7],[0,.72]],jug:[[0,0],[.15,0],[.15,.05],[.06,.09],[.06,.24],[.16,.34],[.24,.5],[.22,.66],[.2,.7],[0,.7]],cont:[[0,0],[.14,0],[.14,.05],[.05,.1],[.05,.32],[.12,.44],[.17,.62],[.15,.8],[0,.82]],plate:[[0,0],[.14,0],[.14,.05],[.05,.1],[.05,.3],[0,.3]]}[info.kind]||[[0,0],[.15,0],[.1,.4],[0,.5]];
+  g.add(new T.Mesh(new T.LatheGeometry(prof.map(([r,y])=>new T.Vector2(r,y)),32),metal));
+  if(info.kind==='plate'){const d=new T.Mesh(new T.CylinderGeometry(.28,.28,.03,40),metal);d.rotation.x=Math.PI/2;d.position.y=.55;g.add(d)}
+  else{const hr=info.kind==='jug'?.16:.11;for(const q of[-1,1]){const h=new T.Mesh(new T.TorusGeometry(hr,.018,10,24,Math.PI*1.4),metal);h.position.set(q*(info.kind==='jug'?.27:.22),.5,0);h.rotation.z=q>0?-Math.PI*.2:Math.PI*1.2;g.add(h)}}
+  if(info.kind==='cont'){const st=new T.Mesh(new T.OctahedronGeometry(.07),metal);st.position.y=.9;g.add(st)}
+  if(info.kind==='league'){const k=new T.Mesh(new T.SphereGeometry(.05,16,12),metal);k.position.y=.78;g.add(k)}
+  for(const[q,c]of[[-1,info.c1],[1,info.c2]]){const r=new T.Mesh(new T.BoxGeometry(.05,.5,.01),mat(c,.6));r.position.set(q*.12,.25,.16);r.rotation.z=q*.25;g.add(r)}
+  const glow=new T.PointLight('#ffe7a8',2.2,4);glow.position.set(0,.6,.6);g.add(glow);
+  g.scale.setScalar(1.3);return g;
+ }
+ function burst(x,y,z,col){const n=150,pos=new Float32Array(n*3),vel=[];for(let i=0;i<n;i++){pos[i*3]=x;pos[i*3+1]=y;pos[i*3+2]=z;const a=Math.random()*Math.PI*2,b=Math.acos(2*Math.random()-1),sp=6+Math.random()*5;vel.push([Math.sin(b)*Math.cos(a)*sp,Math.cos(b)*sp,Math.sin(b)*Math.sin(a)*sp])}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(pos,3));const p=new T.Points(g,new T.PointsMaterial({color:col,size:.6,transparent:true,depthWrite:false,blending:T.AdditiveBlending}));p.frustumCulled=false;scene.add(p);FX.fw.push({p,vel,life:0})}
+ function confetti(cols){const n=1600,pos=new Float32Array(n*3),col=new Float32Array(n*3),c=new T.Color();for(let i=0;i<n;i++){pos[i*3]=(Math.random()-.5)*28;pos[i*3+1]=Math.random()*16;pos[i*3+2]=12+(Math.random()-.5)*22;c.set(cols[i%cols.length]);col[i*3]=c.r;col[i*3+1]=c.g;col[i*3+2]=c.b}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(pos,3));g.setAttribute('color',new T.BufferAttribute(col,3));const p=new T.Points(g,new T.PointsMaterial({size:.17,vertexColors:true,transparent:true,depthWrite:false}));p.frustumCulled=false;scene.add(p);FX.conf=p}
  return{
   setCam(m){camMode=m},
+  celebrate(ct,real,info,side){
+   if(!CEL){CEL={tro:trophy3D(info),next:2.6};scene.add(CEL.tro);confetti([kits[side].base,kits[side].alt,'#ffffff','#e8c25a']);OFF.forEach(o=>o.root.visible=false);mini.style.display='none';drawTag(-1);ball.visible=false;ballBlob.visible=false;
+    for(let k=0;k<22;k++)if((k<11?0:1)!==side)P[k].root.visible=false;
+    const mine=[];for(let k=side*11;k<side*11+11;k++)if(Math.floor(fr.pose[k])!==POSE.off||true)mine.push(k);
+    CEL.cap=mine.filter(k=>E.P[k].pos!=='GK').sort((a,b)=>(S.players[E.P[b].pid]?.ovr||0)-(S.players[E.P[a].pid]?.ovr||0))[0];CEL.rest=mine.filter(k=>k!==CEL.cap)}
+   const lift=clamp((ct-2.4)/1.1,0,1),e=lift*lift*(3-2*lift);
+   const cap=P[CEL.cap];cap.root.visible=true;cap.root.position.set(0,0,12);cap.yaw=0;cap.body.rotation.y=0;pose(cap,e>0?POSE.cel:POSE.run,0,0,real);
+   CEL.tro.position.set(0,1.25+e*1.05,12.32-e*.3);CEL.tro.rotation.y=Math.sin(ct*.8)*.25;
+   CEL.rest.forEach((k,i)=>{const o=P[k],a=(i/(CEL.rest.length-1)-.5)*2.4,r=3+(i%2)*1.1;o.root.visible=true;o.root.position.set(Math.sin(a)*r,0,12-Math.abs(Math.cos(a))*1.2-.8-(i%2)*.9);o.yaw=0;o.body.rotation.y=0;pose(o,ct>.6?POSE.cel:POSE.run,0,0,real*(0.85+(i%3)*.1))});
+   if(ct>=CEL.next){const pal=[kits[side].base,kits[side].alt,'#ffd56a','#ffffff'];burst((Math.random()-.5)*70,18+Math.random()*16,-15-Math.random()*30,pal[(Math.random()*pal.length)|0]);CEL.next=ct+.3+Math.random()*.45}
+   for(let i=FX.fw.length-1;i>=0;i--){const f=FX.fw[i];f.life+=real;const pos=f.p.geometry.attributes.position.array;f.vel.forEach((v,j)=>{v[1]-=4*real;v[0]*=.985;v[1]*=.985;v[2]*=.985;pos[j*3]+=v[0]*real;pos[j*3+1]+=v[1]*real;pos[j*3+2]+=v[2]*real});f.p.geometry.attributes.position.needsUpdate=true;f.p.material.opacity=Math.max(0,1-f.life/1.9);if(f.life>1.9){scene.remove(f.p);f.p.geometry.dispose();FX.fw.splice(i,1)}}
+   if(FX.conf){const pa=FX.conf.geometry.attributes.position.array,tt=performance.now()/1000;for(let i=0;i<pa.length;i+=3){pa[i+1]-=real*(1.1+(i%7)*.12);pa[i]+=Math.sin(tt*2+i)*real*.4;if(pa[i+1]<0)pa[i+1]+=16}FX.conf.geometry.attributes.position.needsUpdate=true}
+   const a=-.55+ct*.16,r=8.6-Math.min(2.6,ct*.22);camTo(Math.sin(a)*r,1.5+.4*Math.sin(ct*.35),12+Math.cos(a)*r,0,2.45,12,50,1);
+   env(E.t,real);renderer.render(scene,cam);
+  },
   intro(ct,real){
    if(!f0done){frameAt(E,0,f0);f0done=true}
    sc.ads.forEach(tx=>{tx.offset.x=(tx.offset.x+real*.03)%1});

@@ -9,9 +9,11 @@ function kickOff(){
  const[h,a]=M.fx;prepAI(h,a);prepAI(a,h);ensureLineup(S.user);
  const team=c=>({club:c,tac:clubOf(c).tac,bench:clubOf(c).tac.bench.slice(),ai:c!==S.user});
  M.E=createMatch({seed:(S.seed^(S.season*1000+S.md*17+h*3))>>>0,getP:id=>S.players[id],teams:[team(h),team(a)],weather:M.wx});
+ applyTactics(M.E);
  // squad morale nudges decision-making and composure on the day
  for(const s of[0,1]){const xi=clubOf(M.E.T[s].club).tac.xi.map(id=>S.players[id]).filter(Boolean),am=xi.length?xi.reduce((a,p)=>a+(p.mor??70),0)/xi.length:70;applyTalk(M.E,s,clamp((am-70)/1000,-.03,.03))}
- M.us=h===S.user?0:1;M.phase='live';M.pt=0;M.rate=1;M.intro={ct:0};M.wins=[[0,9]];SND.init();SND.setCrowd(.5);
+ M.derby=isDerby(h,a);
+ M.us=h===S.user?0:1;M.phase='live';M.pt=0;M.rate=1;M.intro={ct:0};M.wins=[[0,9]];SND.init();SND.setCrowd(M.derby?.75:.5);
  if(M.preTalk){const d=talkEffect(M.preTalk,0,false);applyTalk(M.E,M.us,d);setTimeout(()=>toast(talkWord(d)),400)}
 }
 const clockAt=(E,t)=>{const c=t<E.h1?Math.min(t,E.h1):2700+(t-E.h1);const m=Math.floor(c/60);if(t<E.h1&&c>=2700)return`45+${Math.floor((c-2700)/60)+1}'`;if(c>=5400)return`90+${Math.floor((c-5400)/60)+1}'`;return`${m+1}'`};
@@ -107,6 +109,7 @@ function viewMatch(){
   <div class="ov-lu" id="m-lu">${lineupCards()}</div>
   <div class="ov-cap" id="m-cap"></div>
   <div class="ov-rep" id="m-rep"><span>Replay</span><button data-act="mskiprep">Skip</button></div>
+  <div class="ov-cel" id="m-cel"></div>
   <button class="ov-skip" id="m-skip" data-act="mskip" ${M.intro?'':'hidden'}>Skip to kick-off ›</button>
   <div class="flash" id="m-flash"><b>GOAL</b></div></div>
  <div class="mctl">${ctl('Viewing mode',0,Object.entries(MODES).map(([k,v])=>[k,v.label]),M.mode,'mmode')}
@@ -130,7 +133,7 @@ function sbTheme(){const t=M.tie;if(!t||t.comp==='lg'){const lid=clubOf(M.fx[0])
  const st=cupStyle(t.comp);return{v:t.comp==='cont'?'star':'cup',c1:st.c1,c2:st.c2,logo:cupLogo(t.comp,24)}}
 function sbugHTML(){if(!M.E)return'';const[hk,ak]=kitColors(M.E),th=sbTheme();return`<span class="sb-logo">${th.logo}</span><span class="sb-t" style="--k:${hk.base}">${shortOf(0)}</span><b id="m-sbs">${M.score[0]}–${M.score[1]}</b><span class="sb-t" style="--k:${ak.base}">${shortOf(1)}</span><i id="m-sbc">${clockAt(M.E,M.pt)}</i>`}
 function l3HTML(){const[h,a]=M.fx,H=clubOf(h),lg=S.leagues[H.league];
- return`<div class="l3-in"><small>${esc(M.tie?M.tie.label:lg.name)}</small><div class="l3-teams">${crest(h,34)}<b>${esc(H.name)}</b><i>v</i><b>${esc(clubOf(a).name)}</b>${crest(a,34)}</div><span>${esc(H.stadium)} · ${kickLabel(M.wx.kick)} · ${WX[M.wx.type].n}, ${M.wx.temp}°C</span></div>`}
+ return`<div class="l3-in"><small>${M.derby?'<b class="derby-tag">Derby day</b> · ':''}${esc(M.tie?M.tie.label:lg.name)}</small><div class="l3-teams">${crest(h,34)}<b>${esc(H.name)}</b><i>v</i><b>${esc(clubOf(a).name)}</b>${crest(a,34)}</div><span>${esc(H.stadium)} · ${kickLabel(M.wx.kick)} · ${WX[M.wx.type].n}, ${M.wx.temp}°C</span></div>`}
 function lineupCards(){if(!M.E)return'';const ks=kitColors(M.E);
  return[0,1].map(s=>{const c=clubOf(M.E.T[s].club);return`<div class="lu-card" style="--k:${ks[s].base};--ki:${ink(ks[s].base)}"><header>${crest(c.id,38)}<div><b>${esc(c.short)}</b><small>${esc(c.tac.form)}</small></div></header>
  <ol>${M.E.P.slice(s*11,s*11+11).map((p,i)=>`<li style="--d:${i*45}ms"><i>${p.num}</i><span>${esc(p.name)}</span><em>${p.pos}</em></li>`).join('')}</ol></div>`}).join('<div class="lu-vs">VS</div>')}
@@ -183,6 +186,19 @@ function targetRate(){
 function setOv(id,on){const el=document.getElementById(id);if(el&&el.classList.contains('on')!==on)el.classList.toggle('on',on)}
 function endIntro(){if(!M||!M.intro)return;M.intro=null;{const st=$('#stage');if(st)st.classList.remove('intro')}['m-l3','m-lu'].forEach(id=>setOv(id,false));const sk=$('#m-skip');if(sk)sk.hidden=true;SND.whistle(1);SND.setCrowd(.42);M.capAt=0;caption('Kick-off! We are under way.','whistle')}
 function endReplay(){M.replay=null;setOv('m-rep',false)}
+function endCelebration(){if(!M||!M.cel)return;M.cel=null;M.celDone=true;finishLive()}
+// Did this match just win the user a trophy? A cup final, or the league mathematically sealed.
+function celebrationDue(){
+ const E=M.E,t=M.tie,us=M.us,gf=E.score[us],ga=E.score[1-us];if(!t)return null;
+ if(M.forceCel){const lid=clubOf(S.user).league;return{title:`${S.leagues[lid].name} champions`,info:trophyInfo({t:S.leagues[lid].name,key:'lg:'+lid})}}
+ if(t.comp!=='lg'){const c=S.cups[t.comp];if(!isFinal(c,t.r))return null;let won=gf>ga;if(gf===ga){const so=penaltiesFor(M);won=so.pens[us]>so.pens[1-us]}
+  return won?{title:`${c.name} winners`,info:trophyInfo({t:c.name,key:c.key})}:null}
+ if(S.clinched===S.season)return null;
+ const lid=clubOf(S.user).league,tb=table(lid),me=tb.find(r=>r.id===S.user);if(!me)return null;
+ const mine=me.pts+(gf>ga?3:gf===ga?1:0),best=Math.max(...tb.filter(r=>r.id!==S.user).map(r=>r.pts+3*(MDAYS-r.p)));
+ if(mine>best){S.clinched=S.season;const lg=S.leagues[lid];return{title:`${lg.name} champions`,info:trophyInfo({t:lg.name,key:'lg:'+lid})}}
+ return null;
+}
 let sideT=0;
 function loop(ts){
  if(!M||M.phase!=='live'||view!=='match')return;
@@ -200,6 +216,8 @@ function loop(ts){
   if(ct>=IT.end)endIntro();
   RAF=requestAnimationFrame(loop);return;
  }
+ // ---- trophy lift ----
+ if(M.cel){M.cel.ct+=dt;if(VIEW&&VIEW.celebrate)VIEW.celebrate(M.cel.ct,dt,M.celInfo.info,M.us);if(M.cel.ct>=17){endCelebration();return}RAF=requestAnimationFrame(loop);return}
  // ---- goal replay ----
  if(!M.replay&&M.repQ&&M.pt>=Math.min(M.repQ.t+4.5,E.done?E.t-1e-3:Infinity)){M.replay={rt:M.repQ.t-5.5,end:M.repQ.t+1,s:M.repQ.s};M.repQ=null;setOv('m-rep',true);setOv('m-tl',false)}
  if(M.replay){
@@ -220,7 +238,7 @@ function loop(ts){
  if(VIEW)VIEW.draw(M.pt,M.paused?0:dt*Math.min(r,4),dt);
  if(ts-sideT>1000){sideT=ts;{const an=$('#m-an');if(an&&!an.matches(':hover')&&!an.contains(document.activeElement)&&(M.anT=(M.anT||0)+1)%2===0)an.innerHTML=analysisHTML(M.E,true)}const st=$('#m-stats');if(st)st.innerHTML=statsHTML();const sd=$('#m-side');if(sd&&(M.tab2||'team')==='team'&&!sd.matches(':hover'))sd.innerHTML=lineupHTML();
   if(!M.paused)SND.setCrowd(inWindow(M.pt)?.5:.32,2)}
- if(E.done&&M.pt>=E.t-1e-3&&!M.repQ){finishLive();return}
+ if(E.done&&M.pt>=E.t-1e-3&&!M.repQ){if(!M.celDone&&VIEW&&VIEW.celebrate&&(M.celInfo=celebrationDue())){M.cel={ct:0};const el=$('#m-cel');if(el){el.innerHTML=`<small>${seasonLabel()}</small><b>${esc(M.celInfo.title)}</b><span>${esc(clubOf(S.user).name)}</span><button data-act="cel-skip">Continue ›</button>`;el.classList.add('on')}setOv('m-tl',false);SND.swell(1,8);RAF=requestAnimationFrame(loop);return}finishLive();return}
  RAF=requestAnimationFrame(loop);
 }
 function finishLive(){cancelAnimationFrame(RAF);if(VIEW){VIEW.dispose();VIEW=null}M.phase='done';M.intro=null;M.replay=null;M.score=M.E.score.slice();SND.setCrowd(.18,3);render()}
@@ -229,12 +247,13 @@ function instantResult(){
  runToEnd(M.E);M.pt=M.E.t;M.shown=M.E.events.length;M.score=M.E.score.slice();M.repQ=null;finishLive();SND.stop();
 }
 function finishMatchday(){
- const E=M.E,res=applyUserMatch(E);
+ const E=M.E,celShown=!!M.celDone,res=applyUserMatch(E);tacticLearn();
  if(M.tie&&M.tie.comp!=='lg'){if(M.tie.ko&&E.score[0]===E.score[1]&&!M.pens)M.pens=penaltiesFor(M).pens;processCupEvent(res,M.pens)}else processMatchday(res);
+ {const opp=E.T[1-M.us].club,gf=E.score[M.us],ga=E.score[1-M.us];if(isDerby(S.user,opp))news(`${clubOf(S.user).name} ${gf>ga?'beat':gf<ga?'lost to':'drew with'} local rivals ${clubOf(opp).name} ${Math.max(gf,ga)}–${Math.min(gf,ga)}.`,'club',[S.user,opp],{title:`Derby day: ${clubOf(E.T[0].club).short} ${E.score[0]}–${E.score[1]} ${clubOf(E.T[1].club).short}`});achMatch(E,M.us,M.tie)}
  advanceToUser();
  const us=M.us,gf=E.score[us],ga=E.score[1-us],opp=clubOf(E.T[1-us].club);M=null;
  save();go('home');toast(`${gf>ga?'Won':gf<ga?'Lost':'Drew'} ${gf}–${ga} against ${opp.short}`);if(S.sacked)setTimeout(sackedFlow,600);
- if(S.pendingTrophy){const t=S.pendingTrophy;S.pendingTrophy=null;setTimeout(()=>celebrateTrophy(`${t.t} winners`,`${seasonLabel()} · ${clubOf(t.club).name}`,t.club),700)}
+ if(S.pendingTrophy){const t=S.pendingTrophy;S.pendingTrophy=null;if(!celShown)setTimeout(()=>celebrateTrophy(`${t.t} winners`,`${seasonLabel()} · ${clubOf(t.club).name}`,t.club,t),700)}
 }
 
 /* ---------- interpolated frame access (shared by 2D/3D) ---------- */

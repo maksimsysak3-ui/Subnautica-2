@@ -52,7 +52,7 @@ function pressSummary(){
  const P=ui.press,tot={mor:0,board:0,fans:0};for(const{o}of P.picks){tot.mor+=o.fx.mor||0;tot.board+=o.fx.board||0;tot.fans+=o.fx.fans||0}
  const pick=P.picks.slice().sort((a,b)=>Math.abs((b.o.fx.fans||0))+Math.abs(b.o.fx.mor||0)-Math.abs(a.o.fx.fans||0)-Math.abs(a.o.fx.mor||0))[0],uc=clubOf(S.user);
  if(pick){const head=`${uc.short} boss: “${pick.o.t.length>70?pick.o.t.slice(0,67)+'…':pick.o.t}”`;news(`Speaking to ${P.outlet}, the ${uc.name} manager was asked: “${pick.q}”`,'club',[S.user],{title:head})}
- if(M)M['press_'+P.kind]=true;save();
+ if(M)M['press_'+P.kind]=true;if(tot.fans>=5)unlock('press');save();
  const line=(l,v)=>`<div class="press-fx"><span>${l}</span><b class="${v>0?'v5':v<0?'v2':''}">${v>0?'+'+v:v===0?'No change':v}</b></div>`,[fw]=fansWord(S.fans??62);
  openModal(`<div class="press"><div class="eyebrow">Press conference over</div><h2 style="font-size:26px;margin:6px 0 12px">${pick?`“${esc(pick.o.t)}”`:'No questions answered'}</h2><p class="muted" style="margin:0 0 12px">${esc(P.outlet)} will lead with that quote.</p>
  ${line('Squad morale',tot.mor)}${line('Board confidence',tot.board)}${line('Fan mood',tot.fans)}<p class="muted" style="font-size:12px;margin:10px 0 0">Supporters are ${fw.toLowerCase()}.</p>

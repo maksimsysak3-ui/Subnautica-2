@@ -78,7 +78,7 @@ document.addEventListener('click',e=>{
   case'sc-stop':S.scout=null;save();render();break;
   case'scout-p':(S.scoutQ=S.scoutQ||[]).includes(id)||S.scoutQ.push(id);save();render();toast('A scout will report after the next match');break;
   case'acad-up':{ensureAcademy();const k=v,cost=ACAD_COST[S.academy[k]],c=clubOf(S.user);if(c.budget<cost)break;c.budget-=cost;S.academy[k]++;save();render();toast('Academy upgraded');break}
-  case'acad-promote':{S.acad=S.acad.filter(x=>x!==id);const c=clubOf(S.user),p=S.players[id];c.squad.push(id);p.num=assignNum(S.user,p.pos);save();render();toast(`${p.ln} promoted to the first team`);break}
+  case'acad-promote':{unlock('grad');S.acad=S.acad.filter(x=>x!==id);const c=clubOf(S.user),p=S.players[id];c.squad.push(id);p.num=assignNum(S.user,p.pos);save();render();toast(`${p.ln} promoted to the first team`);break}
   case'acad-release':{const p=S.players[id];S.acad=S.acad.filter(x=>x!==id);delete S.players[id];save();render();toast(`${p.ln} released`);break}
   case'loan-out':loanOut(id);break;
   case'press-pre':openPress('pre');break;
@@ -97,6 +97,7 @@ document.addEventListener('click',e=>{
   case'oc-name':offerCallAct('name');break;
   case'oc-nfs':offerCallAct('nfs');break;
   case'oc-reject':offerCallAct('reject');break;
+  case'cel-skip':endCelebration();break;
   case'goto':{const[g,sb]=v.split('/');closeModal();go(g,sb);break}
   case'mailf':ui.mailF=v;ui.msg=null;render();break;
   case'mail-read-all':S.inbox.forEach(m=>m.read=true);save();render();renderBar();break;
@@ -125,7 +126,8 @@ document.addEventListener('click',e=>{
   case'md':ui.lgMd=clamp((ui.lgMd??Math.min(S.md,MDAYS-1))+ +t.dataset.d,0,MDAYS-1);render();break;
   case'kitflip':ui.kitBack=!ui.kitBack;render();break;
   case'new-season':{closeModal();endSeason();M=null;go('home');const ls=S.lastSeason;fxQueue.push(()=>awardsCeremony());
-   if(ls&&(ls.champ||ls.promoted))fxQueue.push(()=>celebrateTrophy(ls.champ?`${ls.league} champions`:`Promoted from ${ls.league}`,`${seasonLabel()} · ${clubOf(ls.club).name}`,ls.club));
+   if(ls&&(ls.champ||ls.promoted)){const rec=S.mgr.trophies.slice().reverse().find(t=>t.club===ls.club&&(ls.champ?!t.minor&&t.key&&t.key.startsWith('lg:'):t.minor));fxQueue.push(()=>celebrateTrophy(ls.champ?`${ls.league} champions`:`Promoted from ${ls.league}`,`${S.hist[0]?S.hist[0].season:seasonLabel()} · ${clubOf(ls.club).name}`,ls.club,rec))}
+   {const prev=S.hist[0]&&S.hist[0].season,won=S.mgr.trophies.filter(t=>t.season===prev&&!t.minor);if(won.length)fxQueue.push(()=>paradeOverlay(won))}
    if(S.youth&&S.youth.length)fxQueue.push(()=>revealYouth(S.youth));
    if(S.offers&&S.offers.length)fxQueue.push(()=>jobsModal(S.offers,'Job offers','Your reputation is growing',false));
    if(fxQueue.length)fxQueue.shift()();else toast(`Season ${seasonLabel()} has begun`);break}
@@ -179,3 +181,5 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 window.addEventListener('pagehide',()=>{if(S)flushSave()});
 if(window.claude&&window.claude.hot&&window.claude.hot.snapshot)window.claude.hot.snapshot(()=>({S}));
 window.claude?.hot?.ready?window.claude.hot.ready(boot):boot(window.claude?.hot?.data??{});
+// Test hook, only with #dbg in the address: jump a live match to full time and force a trophy celebration.
+if(location.hash==='#dbg')window.__dg={finishWithTrophy(){if(!M||M.phase!=='live')return false;M.intro=null;runToEnd(M.E);M.pt=M.E.t;M.shown=M.E.events.length;M.repQ=null;M.forceCel=true;return true}};

@@ -142,7 +142,7 @@ function processMatchday(userRes){
   p.val=valueOf(p);if(md%4===0){(p.vh=p.vh||[]).push(Math.round(p.val/1e4));if(p.vh.length>10)p.vh.shift();if(mine){(p.oh=p.oh||[]).push(p.ovr);if(p.oh.length>30)p.oh.shift()}}
  }
  const uc=clubOf(S.user),mine=S.results[uc.league].find(r=>r.md===md&&(r.h===S.user||r.a===S.user));
- if(mine){const home=mine.h===S.user,gf=home?mine.hg:mine.ag,ga=home?mine.ag:mine.hg,d=gf>ga?6:gf<ga?-6:0;
+ if(mine){const home=mine.h===S.user,gf=home?mine.hg:mine.ag,ga=home?mine.ag:mine.hg,d=(gf>ga?6:gf<ga?-6:0)*(typeof isDerby==='function'&&isDerby(mine.h,mine.a)?2:1);
   for(const p of squadOf(S.user))p.mor=clamp(p.mor+d+G.i(-2,2),25,98);
   S.fans=clamp((S.fans??62)+(gf>ga?2:gf<ga?-2.5:0),5,100);
  if(home){const g=Math.round(uc.cap*.86*34*(.85+(S.fans??62)*.003));uc.balance+=g;S.fin.gate+=g}
@@ -253,6 +253,7 @@ function canSell(p){const sq=squadOf(S.user);if(sq.length<=18)return'You need at
 /* ---------- season end ---------- */
 function endSeason(){
  seasonHistory();
+ if(typeof visionReview==='function')visionReview();
  if(typeof returnLoans==='function')returnLoans();
  if(typeof contractExits==='function')contractExits();
  const contNext=contQualifiers(true),report=[],uc0=clubOf(S.user),uLeague=S.leagues[uc0.league].name,uPos=posIn(table(uc0.league),S.user);
@@ -270,8 +271,9 @@ function endSeason(){
  S.hist.unshift(Object.assign({season:seasonLabel(),league:uLeague,pos:uPos,club:S.user},S.lastRow||{}));
  {const lg0=S.leagues[uc0.league],tp=targetPos(S.user);S.mgr.seasons++;S.mgr.rep=clamp(S.mgr.rep+(tp-uPos)*1.6+(uPos===1?6:0),5,99);
   S.lastSeason={pos:uPos,league:uLeague,tier:lg0.tier,champ:uPos===1,promoted:lg0.tier===1&&uPos<=DROP,relegated:lg0.tier===0&&uPos>PER-DROP,club:S.user};
-  if(uPos===1)S.mgr.trophies.push({t:uLeague,season:seasonLabel(),club:S.user});
-  if(lg0.tier===1&&uPos<=DROP)S.mgr.trophies.push({t:`Promotion from ${uLeague}`,season:seasonLabel(),club:S.user,minor:1})}
+  if(uPos===1)S.mgr.trophies.push({t:uLeague,season:seasonLabel(),club:S.user,key:'lg:'+lg0.id});
+  if(lg0.tier===1&&uPos<=DROP)S.mgr.trophies.push({t:`Promotion from ${uLeague}`,season:seasonLabel(),club:S.user,minor:1,key:'lg:'+lg0.id})}
+ if(typeof achSeason==='function')achSeason();
  for(const c of S.clubs){c.budget=Math.max(c.budget,0)+budgetOf(c.rep)*.8;c.budget=Math.round(c.budget/1e5)*1e5;c.wageBudget=Math.round(Math.max(c.wageBudget,wageBill(c.id)*1.08)/1000)*1000}
  for(const p of Object.values(S.players)){
   p.age++;if(p.age<=23&&p.ovr<p.pot)bump(p,Math.min(p.pot-p.ovr,G.i(1,5)));else if(p.age>=31)bump(p,-G.i(0,3));

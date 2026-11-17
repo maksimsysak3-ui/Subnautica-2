@@ -160,7 +160,7 @@ function negTerms(){
   const b=S.bids.find(x=>x.pid===p.id&&x.status==='Fee agreed');if(b){b.status='Signed';b.wage=n.wage}
   mail('Director of Football',`${p.ln} signs from ${clubOf(from).short}`,`<p>${esc(p.fn+' '+p.ln)} has joined for <b>${money(n.fee)}</b>${n.addons?` plus ${money(n.addons)} in add-ons`:''} on ${money(n.wage)} a week until ${2026+S.season+n.years}. He will wear number ${p.num}.</p>`,null,'transfer',{att:{t:'player',pid:p.id,note:'New signing'},links:[['View player','player',p.id,1]]});
   news(`${p.fn} ${p.ln} (${p.pos}, ${p.age}) joins ${uc.name} from ${clubOf(from).name} for ${money(n.fee)}.`,'transfer',[S.user,from],{title:`${uc.short} complete ${p.ln} signing`});
-  n.log.push({who:'agent',t:'We have a deal. He is delighted to join.'});n.stage='done';save();renderNeg();celebrateSigning(p,n.fee);return}
+  n.log.push({who:'agent',t:'We have a deal. He is delighted to join.'});n.stage='done';save();renderNeg();celebrateSigning(p,n.fee);if(stars(p.ovr)>=4)unlock('buy4');return}
  if(n.tries>=4){n.log.push({who:'agent',t:'We cannot reach an agreement. He will stay where he is.'});const b=S.bids.find(x=>x.pid===p.id&&x.status==='Fee agreed');if(b)b.status='Terms refused';save();renderNeg();setTimeout(closeModal,1800);return}
  n.log.push({who:'agent',t:n.wage<need*.9?`That is well short. He wants at least ${money(Math.round(need/500)*500)} a week.`:n.role!==n.expect&&ROLES_SQ.findIndex(r=>r[0]===n.role)>ROLES_SQ.findIndex(r=>r[0]===n.expect)?'He expects a bigger role than that.':'Close. Improve the offer a little and we can sign.'});
  renderNeg();

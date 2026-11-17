@@ -119,7 +119,7 @@ function processCupEvent(userRes,userPens){
   (S.cupHist=S.cupHist||{})[c.key]=(S.cupHist[c.key]||[]);S.cupHist[c.key].unshift({season:seasonLabel(),w,ru,hg:t.hg,ag:t.ag,pens:t.pens||null,h:t.h});
   clubOf(w).rep=clamp(clubOf(w).rep+(c.key==='cont'?3:1),30,97);
   news(`${clubOf(w).name} win the ${c.name}, beating ${clubOf(ru).name} ${Math.max(t.hg,t.ag)}–${Math.min(t.hg,t.ag)}${t.pens?` on penalties`:''} in the final.`,'cup',[w,ru],{title:`${clubOf(w).short} lift the ${c.name}`});
-  if(w===S.user){S.mgr.trophies.push({t:c.name,season:seasonLabel(),club:S.user});S.pendingTrophy={t:c.name,club:S.user}}}
+  if(w===S.user){const rec={t:c.name,season:seasonLabel(),club:S.user,key:c.key};S.mgr.trophies.push(rec);S.pendingTrophy=rec}}
  S.ci++;
 }
 // Play every event the user is not part of (cup rounds after elimination, rounds they never entered).

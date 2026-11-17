@@ -77,7 +77,7 @@ function offerCallAct(a){
 function completeOfferSale(m,fromCall){
  const o=m.action,p=S.players[o.pid],c=clubOf(o.club),why=canSell(p);
  if(p.club!==S.user){toast('He is no longer at the club.');return}if(why){toast(why);return}
- moveP(p.id,o.club,o.fee);S.fin.sales+=o.fee;logDeal(p.id,S.user,o.club,o.fee);o.done='yes';
+ moveP(p.id,o.club,o.fee);S.fin.sales+=o.fee;if(o.fee>=50e6)unlock('sell50');logDeal(p.id,S.user,o.club,o.fee);o.done='yes';
  news(`${p.fn} ${p.ln} joins ${c.name} from ${clubOf(S.user).name} for ${money(o.fee)}.`,'transfer',[o.club,S.user]);toast(`${p.ln} sold for ${money(o.fee)}`);
  if(ui.oc){ui.oc.stage='done';ui.oc.msgs.push({t:`Pleasure doing business. We'll confirm ${p.ln}'s medical today.`})}save();if(fromCall)renderOfferCall();render();
 }
