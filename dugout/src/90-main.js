@@ -24,6 +24,7 @@ function assignToSlot(pid){
  else{const old=t.xi[i];t.xi[i]=pid;const b=t.bench.indexOf(pid);if(b>=0)t.bench[b]=old;}
  ensureLineup(S.user);save();render();
 }
+function refreshAn(){const el=document.querySelector('.an');if(el&&M&&M.E)el.outerHTML=analysisHTML(M.E,M.phase==='live')}
 function pressOne(t){t.parentElement.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b===t))}
 document.addEventListener('click',e=>{
  if(e.target.id==='modal'){closeModal();return}
@@ -59,6 +60,9 @@ document.addEventListener('click',e=>{
   case'continue':closeModal();onContinue();break;
   case'player':closeModal();openPlayer(id);break;
   case'msg':openMsg(id);break;
+  case'an-tab':ui.anTab=v;refreshAn();break;
+  case'an-side':ui.anSide=+v;refreshAn();break;
+  case'an-player':{const p=M&&M.E&&M.E.P.concat(M.E.old).find(q=>q.pid===id);if(p){ui.anPid=id;ui.anSide=p.s;ui.anTab='heat';refreshAn();document.querySelector('.an')?.scrollIntoView({behavior:'smooth',block:'nearest'})}break}
   case'goto':{const[g,sb]=v.split('/');closeModal();go(g,sb);break}
   case'mailf':ui.mailF=v;ui.msg=null;render();break;
   case'mail-read-all':S.inbox.forEach(m=>m.read=true);save();render();renderBar();break;
@@ -123,7 +127,8 @@ document.addEventListener('change',e=>{
 document.addEventListener('input',e=>{const k=e.target.dataset.input,v=+e.target.value;
  if(k==='neg'){const key=e.target.dataset.k;ui.neg[key]=v;const o=document.getElementById(e.target.id+'-o');if(o)o.textContent=key==='sellOn'?v+'%':money(v);negLive()}
  else if(k==='split'){const c=clubOf(S.user),total=c.budget+c.wageBudget*WAGE_TO_FEE;$('#sp-w').textContent=money(v)+'/w';$('#sp-t').textContent=money(Math.max(0,total-v*WAGE_TO_FEE))}
- else if(k==='trq'){ui.trQ=e.target.value;renderSearch()}});
+ else if(k==='trq'){ui.trQ=e.target.value;renderSearch()}
+ else if(k==='an-pid'){ui.anPid=v;refreshAn()}});
 document.addEventListener('keydown',e=>{
  if(e.key==='Escape'&&!$('#modal').hidden)closeModal();
  if(e.key===' '&&view==='match'&&M&&M.phase==='live'&&!/INPUT|SELECT|BUTTON/.test(e.target.tagName)){e.preventDefault();M.paused=!M.paused;M.paused?SND.stop():SND.resume();const b=$('#m-pause');if(b)b.textContent=M.paused?'Resume':'Pause'}

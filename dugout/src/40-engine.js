@@ -16,7 +16,7 @@ function createMatch(cfg){
   ball:{x:52.5,y:34,z:.11,vx:0,vy:0,vz:0,owner:-1,recv:-1,lastS:0,lastP:-1,shot:null,tgt:{x:52.5,y:34},aerial:false,kt:0,cross:false},
   restart:null,lastPass:null,nextSub:3300,wxPlan:cfg.weather||{type:'clear',changes:[],wDir:0,wSpd:5},wxType:(cfg.weather||{}).type||'clear',wxNext:0,gain:[0,0],prevPoss:0,getP:cfg.getP,
   st:{pos:[0,0],sh:[0,0],sot:[0,0],xg:[0,0],pa:[0,0],pc:[0,0],cor:[0,0],fo:[0,0],yc:[0,0],rc:[0,0],off:[0,0],tk:[0,0],thru:[0,0],crs:[0,0],drib:[0,0],runs:[0,0]},
-  rec:{buf:new Float32Array(CAP*STRIDE),own:new Int8Array(CAP),n:0}};
+  rec:{buf:new Float32Array(CAP*STRIDE),own:new Int8Array(CAP),n:0},mom:[],pn:{},tick:0};
  E.ft=E.h1+2700+rng.i(2,5)*60;E.wx=WX[E.wxType]||WX.clear;
  cfg.teams.forEach((T,s)=>{
   const tm={s,club:T.club,tac:T.tac,slots:FORMATIONS[T.tac.form],bench:T.bench.slice(),subs:0,ai:!!T.ai,pl:[]};setShape(tm);E.T.push(tm);
@@ -37,7 +37,7 @@ function mkSim(E,po,s,slot,tm,i){
  if(s===0)for(const k of['pas','dec','pos','fin','fir','cmp'])a[k]=Math.min(1,a[k]*1.035);
  return{i,s,slot,pid:po.id,num:po.num,name:po.ln,pos,role:tm.tac.roles[slot]||ROLES[pos][0][0],a,x:0,y:0,vx:0,vy:0,tx:0,ty:0,
   en:(po.cond??100)/100,yc:0,off:false,red:false,cool:.5,pose:0,poseT:0,run:0,sprint:false,stun:0,tkCool:0,dribT:null,diveY:null,
-  st:{pa:0,pc:0,sh:0,so:0,g:0,as:0,kp:0,tk:0,in:0,sv:0,fo:0,dr:0,mins:0}};
+  st:{pa:0,pc:0,sh:0,so:0,g:0,as:0,kp:0,tk:0,in:0,sv:0,fo:0,dr:0,mins:0,dist:0},hm:new Array(96).fill(0),ax:0,ay:0,an:0};
 }
 function ev(E,type,s,i,d){const m=clockSec(E);const e=Object.assign({t:E.t,min:m,type,s,i,pid:i!=null&&i>=0?E.P[i].pid:null},d||{});E.events.push(e);return e}
 function clockSec(E){return E.half===1?E.t:2700+(E.t-E.h1)}
@@ -67,12 +67,15 @@ function stepMatch(E){
  if(E.restart)restartStep(E);else playStep(E);
  for(const p of E.P){
   if(p.off){p.vx=p.vy=0;continue}
-  movePlayer(E,p);p.st.mins+=DT;
+  movePlayer(E,p);p.st.mins+=DT;p.st.dist+=Math.hypot(p.vx,p.vy)*DT;
   if(p.pose){p.poseT+=DT;if(p.poseT>POSE_DUR[p.pose]){p.pose=0;p.poseT=0}}
  }
  if(b.owner>=0)placeBall(E.P[b.owner],b);
  if(E.poss!==E.prevPoss){E.gain[E.poss]=E.t;E.prevPoss=E.poss}
  E.st.pos[E.poss]+=DT;
+ // analysis: territory-weighted momentum per match minute, heat grids and average positions twice a second
+ {const m=Math.floor(clockSec(E)/60),mo=E.mom[m]||(E.mom[m]=[0,0]);mo[E.poss]+=threat(fX(E.poss,b.x),fY(E.poss,b.y))*DT;
+  if(++E.tick%5===0)for(const p of E.P){if(p.off)continue;const c=clamp(Math.floor(p.x/PW*12),0,11)+12*clamp(Math.floor(p.y/PH*8),0,7);p.hm[c]++;p.ax+=p.x;p.ay+=p.y;p.an++}}
  if(E.t>=E.nextSub){E.nextSub+=240;autoSubs(E)}
  record(E);
 }
@@ -298,7 +301,7 @@ function receive(E,p,loose){
  let ok=(.905+.09*p.a.fir-(pr<1.1?.1:pr<2.4?.035:0))*(.9+.1*clamp(p.en,0,1))-(sp>16?.05:0)-E.wx.touch;
  if(p.pos==='GK'&&inBox(p.s,b.x,b.y))ok=.98;
  if(E.rng.f()<ok){
-  if(passer&&passer.s===p.s&&passer!==p&&(!loose||E.t-b.kt<4)&&!b.shot){passer.st.pc++;E.st.pc[p.s]++;E.lastPass={i:passer.i,t:E.t}}
+  if(passer&&passer.s===p.s&&passer!==p&&(!loose||E.t-b.kt<4)&&!b.shot){passer.st.pc++;{const k=passer.pid+'-'+p.pid;E.pn[k]=(E.pn[k]||0)+1}E.st.pc[p.s]++;E.lastPass={i:passer.i,t:E.t}}
   else if(passer&&passer.s!==p.s){if(!loose)p.st.in++;E.lastPass=null}
   Object.assign(b,{owner:p.i,recv:-1,aerial:false,vz:0,z:.11,lastS:p.s,lastP:p.i,cross:false});E.poss=p.s;
   p.cool=(2.95+(1-p.a.dec)*1+E.rng.f()*1.9)*[1.35,1,.78][E.T[p.s].tac.ins.tempo]*(counterOn(E,p.s)?.6:1);p.dribT=null;
@@ -348,7 +351,7 @@ function shoot(E,c,head,pen){
  Object.assign(b,{vx:(gx-c.x)/T,vy:(gy-c.y)/T,vz:(gz-b.z+4.905*T*T)/T,owner:-1,recv:-1,aerial:false,lastP:c.i,lastS:s,kt:E.t,
   shot:{s,out,x,shooter:c.i,ast,gk:gk?gk.i:-1,gy,gz,head,pen,blk}});
  E.poss=s;setPose(c,head?POSE.head:POSE.kick);c.cool=1;
- ev(E,'shot',s,c.i,{out,x,head,pen,ast});
+ ev(E,'shot',s,c.i,{out,x,head,pen,ast,sx:c.x,sy:c.y});
  if(gk&&(out==='save'||out==='goal')&&E.rng.f()<.85){gk.diveY=gy;setPose(gk,POSE.dive)}
 }
 function shotFlight(E){

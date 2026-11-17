@@ -118,7 +118,8 @@ function viewMatch(){
  <div class="mgrid">
  <section class="panel"><div class="ph"><h3>Commentary</h3></div><ul class="feed" id="m-feed"></ul></section>
  <section class="panel"><div class="ph"><h3>Match stats</h3></div><div id="m-stats">${statsHTML()}</div></section>
- <section class="panel"><div class="ph"><div class="seg" role="group" aria-label="Panel">${[['team','Team'],['tac','Tactics']].map(([k,l])=>`<button data-act="mtab2" data-v="${k}" aria-pressed="${(M.tab2||'team')===k}">${l}</button>`).join('')}</div></div><div id="m-side">${(M.tab2||'team')==='team'?lineupHTML():quickTacHTML()}</div></section></div>`;
+ <section class="panel"><div class="ph"><div class="seg" role="group" aria-label="Panel">${[['team','Team'],['tac','Tactics']].map(([k,l])=>`<button data-act="mtab2" data-v="${k}" aria-pressed="${(M.tab2||'team')===k}">${l}</button>`).join('')}</div></div><div id="m-side">${(M.tab2||'team')==='team'?lineupHTML():quickTacHTML()}</div></section></div>
+ <section class="panel an-panel" id="m-an" style="margin-top:12px">${analysisHTML(M.E,true)}</section>`;
 }
 const shortOf=s=>esc(clubOf(M.E.T[s].club).abbr||clubOf(M.E.T[s].club).short.slice(0,3).toUpperCase());
 function sbugHTML(){if(!M.E)return'';const[hk,ak]=kitColors(M.E);return`<span class="sb-t" style="--k:${hk.base}">${shortOf(0)}</span><b id="m-sbs">${M.score[0]}–${M.score[1]}</b><span class="sb-t" style="--k:${ak.base}">${shortOf(1)}</span><i id="m-sbc">${clockAt(M.E,M.pt)}</i>`}
@@ -144,7 +145,7 @@ function postHTML(){
  return`<div class="grid"><section class="panel c4"><div class="ph"><h3>${so?(wonP?'Through on penalties':'Out on penalties'):gf>ga?'Victory':gf<ga?'Defeat':'Draw'}</h3>${M.tie&&M.tie.comp!=='lg'?`<small>${esc(M.tie.label)}</small>`:''}</div>${so?shootoutHTML():''}<div class="pb"><div style="display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted)"><div>${goals(0)}</div><div style="text-align:right">${goals(1)}</div></div></div><div>${statsHTML()}</div>
  <div class="pb"><div class="eyebrow">Player of the match</div><p style="margin:6px 0 0;font:700 20px var(--fd)">${esc(S.players[motm.pid].fn+' '+motm.name)} <span class="rt" style="background:${rtColor(motm.rating)}">${motm.rating.toFixed(1)}</span></p><small>${esc(clubOf(E.T[motm.s].club).name)}</small>
  <button class="btn pri lg" style="width:100%;margin-top:14px" data-act="match-finish">Continue ${ARROW}</button></div></section>
- ${[0,1].map(s=>`<section class="panel c4"><div class="ph"><h3>${esc(clubOf(E.T[s].club).short)} ratings</h3></div><div class="tw"><table class="tbl"><tbody>${rt(s)}</tbody></table></div></section>`).join('')}</div>`;
+ ${[0,1].map(s=>`<section class="panel c4"><div class="ph"><h3>${esc(clubOf(E.T[s].club).short)} ratings</h3></div><div class="tw"><table class="tbl"><tbody>${rt(s)}</tbody></table></div></section>`).join('')}<section class="panel c12 an-panel">${analysisHTML(E,false)}</section></div>`;
 }
 
 const wxAdvice=t=>({rain:'A wet pitch: the ball skids, first touches suffer and keepers spill more.',storm:'Heavy rain: expect mistakes. Simple, direct football may pay off.',snow:'Snow slows the ball and the players. Short passing will struggle.',wind:'Strong wind will push long balls and crosses off target.',heat:'Hot conditions: players tire faster. Consider a lower press.',cloudy:'Good conditions for football.',clear:'Perfect conditions for football.'})[t]||'';
@@ -211,7 +212,7 @@ function loop(ts){
  {const c=$('#m-sbc');if(c)c.textContent=clk;const sc=$('#m-sbs');if(sc)sc.textContent=`${M.score[0]}–${M.score[1]}`;if(tl){const b=$('#m-tlc');if(b)b.textContent=clk}}
  {const shownWx=wxAtPt();if(shownWx!==M.lastWx){M.lastWx=shownWx;const el=$('#m-wx');if(el)el.innerHTML=`${wxIcon(shownWx)}<span>${WX[shownWx].n} · ${M.wx.temp}°C · ${kickLabel(M.wx.kick)}</span>`}}
  if(VIEW)VIEW.draw(M.pt,M.paused?0:dt*Math.min(r,4),dt);
- if(ts-sideT>1000){sideT=ts;const st=$('#m-stats');if(st)st.innerHTML=statsHTML();const sd=$('#m-side');if(sd&&(M.tab2||'team')==='team'&&!sd.matches(':hover'))sd.innerHTML=lineupHTML();
+ if(ts-sideT>1000){sideT=ts;{const an=$('#m-an');if(an&&!an.matches(':hover')&&!an.contains(document.activeElement)&&(M.anT=(M.anT||0)+1)%2===0)an.innerHTML=analysisHTML(M.E,true)}const st=$('#m-stats');if(st)st.innerHTML=statsHTML();const sd=$('#m-side');if(sd&&(M.tab2||'team')==='team'&&!sd.matches(':hover'))sd.innerHTML=lineupHTML();
   if(!M.paused)SND.setCrowd(inWindow(M.pt)?.5:.32,2)}
  if(E.done&&M.pt>=E.t-1e-3&&!M.repQ){finishLive();return}
  RAF=requestAnimationFrame(loop);

@@ -141,6 +141,21 @@ input[type=range]{accent-color:var(--accent);width:100%}
 .hero p{margin:4px 0 0;color:var(--muted)}
 .start-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
 
+/* ---------- match analysis ---------- */
+.an{display:flex;flex-direction:column}
+.an-tabs{display:flex;gap:0;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.an-tabs button{padding:12px 16px;font:700 13px var(--fd);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
+.an-tabs button:hover{color:#fff}.an-tabs button[aria-selected="true"]{color:#fff;border-bottom-color:var(--accent)}
+.an-body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:10px}
+.an-chart{width:100%;height:auto;max-height:260px;display:block;background:linear-gradient(180deg,#141417,#111113);border:1px solid var(--line);border-radius:4px}
+.an-pitchwrap{max-width:860px;width:100%;margin:0 auto}
+.an-pitch{width:100%;height:auto;display:block;border-radius:4px}
+.an-leg{display:flex;gap:16px;font:600 12px var(--fd);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}.an-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.an-note{margin:0;font-size:12px;color:var(--dim)}
+.an-big{display:flex;gap:30px}.an-big div{display:flex;flex-direction:column}.an-big b{font:800 34px/1 var(--fd)}.an-big small{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.1em}
+.an-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.an-row select{background:var(--panel2);color:var(--text);border:1px solid var(--line2);padding:7px 10px;font:inherit}
+.an-tbl td,.an-tbl th{white-space:nowrap}
+
 /* ---------- mail ---------- */
 .mail{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:12px;align-items:start}
 .m-list{position:sticky;top:120px;max-height:calc(100vh - 140px);display:flex;flex-direction:column}
@@ -1192,7 +1207,7 @@ function createMatch(cfg){
   ball:{x:52.5,y:34,z:.11,vx:0,vy:0,vz:0,owner:-1,recv:-1,lastS:0,lastP:-1,shot:null,tgt:{x:52.5,y:34},aerial:false,kt:0,cross:false},
   restart:null,lastPass:null,nextSub:3300,wxPlan:cfg.weather||{type:'clear',changes:[],wDir:0,wSpd:5},wxType:(cfg.weather||{}).type||'clear',wxNext:0,gain:[0,0],prevPoss:0,getP:cfg.getP,
   st:{pos:[0,0],sh:[0,0],sot:[0,0],xg:[0,0],pa:[0,0],pc:[0,0],cor:[0,0],fo:[0,0],yc:[0,0],rc:[0,0],off:[0,0],tk:[0,0],thru:[0,0],crs:[0,0],drib:[0,0],runs:[0,0]},
-  rec:{buf:new Float32Array(CAP*STRIDE),own:new Int8Array(CAP),n:0}};
+  rec:{buf:new Float32Array(CAP*STRIDE),own:new Int8Array(CAP),n:0},mom:[],pn:{},tick:0};
  E.ft=E.h1+2700+rng.i(2,5)*60;E.wx=WX[E.wxType]||WX.clear;
  cfg.teams.forEach((T,s)=>{
   const tm={s,club:T.club,tac:T.tac,slots:FORMATIONS[T.tac.form],bench:T.bench.slice(),subs:0,ai:!!T.ai,pl:[]};setShape(tm);E.T.push(tm);
@@ -1213,7 +1228,7 @@ function mkSim(E,po,s,slot,tm,i){
  if(s===0)for(const k of['pas','dec','pos','fin','fir','cmp'])a[k]=Math.min(1,a[k]*1.035);
  return{i,s,slot,pid:po.id,num:po.num,name:po.ln,pos,role:tm.tac.roles[slot]||ROLES[pos][0][0],a,x:0,y:0,vx:0,vy:0,tx:0,ty:0,
   en:(po.cond??100)/100,yc:0,off:false,red:false,cool:.5,pose:0,poseT:0,run:0,sprint:false,stun:0,tkCool:0,dribT:null,diveY:null,
-  st:{pa:0,pc:0,sh:0,so:0,g:0,as:0,kp:0,tk:0,in:0,sv:0,fo:0,dr:0,mins:0}};
+  st:{pa:0,pc:0,sh:0,so:0,g:0,as:0,kp:0,tk:0,in:0,sv:0,fo:0,dr:0,mins:0,dist:0},hm:new Array(96).fill(0),ax:0,ay:0,an:0};
 }
 function ev(E,type,s,i,d){const m=clockSec(E);const e=Object.assign({t:E.t,min:m,type,s,i,pid:i!=null&&i>=0?E.P[i].pid:null},d||{});E.events.push(e);return e}
 function clockSec(E){return E.half===1?E.t:2700+(E.t-E.h1)}
@@ -1243,12 +1258,15 @@ function stepMatch(E){
  if(E.restart)restartStep(E);else playStep(E);
  for(const p of E.P){
   if(p.off){p.vx=p.vy=0;continue}
-  movePlayer(E,p);p.st.mins+=DT;
+  movePlayer(E,p);p.st.mins+=DT;p.st.dist+=Math.hypot(p.vx,p.vy)*DT;
   if(p.pose){p.poseT+=DT;if(p.poseT>POSE_DUR[p.pose]){p.pose=0;p.poseT=0}}
  }
  if(b.owner>=0)placeBall(E.P[b.owner],b);
  if(E.poss!==E.prevPoss){E.gain[E.poss]=E.t;E.prevPoss=E.poss}
  E.st.pos[E.poss]+=DT;
+ // analysis: territory-weighted momentum per match minute, heat grids and average positions twice a second
+ {const m=Math.floor(clockSec(E)/60),mo=E.mom[m]||(E.mom[m]=[0,0]);mo[E.poss]+=threat(fX(E.poss,b.x),fY(E.poss,b.y))*DT;
+  if(++E.tick%5===0)for(const p of E.P){if(p.off)continue;const c=clamp(Math.floor(p.x/PW*12),0,11)+12*clamp(Math.floor(p.y/PH*8),0,7);p.hm[c]++;p.ax+=p.x;p.ay+=p.y;p.an++}}
  if(E.t>=E.nextSub){E.nextSub+=240;autoSubs(E)}
  record(E);
 }
@@ -1474,7 +1492,7 @@ function receive(E,p,loose){
  let ok=(.905+.09*p.a.fir-(pr<1.1?.1:pr<2.4?.035:0))*(.9+.1*clamp(p.en,0,1))-(sp>16?.05:0)-E.wx.touch;
  if(p.pos==='GK'&&inBox(p.s,b.x,b.y))ok=.98;
  if(E.rng.f()<ok){
-  if(passer&&passer.s===p.s&&passer!==p&&(!loose||E.t-b.kt<4)&&!b.shot){passer.st.pc++;E.st.pc[p.s]++;E.lastPass={i:passer.i,t:E.t}}
+  if(passer&&passer.s===p.s&&passer!==p&&(!loose||E.t-b.kt<4)&&!b.shot){passer.st.pc++;{const k=passer.pid+'-'+p.pid;E.pn[k]=(E.pn[k]||0)+1}E.st.pc[p.s]++;E.lastPass={i:passer.i,t:E.t}}
   else if(passer&&passer.s!==p.s){if(!loose)p.st.in++;E.lastPass=null}
   Object.assign(b,{owner:p.i,recv:-1,aerial:false,vz:0,z:.11,lastS:p.s,lastP:p.i,cross:false});E.poss=p.s;
   p.cool=(2.95+(1-p.a.dec)*1+E.rng.f()*1.9)*[1.35,1,.78][E.T[p.s].tac.ins.tempo]*(counterOn(E,p.s)?.6:1);p.dribT=null;
@@ -1524,7 +1542,7 @@ function shoot(E,c,head,pen){
  Object.assign(b,{vx:(gx-c.x)/T,vy:(gy-c.y)/T,vz:(gz-b.z+4.905*T*T)/T,owner:-1,recv:-1,aerial:false,lastP:c.i,lastS:s,kt:E.t,
   shot:{s,out,x,shooter:c.i,ast,gk:gk?gk.i:-1,gy,gz,head,pen,blk}});
  E.poss=s;setPose(c,head?POSE.head:POSE.kick);c.cool=1;
- ev(E,'shot',s,c.i,{out,x,head,pen,ast});
+ ev(E,'shot',s,c.i,{out,x,head,pen,ast,sx:c.x,sy:c.y});
  if(gk&&(out==='save'||out==='goal')&&E.rng.f()<.85){gk.diveY=gy;setPose(gk,POSE.dive)}
 }
 function shotFlight(E){
@@ -3043,7 +3061,8 @@ function viewMatch(){
  <div class="mgrid">
  <section class="panel"><div class="ph"><h3>Commentary</h3></div><ul class="feed" id="m-feed"></ul></section>
  <section class="panel"><div class="ph"><h3>Match stats</h3></div><div id="m-stats">${statsHTML()}</div></section>
- <section class="panel"><div class="ph"><div class="seg" role="group" aria-label="Panel">${[['team','Team'],['tac','Tactics']].map(([k,l])=>`<button data-act="mtab2" data-v="${k}" aria-pressed="${(M.tab2||'team')===k}">${l}</button>`).join('')}</div></div><div id="m-side">${(M.tab2||'team')==='team'?lineupHTML():quickTacHTML()}</div></section></div>`;
+ <section class="panel"><div class="ph"><div class="seg" role="group" aria-label="Panel">${[['team','Team'],['tac','Tactics']].map(([k,l])=>`<button data-act="mtab2" data-v="${k}" aria-pressed="${(M.tab2||'team')===k}">${l}</button>`).join('')}</div></div><div id="m-side">${(M.tab2||'team')==='team'?lineupHTML():quickTacHTML()}</div></section></div>
+ <section class="panel an-panel" id="m-an" style="margin-top:12px">${analysisHTML(M.E,true)}</section>`;
 }
 const shortOf=s=>esc(clubOf(M.E.T[s].club).abbr||clubOf(M.E.T[s].club).short.slice(0,3).toUpperCase());
 function sbugHTML(){if(!M.E)return'';const[hk,ak]=kitColors(M.E);return`<span class="sb-t" style="--k:${hk.base}">${shortOf(0)}</span><b id="m-sbs">${M.score[0]}–${M.score[1]}</b><span class="sb-t" style="--k:${ak.base}">${shortOf(1)}</span><i id="m-sbc">${clockAt(M.E,M.pt)}</i>`}
@@ -3069,7 +3088,7 @@ function postHTML(){
  return`<div class="grid"><section class="panel c4"><div class="ph"><h3>${so?(wonP?'Through on penalties':'Out on penalties'):gf>ga?'Victory':gf<ga?'Defeat':'Draw'}</h3>${M.tie&&M.tie.comp!=='lg'?`<small>${esc(M.tie.label)}</small>`:''}</div>${so?shootoutHTML():''}<div class="pb"><div style="display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted)"><div>${goals(0)}</div><div style="text-align:right">${goals(1)}</div></div></div><div>${statsHTML()}</div>
  <div class="pb"><div class="eyebrow">Player of the match</div><p style="margin:6px 0 0;font:700 20px var(--fd)">${esc(S.players[motm.pid].fn+' '+motm.name)} <span class="rt" style="background:${rtColor(motm.rating)}">${motm.rating.toFixed(1)}</span></p><small>${esc(clubOf(E.T[motm.s].club).name)}</small>
  <button class="btn pri lg" style="width:100%;margin-top:14px" data-act="match-finish">Continue ${ARROW}</button></div></section>
- ${[0,1].map(s=>`<section class="panel c4"><div class="ph"><h3>${esc(clubOf(E.T[s].club).short)} ratings</h3></div><div class="tw"><table class="tbl"><tbody>${rt(s)}</tbody></table></div></section>`).join('')}</div>`;
+ ${[0,1].map(s=>`<section class="panel c4"><div class="ph"><h3>${esc(clubOf(E.T[s].club).short)} ratings</h3></div><div class="tw"><table class="tbl"><tbody>${rt(s)}</tbody></table></div></section>`).join('')}<section class="panel c12 an-panel">${analysisHTML(E,false)}</section></div>`;
 }
 
 const wxAdvice=t=>({rain:'A wet pitch: the ball skids, first touches suffer and keepers spill more.',storm:'Heavy rain: expect mistakes. Simple, direct football may pay off.',snow:'Snow slows the ball and the players. Short passing will struggle.',wind:'Strong wind will push long balls and crosses off target.',heat:'Hot conditions: players tire faster. Consider a lower press.',cloudy:'Good conditions for football.',clear:'Perfect conditions for football.'})[t]||'';
@@ -3136,7 +3155,7 @@ function loop(ts){
  {const c=$('#m-sbc');if(c)c.textContent=clk;const sc=$('#m-sbs');if(sc)sc.textContent=`${M.score[0]}–${M.score[1]}`;if(tl){const b=$('#m-tlc');if(b)b.textContent=clk}}
  {const shownWx=wxAtPt();if(shownWx!==M.lastWx){M.lastWx=shownWx;const el=$('#m-wx');if(el)el.innerHTML=`${wxIcon(shownWx)}<span>${WX[shownWx].n} · ${M.wx.temp}°C · ${kickLabel(M.wx.kick)}</span>`}}
  if(VIEW)VIEW.draw(M.pt,M.paused?0:dt*Math.min(r,4),dt);
- if(ts-sideT>1000){sideT=ts;const st=$('#m-stats');if(st)st.innerHTML=statsHTML();const sd=$('#m-side');if(sd&&(M.tab2||'team')==='team'&&!sd.matches(':hover'))sd.innerHTML=lineupHTML();
+ if(ts-sideT>1000){sideT=ts;{const an=$('#m-an');if(an&&!an.matches(':hover')&&!an.contains(document.activeElement)&&(M.anT=(M.anT||0)+1)%2===0)an.innerHTML=analysisHTML(M.E,true)}const st=$('#m-stats');if(st)st.innerHTML=statsHTML();const sd=$('#m-side');if(sd&&(M.tab2||'team')==='team'&&!sd.matches(':hover'))sd.innerHTML=lineupHTML();
   if(!M.paused)SND.setCrowd(inWindow(M.pt)?.5:.32,2)}
  if(E.done&&M.pt>=E.t-1e-3&&!M.repQ){finishLive();return}
  RAF=requestAnimationFrame(loop);
@@ -3252,6 +3271,87 @@ const SND={
  stop(){if(this.ctx&&this.ctx.state==='running')this.ctx.suspend()},
  resume(){if(this.ctx&&this.ctx.state==='suspended')this.ctx.resume()},
 };
+/* ================= match analysis =================
+   Built from what the engine records: minute-by-minute momentum, every shot with its location and xG,
+   per-player heat grids, average positions and who passed to whom. Used live and in the match report. */
+ui.anTab='momentum';ui.anSide=0;ui.anPid=null;
+
+const anCols=E=>kitColors(E).map(k=>{let c=k.base;if(contrast(c,'#141416')<2.2)c=mix(c,'#ffffff',.45);return c});
+function pitchSVG(inner,o={}){
+ const v=o.half?'50 -3 58 74':'-3 -3 111 74',id=uid('pt');
+ return`<svg class="an-pitch ${o.cls||''}" viewBox="${v}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${o.label||'Pitch'}"><defs><pattern id="${id}" width="17.5" height="68" patternUnits="userSpaceOnUse"><rect width="8.75" height="68" fill="#1d4f2c"/><rect x="8.75" width="8.75" height="68" fill="#1a4828"/></pattern></defs>
+ <rect x="-3" y="-3" width="111" height="74" fill="#163d22"/><rect x="0" y="0" width="105" height="68" fill="url(#${id})"/>
+ <g fill="none" stroke="rgba(255,255,255,.55)" stroke-width=".35"><rect x="0" y="0" width="105" height="68"/><path d="M52.5 0V68"/><circle cx="52.5" cy="34" r="9.15"/>
+ <rect x="0" y="13.84" width="16.5" height="40.32"/><rect x="0" y="24.84" width="5.5" height="18.32"/><rect x="88.5" y="13.84" width="16.5" height="40.32"/><rect x="99.5" y="24.84" width="5.5" height="18.32"/>
+ <path d="M16.5 26.7A9.15 9.15 0 0 1 16.5 41.3M88.5 26.7A9.15 9.15 0 0 0 88.5 41.3"/><rect x="-1.6" y="30.34" width="1.6" height="7.32"/><rect x="105" y="30.34" width="1.6" height="7.32"/></g>
+ <g fill="rgba(255,255,255,.55)"><circle cx="52.5" cy="34" r=".5"/><circle cx="11" cy="34" r=".4"/><circle cx="94" cy="34" r=".4"/></g>${inner}</svg>`;
+}
+// Momentum: smoothed territorial pressure per minute, home above the line, away below, with goals marked.
+function momentumSVG(E,upto){
+ const cols=anCols(E),mins=Math.max(1,Math.min(E.mom.length,upto??E.mom.length)),W=600,H=150,mid=H/2,bw=W/Math.max(mins,90);
+ const raw=[];for(let m=0;m<mins;m++){const v=E.mom[m]||[0,0];raw.push(v[0]-v[1])}
+ const sm=raw.map((_,i)=>{let a=0,n=0;for(let k=-2;k<=2;k++){const v=raw[i+k];if(v!=null){a+=v*(3-Math.abs(k));n+=3-Math.abs(k)}}return a/n});
+ const mx=Math.max(4,...sm.map(Math.abs));
+ const bars=sm.map((v,i)=>{const h=Math.abs(v)/mx*(mid-14);return`<rect x="${(i*bw+.6).toFixed(1)}" y="${(v>0?mid-h:mid).toFixed(1)}" width="${Math.max(1,bw-1.2).toFixed(1)}" height="${h.toFixed(1)}" fill="${v>0?cols[0]:cols[1]}" opacity="${(.45+.55*Math.abs(v)/mx).toFixed(2)}" rx="1"/>`}).join('');
+ const goals=E.events.filter(e=>e.type==='goal'&&(upto==null||e.min/60<upto)).map(e=>{const x=Math.min(W-6,e.min/60*bw),y=e.s?H-8:8;return`<g transform="translate(${x.toFixed(1)} ${y})"><circle r="6" fill="#fff"/><path d="M-2.4 -1.8 L0 -3.4 L2.4 -1.8 L1.6 1.4 L-1.6 1.4Z" fill="#111"/></g>`}).join('');
+ const ht=45*bw;
+ return`<svg class="an-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Match momentum"><line x1="0" y1="${mid}" x2="${W}" y2="${mid}" stroke="rgba(255,255,255,.18)"/>
+ <line x1="${ht}" y1="4" x2="${ht}" y2="${H-4}" stroke="rgba(255,255,255,.12)" stroke-dasharray="3 3"/>${bars}${goals}
+ ${[0,15,30,45,60,75,90].map(m=>`<text x="${m*bw+2}" y="${H-1}" font-size="9" fill="rgba(255,255,255,.35)" font-family="Barlow">${m}'</text>`).join('')}</svg>`;
+}
+function xgRaceSVG(E,upto){
+ const cols=anCols(E),W=600,H=170,shots=E.events.filter(e=>e.type==='shot'&&(upto==null||e.min/60<upto)),end=Math.max(90,...shots.map(e=>e.min/60+1));
+ const tot=[0,0],pts=[[[0,0]],[[0,0]]];for(const e of shots){pts[e.s].push([e.min/60,tot[e.s]]);tot[e.s]+=e.x;pts[e.s].push([e.min/60,tot[e.s]])}
+ const last=upto??end;pts.forEach((p,s)=>p.push([last,tot[s]]));
+ const mx=Math.max(1,tot[0],tot[1])*1.15,X=m=>m/end*(W-30)+24,Y=v=>H-18-v/mx*(H-30);
+ const lines=pts.map((p,s)=>`<path d="M${p.map(([m,v])=>`${X(m).toFixed(1)} ${Y(v).toFixed(1)}`).join(' L')}" fill="none" stroke="${cols[s]}" stroke-width="2.4" stroke-linejoin="round"/>`).join('');
+ const goals=shots.filter(e=>e.out==='goal').map(e=>{let v=0;for(const q of shots){if(q===e)break;if(q.s===e.s)v+=q.x}v+=e.x;return`<circle cx="${X(e.min/60).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="4.5" fill="${cols[e.s]}" stroke="#fff" stroke-width="1.5"/>`}).join('');
+ const grid=[0,.5,1,1.5,2,2.5,3,3.5,4].filter(v=>v<mx).map(v=>`<line x1="24" x2="${W-6}" y1="${Y(v)}" y2="${Y(v)}" stroke="rgba(255,255,255,.06)"/><text x="2" y="${Y(v)+3}" font-size="9" fill="rgba(255,255,255,.35)" font-family="Barlow">${v.toFixed(1)}</text>`).join('');
+ return`<svg class="an-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Expected goals race">${grid}${lines}${goals}${[0,15,30,45,60,75,90].map(m=>`<text x="${X(m)}" y="${H-3}" font-size="9" fill="rgba(255,255,255,.35)" text-anchor="middle" font-family="Barlow">${m}'</text>`).join('')}</svg>`;
+}
+function shotMapSVG(E,upto){
+ const cols=anCols(E),shots=E.events.filter(e=>e.type==='shot'&&e.sx!=null&&(upto==null||e.min/60<upto));
+ const dots=shots.map(e=>{const r=(1+Math.sqrt(e.x)*4.2).toFixed(2),c=cols[e.s],nm=S.players[e.pid]?S.players[e.pid].ln:'';
+  return e.out==='goal'?`<g><circle cx="${e.sx.toFixed(1)}" cy="${e.sy.toFixed(1)}" r="${(+r+.9).toFixed(2)}" fill="${c}" stroke="#fff" stroke-width=".6"/><title>${esc(nm)} ${Math.round(e.min/60)+1}' · goal · ${e.x.toFixed(2)} xG</title></g>`
+  :`<circle cx="${e.sx.toFixed(1)}" cy="${e.sy.toFixed(1)}" r="${r}" fill="${e.out==='save'?c:'none'}" fill-opacity="${e.out==='save'?.55:0}" stroke="${c}" stroke-width=".55"><title>${esc(nm)} ${Math.round(e.min/60)+1}' · ${e.out} · ${e.x.toFixed(2)} xG</title></circle>`}).join('');
+ return pitchSVG(dots,{label:'Shot map'});
+}
+function networkSVG(E,s){
+ const cols=anCols(E),ps=E.P.concat(E.old).filter(p=>p.s===s&&p.an>40),byPid={};ps.forEach(p=>byPid[p.pid]=p);
+ const pos=p=>[p.ax/p.an,p.ay/p.an];let edges='';
+ const pairs={};for(const[k,n]of Object.entries(E.pn)){const[a,b]=k.split('-').map(Number);if(!byPid[a]||!byPid[b])continue;const key=a<b?a+'-'+b:b+'-'+a;pairs[key]=(pairs[key]||0)+n}
+ const mx=Math.max(1,...Object.values(pairs));
+ for(const[k,n]of Object.entries(pairs)){if(n<3)continue;const[a,b]=k.split('-').map(Number),[x1,y1]=pos(byPid[a]),[x2,y2]=pos(byPid[b]);edges+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#fff" stroke-opacity="${(.15+.6*n/mx).toFixed(2)}" stroke-width="${(.3+2.2*n/mx).toFixed(2)}" stroke-linecap="round"/>`}
+ const nodes=ps.map(p=>{const[x,y]=pos(p),inv=p.st.pa+(Object.entries(E.pn).filter(([k])=>k.endsWith('-'+p.pid)).reduce((a,[,n])=>a+n,0)),r=1.7+Math.min(2,inv/40);
+  return`<g><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${cols[s]}" stroke="#fff" stroke-width=".5"/><text x="${x.toFixed(1)}" y="${(y+1.1).toFixed(1)}" text-anchor="middle" font-size="2.4" font-weight="800" fill="${ink(cols[s])}" font-family="Barlow Condensed">${p.num}</text><title>${esc(p.name)}: ${p.st.pc}/${p.st.pa} passes</title></g>`}).join('');
+ return pitchSVG(edges+nodes,{label:'Passing network and average positions'});
+}
+function heatSVG(E,pid){
+ const p=E.P.concat(E.old).find(q=>q.pid===pid);if(!p)return pitchSVG('');
+ const mx=Math.max(1,...p.hm),id=uid('hb');
+ const cells=p.hm.map((v,i)=>{if(!v)return'';const x=(i%12)*105/12,y=Math.floor(i/12)*68/8,a=v/mx;const c=a>.7?'#ff3b1f':a>.4?'#ff8a1f':a>.18?'#ffc93a':'#fff27a';return`<rect x="${(x-1).toFixed(2)}" y="${(y-1).toFixed(2)}" width="${(105/12+2).toFixed(2)}" height="${(68/8+2).toFixed(2)}" fill="${c}" opacity="${(.3+.7*Math.sqrt(a)).toFixed(2)}"/>`}).join('');
+ return pitchSVG(`<defs><filter id="${id}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.4"/></filter></defs><g filter="url(#${id})" opacity=".85">${cells}</g>${p.an?`<circle cx="${(p.ax/p.an).toFixed(1)}" cy="${(p.ay/p.an).toFixed(1)}" r="1.6" fill="#fff"/>`:''}`,{label:'Heatmap'});
+}
+function playerStatsTable(E,s){
+ const ps=E.P.concat(E.old).filter(p=>p.s===s&&p.st.mins>0).sort((a,b)=>(b.rating||0)-(a.rating||0));
+ return`<div class="tw"><table class="tbl an-tbl"><thead><tr><th>Player</th><th class="r">Min</th><th class="r">Pass</th><th class="r">%</th><th class="r">KP</th><th class="r">Sh</th><th class="r">G</th><th class="r">A</th><th class="r">Tk</th><th class="r">Int</th><th class="r">Dr</th><th class="r">km</th><th class="r">Rt</th></tr></thead><tbody>
+ ${ps.map(p=>`<tr class="click" data-act="an-player" data-id="${p.pid}"><td><span class="num-badge">${p.num}</span> <b>${esc(p.name)}</b> <small>${p.pos}</small></td><td class="r">${Math.round(p.st.mins/60)}</td><td class="r">${p.st.pc}/${p.st.pa}</td><td class="r">${p.st.pa?Math.round(p.st.pc/p.st.pa*100):'–'}</td><td class="r">${p.st.kp}</td><td class="r">${p.st.so}/${p.st.sh}</td><td class="r">${p.st.g||''}</td><td class="r">${p.st.as||''}</td><td class="r">${p.st.tk}</td><td class="r">${p.st.in}</td><td class="r">${p.st.dr}</td><td class="r">${(p.st.dist/1000).toFixed(1)}</td><td class="r">${p.rating!=null?`<span class="rt" style="background:${rtColor(p.rating)}">${p.rating.toFixed(1)}</span>`:'–'}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function analysisHTML(E,live){
+ const upto=live?Math.floor(clockSec(E)/60)+1:null,cols=anCols(E),T=s=>esc(clubOf(E.T[s].club).short);
+ const tabs=[['momentum','Momentum'],['xg','xG race'],['shots','Shot map'],['network','Passing'],['heat','Heatmaps'],['players','Player stats']];
+ const sideSeg=`<div class="seg" role="group" aria-label="Team">${[0,1].map(s=>`<button data-act="an-side" data-v="${s}" aria-pressed="${ui.anSide===s}">${T(s)}</button>`).join('')}</div>`;
+ const legend=`<div class="an-leg">${[0,1].map(s=>`<span><i style="background:${cols[s]}"></i>${T(s)}</span>`).join('')}</div>`;
+ let body='';const t=ui.anTab;
+ if(t==='momentum')body=`${legend}${momentumSVG(E,upto)}<p class="an-note">Bars show which side was on top each minute: time on the ball weighted by how dangerous the area was. White markers are goals.</p>`;
+ else if(t==='xg'){const xg=[0,1].map(s=>E.events.filter(e=>e.type==='shot'&&e.s===s).reduce((a,e)=>a+e.x,0));body=`<div class="an-big">${[0,1].map(s=>`<div><small>${T(s)} xG</small><b style="color:${cols[s]}">${xg[s].toFixed(2)}</b><small>${E.score[s]} scored</small></div>`).join('')}</div>${xgRaceSVG(E,upto)}`}
+ else if(t==='shots')body=`${legend}<div class="an-pitchwrap">${shotMapSVG(E,upto)}</div><p class="an-note">Circle size is chance quality (xG). Filled: on target. Solid with white ring: goal. ${T(0)} attack right, ${T(1)} attack left.</p>`;
+ else if(t==='network')body=`${sideSeg}<div class="an-pitchwrap">${networkSVG(E,ui.anSide)}</div><p class="an-note">Dots are average positions, sized by involvement. Lines join players who passed to each other three or more times; thicker means more.</p>`;
+ else if(t==='heat'){const ps=E.P.concat(E.old).filter(p=>p.s===ui.anSide&&p.an>10);if(!ps.find(p=>p.pid===ui.anPid))ui.anPid=(ps.find(p=>p.pos!=='GK')||ps[0]||{}).pid;
+  body=`<div class="an-row">${sideSeg}<select data-input="an-pid" aria-label="Player">${ps.map(p=>`<option value="${p.pid}" ${p.pid===ui.anPid?'selected':''}>${p.num} · ${esc(p.name)} (${p.pos})</option>`).join('')}</select></div><div class="an-pitchwrap">${heatSVG(E,ui.anPid)}</div>`}
+ else body=`${sideSeg}${playerStatsTable(E,ui.anSide)}`;
+ return`<div class="an"><div class="an-tabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" data-act="an-tab" data-v="${k}" aria-selected="${t===k}">${l}</button>`).join('')}</div><div class="an-body">${body}</div></div>`;
+}
 /* ================= 3D stadium (pitch, goals, stands, lights, boards) ================= */
 let THREE=null,threeP=null;
 function loadThree(){if(!threeP)threeP=import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js').then(m=>(THREE=m)).catch(e=>{threeP=null;throw e});return threeP}
@@ -3610,6 +3710,7 @@ function assignToSlot(pid){
  else{const old=t.xi[i];t.xi[i]=pid;const b=t.bench.indexOf(pid);if(b>=0)t.bench[b]=old;}
  ensureLineup(S.user);save();render();
 }
+function refreshAn(){const el=document.querySelector('.an');if(el&&M&&M.E)el.outerHTML=analysisHTML(M.E,M.phase==='live')}
 function pressOne(t){t.parentElement.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b===t))}
 document.addEventListener('click',e=>{
  if(e.target.id==='modal'){closeModal();return}
@@ -3645,6 +3746,9 @@ document.addEventListener('click',e=>{
   case'continue':closeModal();onContinue();break;
   case'player':closeModal();openPlayer(id);break;
   case'msg':openMsg(id);break;
+  case'an-tab':ui.anTab=v;refreshAn();break;
+  case'an-side':ui.anSide=+v;refreshAn();break;
+  case'an-player':{const p=M&&M.E&&M.E.P.concat(M.E.old).find(q=>q.pid===id);if(p){ui.anPid=id;ui.anSide=p.s;ui.anTab='heat';refreshAn();document.querySelector('.an')?.scrollIntoView({behavior:'smooth',block:'nearest'})}break}
   case'goto':{const[g,sb]=v.split('/');closeModal();go(g,sb);break}
   case'mailf':ui.mailF=v;ui.msg=null;render();break;
   case'mail-read-all':S.inbox.forEach(m=>m.read=true);save();render();renderBar();break;
@@ -3709,7 +3813,8 @@ document.addEventListener('change',e=>{
 document.addEventListener('input',e=>{const k=e.target.dataset.input,v=+e.target.value;
  if(k==='neg'){const key=e.target.dataset.k;ui.neg[key]=v;const o=document.getElementById(e.target.id+'-o');if(o)o.textContent=key==='sellOn'?v+'%':money(v);negLive()}
  else if(k==='split'){const c=clubOf(S.user),total=c.budget+c.wageBudget*WAGE_TO_FEE;$('#sp-w').textContent=money(v)+'/w';$('#sp-t').textContent=money(Math.max(0,total-v*WAGE_TO_FEE))}
- else if(k==='trq'){ui.trQ=e.target.value;renderSearch()}});
+ else if(k==='trq'){ui.trQ=e.target.value;renderSearch()}
+ else if(k==='an-pid'){ui.anPid=v;refreshAn()}});
 document.addEventListener('keydown',e=>{
  if(e.key==='Escape'&&!$('#modal').hidden)closeModal();
  if(e.key===' '&&view==='match'&&M&&M.phase==='live'&&!/INPUT|SELECT|BUTTON/.test(e.target.tagName)){e.preventDefault();M.paused=!M.paused;M.paused?SND.stop():SND.resume();const b=$('#m-pause');if(b)b.textContent=M.paused?'Resume':'Pause'}
