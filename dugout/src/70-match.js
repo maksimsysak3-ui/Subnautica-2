@@ -188,7 +188,7 @@ function loop(ts){
  // ---- goal replay ----
  if(!M.replay&&M.repQ&&M.pt>=Math.min(M.repQ.t+4.5,E.done?E.t-1e-3:Infinity)){M.replay={rt:M.repQ.t-5.5,end:M.repQ.t+1,s:M.repQ.s};M.repQ=null;setOv('m-rep',true);setOv('m-tl',false)}
  if(M.replay){
-  if(!M.paused)M.replay.rt+=dt*.6;
+  setOv('m-rep',true);if(!M.paused)M.replay.rt+=dt*.6;
   if(VIEW)VIEW.draw(M.replay.rt,M.paused?0:dt*.6,dt,{cam:'replay',side:M.replay.s});
   if(M.replay.rt>=M.replay.end)endReplay();
   RAF=requestAnimationFrame(loop);return;

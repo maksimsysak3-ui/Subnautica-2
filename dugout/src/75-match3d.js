@@ -185,7 +185,7 @@ async function create3D(stage,cv,E){
   bx+=(clamp(fr.bx-52.5+lead,-44,44)-bx)*k;bz+=(fr.by-34-bz)*k;
   if(mode==='high')camTo(bx*.5,62,40,bx*.62,0,0,62,k);
   else if(mode==='near')camTo(bx*.9,6.2,Math.min(39,bz+15),bx,1,bz,36,k);
-  else if(mode==='replay'){const gx=side===0?52.5:-52.5,d=side===0?1:-1;camTo(gx+d*9,5.5,clamp(fr.by-34,-14,14)*.4+9,fr.bx-52.5,.8,fr.by-34,44,1-Math.exp(-real*3.5))}
+  else if(mode==='replay'){const gx=side===0?52.5:-52.5,d=side===0?1:-1;camTo(gx+d*4,4.4,clamp(fr.by-34,-14,14)*.4+8,fr.bx-52.5,.8,fr.by-34,44,1-Math.exp(-real*3.5))}
   else camTo(bx*.66,18,55,bx,0,bz*.92,36,k);
  }
  function placeBall(fr,prev){
