@@ -1269,7 +1269,7 @@ function assign(E){
    const bxd=fX(s,b.x),eng=[42,66,120][ins.press]+clamp((E.t-E.gain[1-s]-8)*2.2,0,45),cp=cpressOn(E,s),n=cp?3:regroupOn(E,s)?1:bxd<eng?[1,2,2][ins.press]:1;
    const cand=pl.filter(p=>p.pos!=='GK').map(p=>({p,d:Math.hypot(p.x-b.x,p.y-b.y)*(1-((ROLE_FX[p.role]||{}).press||0)*.3)})).sort((a,c)=>a.d-c.d);
    const pressers=new Set();
-   cand.slice(0,n).forEach(({p},k)=>{pressers.add(p);const gap=k===0?(cp?1.1:1.7):3.2,ang=k===0?0:(k===1?.9:-.9);p.tx=b.x+(b.owner>=0?b.vx*.45:0)-dir*gap*Math.cos(ang);p.ty=b.y+(b.owner>=0?b.vy*.45:0)+gap*Math.sin(ang);p.sprint=k===0||bxd<eng||cp});
+   cand.slice(0,n).forEach(({p},k)=>{pressers.add(p);const gap=k===0?(cp?1.0:1.25):2.8,ang=k===0?0:(k===1?.9:-.9);p.tx=b.x+(b.owner>=0?b.vx*.45:0)-dir*gap*Math.cos(ang);p.ty=b.y+(b.owner>=0?b.vy*.45:0)+gap*Math.sin(ang);p.sprint=k===0||bxd<eng||cp});
    for(const p of pl){
     if(pressers.has(p)||p.pos==='GK')continue;
     let best=null,bd=10;for(const o of E.T[1-s].pl){if(o.off||o===owner)continue;const d=Math.hypot(o.x-p.tx,o.y-p.ty);if(d<bd){bd=d;best=o}}
@@ -1322,7 +1322,7 @@ function carrier(E,c){
   c.tx=c.x+ax/m*spd/1.8;c.ty=c.y+ay/m*spd/1.8;c.sprint=false;
  }
  // a goal-side defender in front blocks the line: the carrier is slowed and pushed wide
- const dir=c.s?-1:1;for(const o of E.T[1-c.s].pl){if(o.off)continue;const ax=(o.x-c.x)*dir,ay=o.y-c.y;if(ax>0&&ax<1.8&&Math.abs(ay)<1.1){c.tx=c.x+dir*.4;c.ty=c.y+(ay>0?-2.2:2.2);c.sprint=false;if(c.cool>.6)c.cool=.6;break}}
+ const dir=c.s?-1:1;for(const o of E.T[1-c.s].pl){if(o.off)continue;const ax=(o.x-c.x)*dir,ay=o.y-c.y;if(ax>0&&ax<1.8&&Math.abs(ay)<1.1){c.tx=c.x+dir*.4;c.ty=c.y+(ay>0?-2.2:2.2);c.sprint=false;if(ax<1.15&&c.cool>1.1)c.cool=1.1;break}}
  c.tx=clamp(c.tx,1,PW-1);c.ty=clamp(c.ty,2,PH-2);
 }
 function laneRisk(c,tx,ty,op){
@@ -1338,7 +1338,7 @@ function blockers(c,op,s){let n=0;const gx=fX(s,PW),dx=gx-c.x,dy=34-c.y,d=Math.h
 function decide(E,c,pr){
  const s=c.s,tm=E.T[s],ins=tm.tac.ins,rf=ROLE_FX[c.role]||{},fx=fX(s,c.x),fy=fY(s,c.y),base=threat(fx,fy),opts=[];
  const prog=clamp((E.t-E.gain[s]-7)/18,0,1)*(ins.ment<=1?1.7:1),ms=mates(E,s,c),op=opps(E,s),ol=offLine(E,s),urg=clamp((E.t-E.gain[s]-10)/25,0,1)*(fx>55?1:0)*[.6,.8,1,1.15,1.3][ins.ment];
- const ctr=counterOn(E,s),keep=ins.onWin===2&&E.t-E.gain[s]<6,lossCost=(fx<35?.24:fx<65?.12:.05)*(keep?1.5:1),tempoW=[.8,1,1.25][ins.tempo]*(ctr?1.45:1)*(keep?.75:1),riskW=(rf.risk||1)*[.8,.9,1,1.12,1.25][ins.ment];
+ const ctr=counterOn(E,s),strOpp=E.T[1-s].tac.ins.ment>=3&&E.t-E.gain[s]<9,keep=ins.onWin===2&&E.t-E.gain[s]<6,lossCost=(fx<35?.42:fx<65?.24:.1)*(keep?1.5:1),tempoW=[.8,1,1.25][ins.tempo]*(ctr?1.45:1)*(strOpp?1.3:1)*(keep?.75:1),riskW=(rf.risk||1)*[.8,.9,1,1.12,1.25][ins.ment];
  c.dribT=null;
  for(const m of ms){
   if(m.pos==='GK'&&fx>38)continue;
@@ -1347,7 +1347,7 @@ function decide(E,c,pr){
   if(fX(s,m.x)>ol+.2)continue;
   const lr=laneRisk(c,tx,ty,op),lofted=d>34;
   let risk=lofted?.3+.005*d:lr;const rp=pressure(E,{s,x:tx,y:ty});if(rp<2)risk+=.17;else if(rp<4)risk+=.06;
-  let p=clamp((.985-d*.0045*(1.35-c.a.pas))*(1-risk),.03,.98);if(pr<1.5)p*=.9;
+  let p=clamp((.99-d*.0038*(1.35-c.a.pas))*(1-risk*.9),.03,.98);if(pr<1.1)p*=.9;
   const val=threat(mfx,mfy)-base;
   let u=p*(val*2.2*riskW*tempoW*((mfx>fx+8)?(rf.prog||1):1)+.06)-(1-p)*lossCost;
   if(ins.passing===0&&d>26)u-=.025;if(ins.passing===2&&mfx-fx>12)u+=.012+.0005*d;
@@ -1361,7 +1361,7 @@ function decide(E,c,pr){
   const tfx=Math.min(PW-5,ol+9),tfy=clamp(fY(s,m.y)+(34-fY(s,m.y))*.3,6,62),tx=fX(s,tfx),ty=fY(s,tfy),d=Math.hypot(tx-c.x,ty-c.y);
   if(d<8||d>48)continue;
   const behind=PW-ol,risk=laneRisk(c,tx,ty,op)*.7+.1,p=clamp((.95-d*.006*(1.4-c.a.pas))*(1-risk)*(.55+.45*c.a.vis)*(behind>32?1.12:1),.03,.92);
-  opts.push({k:'pass',m,tx,ty,u:p*((threat(tfx,tfy)-base)*2.6*riskW*tempoW*(behind>32?1.5:1)+.06)-(1-p)*lossCost,lofted:d>30,thru:1});
+  opts.push({k:'pass',m,tx,ty,u:p*((threat(tfx,tfy)-base)*2.6*riskW*tempoW*(behind>32?1.5:1)*(strOpp?1.5:1)+.06)-(1-p)*lossCost,lofted:d>30,thru:1});
  }
  const dg=Math.hypot(PW-fx,fy-34);
  if(fx>66&&dg<34){
@@ -1376,7 +1376,7 @@ function decide(E,c,pr){
   let u=(val*1.6+.012)*(rf.dribble||1)*(.45+c.a.dri)*Math.max(space,urg*.5)*(fx>80?.55:1)-(pr<1.6?.07*(1-c.a.dri):0);
   if(c.pos==='GK'||(GROUP[c.pos]==='DEF'&&fx<30))u-=.05;
   opts.push({k:'drib',u})}
- if(fx<18&&pr<1.8)opts.push({k:'clear',u:(1.8-pr)*.05*(ins.passing===2?1.3:1)});
+ if(fx<14&&pr<1.2)opts.push({k:'clear',u:(1.2-pr)*.04*(ins.passing===2?1.3:1)});
  opts.push({k:'hold',u:pr>5?.02:pr>3?.0:-.04});
  const temp=.012+(1-c.a.dec)*.035;let mx=-1e9;for(const o of opts)mx=Math.max(mx,o.u);
  let tot=0;for(const o of opts){o.w=Math.exp((o.u-mx)/temp);tot+=o.w}
@@ -1442,13 +1442,13 @@ function ballFlight(E){
 }
 function receive(E,p,loose){
  const b=E.ball,pr=pressure(E,p),sp=Math.hypot(b.vx,b.vy),passer=b.lastP>=0?E.P[b.lastP]:null;
- let ok=.88+.11*p.a.fir-(pr<1.5?.12:pr<3?.05:0)-(sp>16?.05:0)-E.wx.touch;
+ let ok=.905+.09*p.a.fir-(pr<1.1?.1:pr<2.4?.035:0)-(sp>16?.05:0)-E.wx.touch;
  if(p.pos==='GK'&&inBox(p.s,b.x,b.y))ok=.98;
  if(E.rng.f()<ok){
   if(passer&&passer.s===p.s&&passer!==p&&(!loose||E.t-b.kt<4)&&!b.shot){passer.st.pc++;E.st.pc[p.s]++;E.lastPass={i:passer.i,t:E.t}}
   else if(passer&&passer.s!==p.s){if(!loose)p.st.in++;E.lastPass=null}
   Object.assign(b,{owner:p.i,recv:-1,aerial:false,vz:0,z:.11,lastS:p.s,lastP:p.i,cross:false});E.poss=p.s;
-  p.cool=(2.6+(1-p.a.dec)*1+E.rng.f()*1.9)*[1.35,1,.78][E.T[p.s].tac.ins.tempo]*(counterOn(E,p.s)?.6:1);p.dribT=null;
+  p.cool=(2.95+(1-p.a.dec)*1+E.rng.f()*1.9)*[1.35,1,.78][E.T[p.s].tac.ins.tempo]*(counterOn(E,p.s)?.6:1);p.dribT=null;
  }else{const a=E.rng.f()*Math.PI*2;Object.assign(b,{vx:Math.cos(a)*3,vy:Math.sin(a)*3,recv:-1,lastP:p.i,lastS:p.s,kt:E.t,aerial:false})}
 }
 function aerial(E){
@@ -1480,7 +1480,7 @@ function shoot(E,c,head,pen){
  const s=c.s,b=E.ball,fx=fX(s,c.x),fy=fY(s,c.y),dg=Math.hypot(PW-fx,fy-34),op=opps(E,s),gk=op.find(o=>o.pos==='GK');
  const gks=gk?(gk.a.ref+gk.a.div+gk.a.one+gk.a.pos)/4:.2,bl=pen?0:blockers(c,op,s),sk=head?c.a.hea:dg>20?c.a.lon:c.a.fin;
  let x=pen?.76:xgAt(fx,fy)*(head?.55:1)*Math.pow(.75,bl)*Math.pow(.8,density(c,op,s));
- const prs=pen?9:pressure(E,c);x*=(.72+.56*sk)*(.9+.2*c.a.cmp)*(prs<1.5?.72:prs<3?.86:1)*(1.12-.5*gks)*(pen?1:.51);x=clamp(x,.01,.95);
+ const prs=pen?9:pressure(E,c);x*=(.72+.56*sk)*(.9+.2*c.a.cmp)*(prs<1.5?.72:prs<3?.86:1)*(1.12-.5*gks)*(pen?1:.46)*(!pen&&E.T[1-s].tac.ins.ment>=3&&E.t-E.gain[s]<10?1.25:1);x=clamp(x,.01,.95);
  const pOT=clamp(Math.max(x+.08,.28+.4*sk-.006*dg),.1,.93),blockP=Math.min(.45,bl*.22),r=E.rng.f();
  const out=E.rng.f()<blockP?'block':r<x?'goal':r<pOT?'save':'miss';
  c.st.sh++;E.st.sh[s]++;E.st.xg[s]+=x;if(out==='goal'||out==='save'){c.st.so++;E.st.sot[s]++}
@@ -1525,7 +1525,7 @@ function goal(E,s,sh){
 function tackles(E,c){
  for(const o of E.T[1-c.s].pl){
   if(o.off||o.tkCool>E.t)continue;const d=Math.hypot(o.x-c.x,o.y-c.y);if(d>1.7)continue;
-  const ins=E.T[o.s].tac.ins,box=inBox(o.s,c.x,c.y);if(d>1.9||E.rng.f()>(.012+.005*ins.tackle)*(box?2.4:1))continue;
+  const ins=E.T[o.s].tac.ins,box=inBox(o.s,c.x,c.y);if(d>1.9||E.rng.f()>(.0062+.0026*ins.tackle)*(box?2.4:1))continue;
   o.tkCool=E.t+1.2;setPose(o,POSE.tackle);
   const win=sig(((o.a.tck*1.1+o.a.str*.3+o.a.pos*.2)-(c.a.dri*1.1+c.a.agi*.3+c.a.str*.2))*4)*(.6+.08*ins.tackle)*((ROLE_FX[o.role]||{}).tackle||1)*(.7+.3*clamp(o.en,0,1));
   const foulP=clamp(.1+o.a.agg*.08+ins.tackle*.05+(ins.press===2?.05:0)-o.a.tck*.06,.04,.32)*(box?.12:1),r=E.rng.f();
