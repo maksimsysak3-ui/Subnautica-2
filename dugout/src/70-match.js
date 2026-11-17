@@ -4,7 +4,7 @@ const MODES={key:{label:'Key highlights',ff:120},ext:{label:'Extended',ff:70},fu
 // Pre-match ceremony timeline in seconds (3D), and the shorter overlay-only version for the 2D view.
 const INTRO3D={walk:3,anthem:13.5,shake:22.5,disperse:27,end:32.5,l3:[.6,6.4],lu:[6.9,13.3],music:3};
 const INTRO2D={end:9.5,l3:[.3,3.6],lu:[3.6,9],music:.3};
-function newMatchDay(){const fx=userFixture();if(!fx)return null;return{fx,wx:forecast(S.md,fx[0]),phase:'pre',mode:'key',hs:1,fs:12,viewMode:'3d',camMode:'tv',paused:false,pt:0,shown:0,scan:0,wins:[],score:[0,0],sel:null,tab:'feed',ss:{sh:[0,0],sot:[0,0],xg:[0,0],cor:[0,0],fo:[0,0],yc:[0,0],off:[0,0]}}}
+function newMatchDay(){const t=curTie();if(!t)return null;const fx=[t.h,t.a];return{fx,tie:t,wx:forecast(S.md,fx[0]),phase:'pre',mode:'key',hs:1,fs:12,viewMode:'3d',camMode:'tv',paused:false,pt:0,shown:0,scan:0,wins:[],score:[0,0],sel:null,tab:'feed',ss:{sh:[0,0],sot:[0,0],xg:[0,0],cor:[0,0],fo:[0,0],yc:[0,0],off:[0,0]}}}
 function kickOff(){
  const[h,a]=M.fx;prepAI(h,a);prepAI(a,h);ensureLineup(S.user);
  const team=c=>({club:c,tac:clubOf(c).tac,bench:clubOf(c).tac.bench.slice(),ai:c!==S.user});
@@ -89,7 +89,7 @@ function viewMatch(){
   const sheet=cid=>{const c=clubOf(cid),t=c.tac;return`<section class="panel c4"><div class="ph"><h3>${esc(c.short)}</h3><small>${t.form}${t.formIn&&t.formIn!==t.form?' → '+t.formIn:''}</small></div><div class="list">${t.xi.map((id,i)=>{const p=S.players[id];return p?`<button class="li" style="grid-template-columns:30px 1fr auto" data-act="player" data-id="${p.id}">${posChip(FORMATIONS[t.form][i][0])}<span><b>${pName(p)}</b><small>${esc(roleName(FORMATIONS[t.form][i][0],t.roles[i]))}</small></span>${starHTML(stars(p.ovr))}</button>`:''}).join('')}</div></section>`};
   const sH=strength(H.tac.xi,H.tac.form),sA=strength(A.tac.xi,A.tac.form);
   return bar+`<div class="grid">${sheet(h)}<section class="panel c4"><div class="ph"><h3>Match preview</h3></div><div class="pb">${['Attack','Midfield','Defence'].map((l,i)=>{const x=[sH.att,sH.mid,sH.def][i],y=[sA.att,sA.mid,sA.def][i];return`<div class="srow" style="padding:6px 0"><span>${at20(x)}</span><div>${l}</div><span>${at20(y)}</span><span class="bar"><i style="width:${x/(x+y)*100}%"></i><i style="width:${y/(x+y)*100}%"></i></span></div>`}).join('')}
-  <p class="muted" style="font-size:13px">${fmtDate(mdDate(S.md))} · ${esc(H.stadium)}</p><div class="forecast">${wxIcon(M.wx.type)}<div><b>${WX[M.wx.type].n}, ${M.wx.temp}°C</b><small>${kickLabel(M.wx.kick)} kick-off${daylight(M.wx,0)<.5?' under the floodlights':daylight(M.wx,6000)<.5?' · finishes under the lights':''} · wind ${M.wx.wSpd} km/h</small><small>${wxAdvice(M.wx.type)}</small></div></div>
+  <p class="muted" style="font-size:13px">${esc(M.tie?M.tie.label:'')}<br>${fmtDate(M.tie?M.tie.date:mdDate(S.md))} · ${esc(H.stadium)}</p><div class="forecast">${wxIcon(M.wx.type)}<div><b>${WX[M.wx.type].n}, ${M.wx.temp}°C</b><small>${kickLabel(M.wx.kick)} kick-off${daylight(M.wx,0)<.5?' under the floodlights':daylight(M.wx,6000)<.5?' · finishes under the lights':''} · wind ${M.wx.wSpd} km/h</small><small>${wxAdvice(M.wx.type)}</small></div></div>
   <div class="eyebrow" style="color:var(--muted);margin-top:12px">Team talk</div><div class="seg" role="group" aria-label="Team talk" style="display:flex;margin-top:6px">${TALKS.map(([k,l])=>`<button style="flex:1" data-act="pretalk" data-v="${k}" aria-pressed="${M.preTalk===k}">${l}</button>`).join('')}</div>
   <div style="display:grid;gap:8px;margin-top:12px"><button class="btn pri lg" data-act="kickoff">Kick off ${ARROW}</button><button class="btn" data-act="nav" data-v="tactics">Edit tactics</button><button class="btn" data-act="instant">Instant result</button></div></div></section>${sheet(a)}</div>`;
  }
@@ -123,17 +123,25 @@ function viewMatch(){
 const shortOf=s=>esc(clubOf(M.E.T[s].club).abbr||clubOf(M.E.T[s].club).short.slice(0,3).toUpperCase());
 function sbugHTML(){if(!M.E)return'';const[hk,ak]=kitColors(M.E);return`<span class="sb-t" style="--k:${hk.base}">${shortOf(0)}</span><b id="m-sbs">${M.score[0]}–${M.score[1]}</b><span class="sb-t" style="--k:${ak.base}">${shortOf(1)}</span><i id="m-sbc">${clockAt(M.E,M.pt)}</i>`}
 function l3HTML(){const[h,a]=M.fx,H=clubOf(h),lg=S.leagues[H.league];
- return`<div class="l3-in"><small>${esc(lg.name)} · Matchday ${S.md+1}</small><div class="l3-teams">${crest(h,34)}<b>${esc(H.name)}</b><i>v</i><b>${esc(clubOf(a).name)}</b>${crest(a,34)}</div><span>${esc(H.stadium)} · ${kickLabel(M.wx.kick)} · ${WX[M.wx.type].n}, ${M.wx.temp}°C</span></div>`}
+ return`<div class="l3-in"><small>${esc(M.tie?M.tie.label:lg.name)}</small><div class="l3-teams">${crest(h,34)}<b>${esc(H.name)}</b><i>v</i><b>${esc(clubOf(a).name)}</b>${crest(a,34)}</div><span>${esc(H.stadium)} · ${kickLabel(M.wx.kick)} · ${WX[M.wx.type].n}, ${M.wx.temp}°C</span></div>`}
 function lineupCards(){if(!M.E)return'';const ks=kitColors(M.E);
  return[0,1].map(s=>{const c=clubOf(M.E.T[s].club);return`<div class="lu-card" style="--k:${ks[s].base};--ki:${ink(ks[s].base)}"><header>${crest(c.id,38)}<div><b>${esc(c.short)}</b><small>${esc(c.tac.form)}</small></div></header>
  <ol>${M.E.P.slice(s*11,s*11+11).map((p,i)=>`<li style="--d:${i*45}ms"><i>${p.num}</i><span>${esc(p.name)}</span><em>${p.pos}</em></li>`).join('')}</ol></div>`}).join('<div class="lu-vs">VS</div>')}
 function caption(tx,cls){const el=$('#m-cap');if(!el||M.intro)return;el.className='ov-cap on '+(cls||'');el.innerHTML=`<b>${clockAt(M.E,M.pt)}</b><span>${esc(tx)}</span>`;M.capAt=performance.now();const t=$('#m-tlt');if(t)t.textContent=tx}
+function penaltiesFor(M){const E=M.E;if(M.so)return M.so;
+ const on=s=>E.P.filter(p=>p.s===s&&!p.off&&!p.red).map(p=>S.players[p.pid]).filter(p=>p&&p.pos!=='GK').sort((a,b)=>(b.at[AIX.fin]+b.at[AIX.cmp])-(a.at[AIX.fin]+a.at[AIX.cmp]));
+ M.so=shootout(E.T[0].club,E.T[1].club,cid=>on(cid===E.T[0].club?0:1));M.pens=M.so.pens;return M.so}
+function shootoutHTML(){const so=penaltiesFor(M),E=M.E,w=so.pens[0]>so.pens[1]?0:1;let i=0;
+ const row=s=>so.kicks.filter(k=>k.s===s).map(k=>`<i class="pk ${k.ok?'ok':'miss'}" style="--d:${(i++*2+s)*0.55}s" title="${esc(S.players[k.pid]?S.players[k.pid].ln:'')}">${k.ok?'✓':'✕'}</i>`).join('');
+ return`<div class="so"><div class="eyebrow">Penalty shootout</div>${[0,1].map(s=>`<div class="so-row">${crest(E.T[s].club,22)}<b>${esc(clubOf(E.T[s].club).short)}</b><span>${row(s)}</span><em>${so.pens[s]}</em></div>`).join('')}
+ <p class="so-res" style="--d:${so.kicks.length*0.55+.3}s">${esc(clubOf(E.T[w].club).name)} win ${Math.max(...so.pens)}–${Math.min(...so.pens)} on penalties</p></div>`}
 function postHTML(){
  const E=M.E,us=M.us,gf=E.score[us],ga=E.score[1-us],all=E.P.concat(E.old).filter(p=>p.rating!=null);
  const motm=all.slice().sort((a,b)=>b.rating-a.rating)[0];
  const goals=s=>E.events.filter(e=>e.type==='goal'&&e.s===s).map(e=>`${esc(S.players[e.pid].ln)} ${clockAt(E,e.t)}${e.pen?' (pen)':''}`).join('<br>')||'&nbsp;';
  const rt=s=>all.filter(p=>p.s===s).sort((a,b)=>b.rating-a.rating).map(p=>`<tr class="click" data-act="player" data-id="${p.pid}"><td><span class="num-badge">${p.num}</span></td><td><b>${pName(S.players[p.pid])}</b></td><td>${posChip(p.pos)}</td><td class="r"><small>${[p.st.g?p.st.g+' G':'',p.st.as?p.st.as+' A':'',p.st.sv?p.st.sv+' saves':'',p.st.pa?`${p.st.pc}/${p.st.pa} passes`:''].filter(Boolean).join(' · ')}</small></td><td class="r"><span class="rt" style="background:${rtColor(p.rating)}">${p.rating.toFixed(1)}</span></td></tr>`).join('');
- return`<div class="grid"><section class="panel c4"><div class="ph"><h3>${gf>ga?'Victory':gf<ga?'Defeat':'Draw'}</h3></div><div class="pb"><div style="display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted)"><div>${goals(0)}</div><div style="text-align:right">${goals(1)}</div></div></div><div>${statsHTML()}</div>
+ const so=M.tie&&M.tie.ko&&gf===ga?penaltiesFor(M):null,wonP=so&&(so.pens[us]>so.pens[1-us]);
+ return`<div class="grid"><section class="panel c4"><div class="ph"><h3>${so?(wonP?'Through on penalties':'Out on penalties'):gf>ga?'Victory':gf<ga?'Defeat':'Draw'}</h3>${M.tie&&M.tie.comp!=='lg'?`<small>${esc(M.tie.label)}</small>`:''}</div>${so?shootoutHTML():''}<div class="pb"><div style="display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted)"><div>${goals(0)}</div><div style="text-align:right">${goals(1)}</div></div></div><div>${statsHTML()}</div>
  <div class="pb"><div class="eyebrow">Player of the match</div><p style="margin:6px 0 0;font:700 20px var(--fd)">${esc(S.players[motm.pid].fn+' '+motm.name)} <span class="rt" style="background:${rtColor(motm.rating)}">${motm.rating.toFixed(1)}</span></p><small>${esc(clubOf(E.T[motm.s].club).name)}</small>
  <button class="btn pri lg" style="width:100%;margin-top:14px" data-act="match-finish">Continue ${ARROW}</button></div></section>
  ${[0,1].map(s=>`<section class="panel c4"><div class="ph"><h3>${esc(clubOf(E.T[s].club).short)} ratings</h3></div><div class="tw"><table class="tbl"><tbody>${rt(s)}</tbody></table></div></section>`).join('')}</div>`;
@@ -214,9 +222,12 @@ function instantResult(){
  runToEnd(M.E);M.pt=M.E.t;M.shown=M.E.events.length;M.score=M.E.score.slice();M.repQ=null;finishLive();SND.stop();
 }
 function finishMatchday(){
- const E=M.E,res=applyUserMatch(E);processMatchday(res);
+ const E=M.E,res=applyUserMatch(E);
+ if(M.tie&&M.tie.comp!=='lg'){if(M.tie.ko&&E.score[0]===E.score[1]&&!M.pens)M.pens=penaltiesFor(M).pens;processCupEvent(res,M.pens)}else processMatchday(res);
+ advanceToUser();
  const us=M.us,gf=E.score[us],ga=E.score[1-us],opp=clubOf(E.T[1-us].club);M=null;
  save();go('home');toast(`${gf>ga?'Won':gf<ga?'Lost':'Drew'} ${gf}–${ga} against ${opp.short}`);if(S.sacked)setTimeout(sackedFlow,600);
+ if(S.pendingTrophy){const t=S.pendingTrophy;S.pendingTrophy=null;setTimeout(()=>celebrateTrophy(`${t.t} winners`,`${seasonLabel()} · ${clubOf(t.club).name}`,t.club),700)}
 }
 
 /* ---------- interpolated frame access (shared by 2D/3D) ---------- */

@@ -34,13 +34,13 @@ function openPlayer(pid){ui.back=[view,sub];go('player','',{pid})}
 /* ---------- bar ---------- */
 function nextLabel(){if(S.md>=MDAYS)return'Season review';if(typeof M!=='undefined'&&M&&M.phase==='live')return'Resume match';if(typeof M!=='undefined'&&M&&M.phase==='done')return'Match report';return'Continue'}
 function renderBar(){
- const c=clubOf(S.user),fx=userFixture(),unread=S.inbox.filter(m=>!m.read).length,nav=NAV.find(n=>n[0]===view);
- const opp=fx?clubOf(fx[0]===S.user?fx[1]:fx[0]):null;
+ const c=clubOf(S.user),nt=nextUserTie(),unread=S.inbox.filter(m=>!m.read).length,nav=NAV.find(n=>n[0]===view);
+ const opp=nt&&!nt.pending?clubOf(nt.h===S.user?nt.a:nt.h):null;
  $('#bar').style.setProperty('--tc',c.colors[0]===('#ffffff')?c.colors[1]:c.colors[0]);
  $('#bar').innerHTML=`<div class="bar-row"><button class="logo" data-act="menu" title="Main menu (career saves automatically)">${LOGO}<span>DUGOUT</span></button>
  <button class="club-chip" data-act="nav" data-v="club">${crest(S.user)}<b>${esc(c.short)}</b></button>
  <nav class="nav" aria-label="Sections">${NAV.map(([k,l])=>`<button data-act="nav" data-v="${k}" ${view===k?'aria-current="page"':''}><svg viewBox="0 0 24 24">${NAV_ICON[k]}</svg>${l}${k==='home'&&unread?'<span class="dot"></span>':''}</button>`).join('')}</nav>
- <div class="when"><b>${fmtDate(mdDate(Math.min(S.md,MDAYS-1)))}</b><small>${opp?`Next: ${esc(opp.short)} (${fx[0]===S.user?'H':'A'}) · MD ${S.md+1}/${MDAYS}`:'Season complete'}</small></div>
+ <div class="when"><b>${fmtDate(nt?nt.date:mdDate(MDAYS-1))}</b><small>${nt?(opp?`Next: ${esc(opp.short)} (${nt.neutral?'N':nt.h===S.user?'H':'A'}) · ${esc(nt.short)}`:`Next: ${esc(nt.short)} draw`):'Season complete'}</small></div>
  <button class="go" data-act="continue"><span class="lbl">${nextLabel()}</span>${ARROW}</button></div>
  ${nav&&nav[2].length>1?`<div class="sub">${nav[2].map(([k,l])=>`<button data-act="sub" data-v="${k}" aria-current="${sub===k}">${l}</button>`).join('')}<span class="sp"></span></div>`:view==='player'?`<div class="sub"><button data-act="back">‹ Back</button><span class="sp"></span></div>`:''}`;
 }
@@ -68,14 +68,14 @@ function viewStart(){
 function viewHome(){
  if(sub==='inbox')return inboxView();
  if(sub==='news')return newsView(S.news);
- const c=clubOf(S.user),fx=userFixture(),tb=table(c.league),lg=S.leagues[c.league],fxs=fixturesOf(S.user),wb=wageBill(S.user);
- const next=fxs.filter(f=>!f.res).slice(0,5),last=fxs.filter(f=>f.res).slice(-5).reverse();
+ const c=clubOf(S.user),ct=curTie(),fx=ct?[ct.h,ct.a]:null,tb=table(c.league),lg=S.leagues[c.league],sch=userSchedule(),wb=wageBill(S.user);
+ const next=sch.filter(f=>!f.res).slice(0,5),last=sch.filter(f=>f.res).slice(-3);
  const sq=squadOf(S.user),unavailable=sq.filter(p=>p.inj||p.ban),tired=sq.filter(p=>p.cond<75).sort((a,b)=>a.cond-b.cond).slice(0,4),top=sq.filter(p=>p.s.ap>=2).sort((a,b)=>avg(b)-avg(a)).slice(0,5);
  const opp=fx?(fx[0]===S.user?fx[1]:fx[0]):null,oppRow=opp!=null?tb.find(r=>r.id===opp):null;
  return`<div class="grid">
  <section class="panel c4"><div class="ph"><h3>Inbox</h3><button class="link btn" data-act="sub" data-v="inbox">All</button></div><div class="list">${S.inbox.slice(0,8).map(msgRow).join('')||'<p class="pb muted">No messages.</p>'}</div></section>
- <section class="panel c5"><div class="ph"><h3>Next match <small>${fx?fmtDate(mdDate(S.md)):''}</small></h3>${fx?`<span class="chip hot">Matchday ${S.md+1}</span>`:''}</div><div class="pb">
- ${fx?`<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;text-align:center">${[fx[0],fx[1]].map((id,k)=>`<div${k?' style="order:3"':''}>${crest(id,64)}<div style="font:700 18px var(--fd);text-transform:uppercase;margin-top:6px">${esc(clubOf(id).short)}</div><small>${S.results[c.league].length?ordinal(posIn(tb,id))+' · ':''}${formHTML(tb.find(r=>r.id===id).form)}</small></div>`).join('<div style="order:2"><div class="kpi" style="color:var(--dim)">VS</div><small>'+esc(clubOf(fx[0]).stadium)+'</small></div>')}</div>
+ <section class="panel c5"><div class="ph"><h3>Next match <small>${fx?fmtDate(ct.date):''}</small></h3>${fx?`<span class="chip hot">${compBadge(ct.comp,16)} ${esc(ct.short)}</span>`:''}</div><div class="pb">
+ ${fx?`<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;text-align:center">${[fx[0],fx[1]].map((id,k)=>`<div${k?' style="order:3"':''}>${crest(id,64)}<div style="font:700 18px var(--fd);text-transform:uppercase;margin-top:6px">${esc(clubOf(id).short)}</div><small>${(()=>{const r=tb.find(x=>x.id===id);return r?(S.results[c.league].length?ordinal(posIn(tb,id))+' · ':'')+formHTML(r.form):esc(S.leagues[clubOf(id).league].name)})()}</small></div>`).join('<div style="order:2"><div class="kpi" style="color:var(--dim)">VS</div><small>'+esc(clubOf(fx[0]).stadium)+'</small></div>')}</div>
  <div style="display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap"><button class="btn" data-act="nav" data-v="tactics">Tactics</button><button class="btn pri" data-act="continue">Go to match ${ARROW}</button></div>
  ${oppRow?`<p class="muted" style="font-size:13px;text-align:center;margin:10px 0 0">${esc(clubOf(opp).name)} usually line up in a ${clubOf(opp).tac.form}. Their danger man: ${(()=>{const p=squadOf(opp).sort((a,b)=>b.ovr-a.ovr)[0];return pName(p)+' ('+p.pos+')'})()}.</p>`:''}`
  :`<p>The season is over.</p><button class="btn pri" data-act="continue">Season review ${ARROW}</button>`}</div></section>
@@ -84,7 +84,7 @@ function viewHome(){
  <div class="eyebrow" style="color:var(--muted);margin-top:14px">Board objective</div><div style="font-weight:600;margin-top:3px">${expectation(S.user)}</div>
  <div style="margin-top:12px"><span class="chip ${windowOpen()?'ok':''}">${windowOpen()?'Transfer window open':'Transfer window closed'}</span></div></div></section>
  <section class="panel c5"><div class="ph"><h3>${esc(lg.name)}</h3><button class="btn" data-act="nav" data-v="comps">Competition</button></div><div class="tw">${leagueTable(c.league,true)}</div></section>
- <section class="panel c4"><div class="ph"><h3>Fixtures &amp; results</h3></div><div class="list">${last.slice(0,3).reverse().concat(next).map(fixtureRow).join('')}</div></section>
+ <section class="panel c4"><div class="ph"><h3>Fixtures &amp; results</h3></div><div class="list">${last.concat(next).map(schedRow).join('')}</div></section>
  <section class="panel c3"><div class="ph"><h3>Squad status</h3></div><div class="list">
  ${top.length?top.map(p=>`<button class="li" data-act="player" data-id="${p.id}">${posChip(p.pos)}<span><b>${pName(p)}</b><small>${p.s.ap} apps · ${p.s.g} G · ${p.s.a} A</small></span><span class="rt" style="background:${rtColor(avg(p))}">${avg(p).toFixed(2)}</span></button>`).join(''):'<p class="pb muted" style="margin:0">Form guide appears after two matches.</p>'}
  ${unavailable.map(p=>`<button class="li" data-act="player" data-id="${p.id}">${posChip(p.pos)}<span><b>${pName(p)}</b><small>${p.inj?`Injured · ${p.inj} md`:`Suspended · ${p.ban} md`}</small></span><span class="chip bad">Out</span></button>`).join('')}
@@ -92,6 +92,11 @@ function viewHome(){
  </div>`;
 }
 const newsRow=n=>`<div class="ns" style="grid-template-columns:46px 1fr auto">${newsTile(n)}<span><b>${esc(n.title||n.text)}</b>${n.title?`<small style="display:block;color:var(--muted);font-size:12px;margin-top:2px">${esc(n.text)}</small>`:''}</span><small>MD ${n.md+1}</small></div>`;
+function schedRow(f){
+ if(f.pending)return`<div class="li">${compBadge(f.comp,22)}<span><b>${esc(f.label)} draw</b><small>${shortDate(f.date)} · opponent to be drawn</small></span><small>–</small></div>`;
+ const home=f.h===S.user,opp=home?f.a:f.h,r=f.res;let res='';
+ if(r){const gf=home?r.hg:r.ag,ga=home?r.ag:r.hg,pw=r.pens?(home?r.pens[0]>r.pens[1]:r.pens[1]>r.pens[0]):null,o=gf>ga||pw===true?'win':gf<ga||pw===false?'loss':'draw';res=`<span class="rt" style="background:var(--${o})">${gf}–${ga}${r.pens?'p':''}</span>`}
+ return`<div class="li">${crest(opp,22)}<span><b>${esc(clubOf(opp).name)} <small style="display:inline">(${f.neutral?'N':home?'H':'A'})</small></b><small>${compBadge(f.comp,12)} ${shortDate(f.date)} · ${esc(f.label)}</small></span>${res||'<small>–</small>'}</div>`}
 function fixtureRow(f){const home=f.h===S.user,opp=home?f.a:f.h,r=f.res;let res='';if(r){const gf=home?r.hg:r.ag,ga=home?r.ag:r.hg;res=`<span class="rt" style="background:${gf>ga?'var(--win)':gf<ga?'var(--loss)':'var(--draw)'}">${gf}–${ga}</span>`}
  return`<div class="li">${crest(opp,22)}<span><b>${esc(clubOf(opp).name)} <small style="display:inline">(${home?'H':'A'})</small></b><small>${shortDate(mdDate(f.md))} · Matchday ${f.md+1}</small></span>${res||'<small>–</small>'}</div>`}
 function newsView(list){return`<div class="grid"><section class="panel c12"><div class="ph"><h3>News</h3></div><div class="list">${list.map(newsRow).join('')||'<p class="pb muted">Nothing yet.</p>'}</div></section></div>`}

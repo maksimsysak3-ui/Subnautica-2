@@ -45,6 +45,7 @@ function genWorld(seed){
    S.fixtures[lid]=roundRobin(shuffled(lg.clubs,rng));S.results[lid]=[];
   });
  });
+ initCups(null);
  return S;
 }
 function startCareer(cid){
@@ -70,7 +71,7 @@ function table(lid){
  return Object.values(T).sort((x,y)=>y.pts-x.pts||(y.gf-y.ga)-(x.gf-x.ga)||y.gf-x.gf||clubOf(x.id).name.localeCompare(clubOf(y.id).name));
 }
 const posIn=(tb,id)=>tb.findIndex(r=>r.id===id)+1;
-const userFixture=()=>S.md>=MDAYS?null:S.fixtures[S.clubs[S.user].league][S.md].find(m=>m.includes(S.user));
+const userFixture=()=>{const t=typeof curTie==='function'&&S.cal?curTie():null;return t?[t.h,t.a]:null};
 function fixturesOf(cid){const lid=clubOf(cid).league;return S.fixtures[lid].map((r,md)=>{const f=r.find(m=>m.includes(cid));const res=S.results[lid].find(x=>x.md===md&&x.h===f[0]&&x.a===f[1]);return{md,h:f[0],a:f[1],res}})}
 
 /* ---------- AI team management ---------- */
@@ -114,7 +115,7 @@ function quickSim(h,a,md,lid){
 function applyUserMatch(E){
  const res={md:S.md,h:E.T[0].club,a:E.T[1].club,hg:E.score[0],ag:E.score[1],user:true};
  const all=E.P.concat(E.old);let best=null;
- for(const sp of all){const p=S.players[sp.pid];if(!p)continue;if(sp.st.mins>0){p.s.ap++;p.cond=Math.round(clamp(sp.en*100,20,100))}
+ for(const sp of all){const p=S.players[sp.pid];if(!p)continue;if(sp.st.mins>0){p.s.ap++;const ti=E.T[sp.s].tac.ins;p.cond=Math.round(clamp(p.cond-G.i(14,26)*Math.min(1,sp.st.mins/90)*(ti.press===2?1.3:1)*(ti.ment>=3?1.1:1),25,100))}
   if(sp.rating!=null){p.s.rs+=sp.rating;if(!best||sp.rating>best.rating)best=sp}}
  for(const e of E.events){if(e.type==='goal'){S.players[e.pid].s.g++;if(e.astPid!=null&&S.players[e.astPid])S.players[e.astPid].s.a++}
   if(e.type==='red'&&e.pid!=null){const p=S.players[e.pid];if(p)p.ban=2}}
@@ -152,7 +153,7 @@ function processMatchday(userRes){
  if(windowOpen())aiTransfers();
  aiManagers();
  if(windowOpen()&&G.f()<.3)incomingOffer();
- S.md++;
+ S.md++;if(S.cal)S.ci++;
  if(S.md===WIN2[0])mail('Director of Football','January window opens',`<p>The winter transfer window is open until matchday ${WIN2[1]}. Our current position and budget are below.</p>`,null,'transfer',{att:{t:'budget'},links:[['Transfer hub','nav','transfers']]});
  if(S.md===WIN1)mail('Director of Football','Transfer window closed',`<p>The summer window has closed. It reopens at matchday ${WIN2[0]+1}.</p>`,null,'transfer',{att:{t:'budget'}});
  if(S.md>=MDAYS)mail('Board of Directors','The season is over',`<p>Open the season review from the Continue button to see the final standings, promotions and relegations.</p>`,null,'board',{att:{t:'table'},links:[['Competition','nav','comps']]});
@@ -247,7 +248,7 @@ function canSell(p){const sq=squadOf(S.user);if(sq.length<=18)return'You need at
 
 /* ---------- season end ---------- */
 function endSeason(){
- const report=[],uc0=clubOf(S.user),uLeague=S.leagues[uc0.league].name,uPos=posIn(table(uc0.league),S.user);
+ const contNext=contQualifiers(true),report=[],uc0=clubOf(S.user),uLeague=S.leagues[uc0.league].name,uPos=posIn(table(uc0.league),S.user);
  COUNTRIES.forEach(co=>{
   const [top,bot]=S.leagues.filter(l=>l.nation===co.code).sort((a,b)=>a.tier-b.tier);
   const t1=table(top.id),t2=table(bot.id);
@@ -286,6 +287,7 @@ function endSeason(){
  for(const p of Object.values(S.players)){p.dev=0;p.ovr0=p.ovr;p.val0=p.val}
  for(const lg of S.leagues){S.fixtures[lg.id]=roundRobin(shuffled(lg.clubs));S.results[lg.id]=[]}
  S.clubs.forEach(c=>{c.tac.xi=c.tac.xi||[];if(c.id!==S.user)c.tac.xi=[]});ensureLineup(S.user);
+ initCups(contNext);
  mail('Board of Directors',`Season ${seasonLabel()} begins`,`<p>You are in the ${esc(S.leagues[clubOf(S.user).league].name)}. The board's objective: <b>${expectation(S.user)}</b>. Transfer budget: <b>${money(clubOf(S.user).budget)}</b>.</p>`,null,'board',{att:{t:'budget'},links:[['Office','nav','office'],['Transfer hub','nav','transfers']]});
  save();return report;
 }

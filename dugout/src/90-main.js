@@ -73,7 +73,7 @@ document.addEventListener('click',e=>{
   case'neg-years':ui.neg.years=+v;renderNeg();break;
   case'neg-role':ui.neg.role=v;renderNeg();break;
   case'neg-accept-counter':ui.neg.fee=ui.neg.counter;ui.neg.counter=null;negBid();break;
-  case'pickComp':ui.lg=+v;ui.lgMd=null;render();break;
+  case'pickComp':ui.lg=/^\d+$/.test(v)?+v:v;ui.lgMd=null;render();break;
   case'board-req':{const c=clubOf(S.user);S.boardReq=S.season;if(S.board>=62){const g=Math.round(c.budget*.2/1e5)*1e5+5e6;c.budget+=g;toast(`The board has added ${money(g)} to your transfer budget`)}else{S.board=Math.max(5,S.board-3);toast('The board turned down your request')}save();render();break}
   case'split-apply':{const c=clubOf(S.user),w=+$('#sp-r').value,total=c.budget+c.wageBudget*WAGE_TO_FEE;c.wageBudget=w;c.budget=Math.max(0,Math.round((total-w*WAGE_TO_FEE)/1e5)*1e5);save();render();toast('Budgets updated');break}
   case'sell':sellUI(id);break;
@@ -129,7 +129,7 @@ document.addEventListener('keydown',e=>{
  if(e.key===' '&&view==='match'&&M&&M.phase==='live'&&!/INPUT|SELECT|BUTTON/.test(e.target.tagName)){e.preventDefault();M.paused=!M.paused;M.paused?SND.stop():SND.resume();const b=$('#m-pause');if(b)b.textContent=M.paused?'Resume':'Pause'}
 });
 async function boot(data){
- if(data&&data.S&&data.S.slot){S=data.S;ui.mode='game';view='home';sub='overview';render();return}
+ if(data&&data.S&&data.S.slot){S=data.S;ensureCalendar();ui.mode='game';view='home';sub='overview';render();return}
  render();await migrateLegacy();await refreshMetas();if(!S)render();
 }
 // Write the pending save before the tab closes or is hidden (mobile browsers rarely fire unload).

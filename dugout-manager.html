@@ -430,6 +430,33 @@ select,input[type=search],input[type=text]{border-radius:2px}
 .comp-strip{display:flex;gap:4px;overflow-x:auto;margin-bottom:12px;scrollbar-width:thin;padding-bottom:4px}
 .comp-pick{display:flex;align-items:center;gap:8px;padding:6px 10px 6px 6px;border:1px solid var(--line);background:var(--panel);border-radius:2px;white-space:nowrap;font:700 12px var(--fd);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .comp-pick:hover{border-color:#4a4a50;color:#fff}
+.cs-div{flex:none;width:1px;background:var(--line2);margin:4px 6px}
+.comp-hero.cup{background:radial-gradient(80% 140% at 0% 50%,color-mix(in srgb,var(--lc) 70%,transparent),transparent 70%),linear-gradient(120deg,#16161a,#111113)}
+.bracket{display:flex;gap:0;min-width:max-content;align-items:stretch}
+.br-col{display:flex;flex-direction:column;min-width:190px;padding:0 14px;position:relative}
+.br-col+.br-col{border-left:1px dashed rgba(255,255,255,.06)}
+.br-h{font:700 12px var(--fd);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;display:flex;justify-content:space-between;gap:8px}.br-h small{letter-spacing:0;text-transform:none;color:var(--dim)}
+.br-ties{display:flex;flex-direction:column;justify-content:space-around;gap:10px;flex:1}
+.tie{position:relative;background:linear-gradient(180deg,#1d1d21,#17171a);border:1px solid var(--line2);border-radius:3px;overflow:hidden}
+.tie.mine{border-color:color-mix(in srgb,var(--accent) 70%,transparent);box-shadow:0 0 0 1px rgba(255,180,58,.15)}
+.tie.tbd{display:grid;place-items:center;min-height:58px;border-style:dashed;background:transparent;color:var(--dim);font-size:12px}
+.tie .tr{display:grid;grid-template-columns:18px 1fr auto;gap:8px;align-items:center;padding:5px 9px;font-size:13px}
+.tie .tr+.tr{border-top:1px solid rgba(255,255,255,.05)}
+.tie .tr b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tie .tr em{font:700 15px var(--fd);font-style:normal;min-width:16px;text-align:right;font-variant-numeric:tabular-nums}.tie .tr sup{font-size:10px;color:var(--muted);margin-left:2px}
+.tie .tr.w b,.tie .tr.w em{color:#fff}.tie .tr.l{opacity:.5}.tie .tr.me b{color:var(--accent2)}
+.tie .tp{position:absolute;right:30px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--dim)}
+.br-col.champ{justify-content:flex-start}.br-win{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:16px;border:1px solid rgba(232,194,90,.5);background:radial-gradient(circle at 50% 30%,rgba(232,194,90,.18),transparent 70%);border-radius:4px}.br-win b{font:700 18px var(--fd);text-transform:uppercase}
+.groups{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:12px}
+@media (max-width:1100px){.groups{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:600px){.groups{grid-template-columns:1fr}}
+.so{padding:12px 14px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(255,180,58,.06),transparent)}
+.so-row{display:grid;grid-template-columns:22px 52px 1fr 24px;gap:8px;align-items:center;margin-top:8px}
+.so-row b{font:700 14px var(--fd);text-transform:uppercase}.so-row span{display:flex;gap:4px;flex-wrap:wrap}.so-row em{font:800 20px var(--fd);font-style:normal;text-align:right}
+.pk{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;font-style:normal;font-size:12px;font-weight:800;opacity:0;transform:scale(.4);animation:pkIn .35s cubic-bezier(.2,.9,.3,1.4) forwards;animation-delay:var(--d)}
+.pk.ok{background:var(--win);color:#062}.pk.miss{background:var(--loss);color:#300}
+@keyframes pkIn{to{opacity:1;transform:none}}
+.so-res{margin:10px 0 0;font:700 16px var(--fd);text-transform:uppercase;letter-spacing:.04em;color:var(--accent2);opacity:0;animation:pkIn .4s forwards;animation-delay:var(--d)}
 .comp-pick[aria-pressed="true"]{border-color:#e9e6df;color:#fff}
 .comp-hero{display:flex;gap:20px;align-items:center;padding:18px 20px;margin-bottom:12px;border-radius:4px;border:1px solid var(--line);background:linear-gradient(100deg,color-mix(in srgb,var(--lc) 70%,#000) 0%,color-mix(in srgb,var(--lc) 25%,#0a0a0b) 55%,#0f0f11 100%)}
 .comp-hero h1{font-size:clamp(28px,4vw,44px);text-transform:uppercase;line-height:1;margin:4px 0 10px}
@@ -1684,6 +1711,7 @@ function genWorld(seed){
    S.fixtures[lid]=roundRobin(shuffled(lg.clubs,rng));S.results[lid]=[];
   });
  });
+ initCups(null);
  return S;
 }
 function startCareer(cid){
@@ -1709,7 +1737,7 @@ function table(lid){
  return Object.values(T).sort((x,y)=>y.pts-x.pts||(y.gf-y.ga)-(x.gf-x.ga)||y.gf-x.gf||clubOf(x.id).name.localeCompare(clubOf(y.id).name));
 }
 const posIn=(tb,id)=>tb.findIndex(r=>r.id===id)+1;
-const userFixture=()=>S.md>=MDAYS?null:S.fixtures[S.clubs[S.user].league][S.md].find(m=>m.includes(S.user));
+const userFixture=()=>{const t=typeof curTie==='function'&&S.cal?curTie():null;return t?[t.h,t.a]:null};
 function fixturesOf(cid){const lid=clubOf(cid).league;return S.fixtures[lid].map((r,md)=>{const f=r.find(m=>m.includes(cid));const res=S.results[lid].find(x=>x.md===md&&x.h===f[0]&&x.a===f[1]);return{md,h:f[0],a:f[1],res}})}
 
 /* ---------- AI team management ---------- */
@@ -1753,7 +1781,7 @@ function quickSim(h,a,md,lid){
 function applyUserMatch(E){
  const res={md:S.md,h:E.T[0].club,a:E.T[1].club,hg:E.score[0],ag:E.score[1],user:true};
  const all=E.P.concat(E.old);let best=null;
- for(const sp of all){const p=S.players[sp.pid];if(!p)continue;if(sp.st.mins>0){p.s.ap++;p.cond=Math.round(clamp(sp.en*100,20,100))}
+ for(const sp of all){const p=S.players[sp.pid];if(!p)continue;if(sp.st.mins>0){p.s.ap++;const ti=E.T[sp.s].tac.ins;p.cond=Math.round(clamp(p.cond-G.i(14,26)*Math.min(1,sp.st.mins/90)*(ti.press===2?1.3:1)*(ti.ment>=3?1.1:1),25,100))}
   if(sp.rating!=null){p.s.rs+=sp.rating;if(!best||sp.rating>best.rating)best=sp}}
  for(const e of E.events){if(e.type==='goal'){S.players[e.pid].s.g++;if(e.astPid!=null&&S.players[e.astPid])S.players[e.astPid].s.a++}
   if(e.type==='red'&&e.pid!=null){const p=S.players[e.pid];if(p)p.ban=2}}
@@ -1791,7 +1819,7 @@ function processMatchday(userRes){
  if(windowOpen())aiTransfers();
  aiManagers();
  if(windowOpen()&&G.f()<.3)incomingOffer();
- S.md++;
+ S.md++;if(S.cal)S.ci++;
  if(S.md===WIN2[0])mail('Director of Football','January window opens',`<p>The winter transfer window is open until matchday ${WIN2[1]}. Our current position and budget are below.</p>`,null,'transfer',{att:{t:'budget'},links:[['Transfer hub','nav','transfers']]});
  if(S.md===WIN1)mail('Director of Football','Transfer window closed',`<p>The summer window has closed. It reopens at matchday ${WIN2[0]+1}.</p>`,null,'transfer',{att:{t:'budget'}});
  if(S.md>=MDAYS)mail('Board of Directors','The season is over',`<p>Open the season review from the Continue button to see the final standings, promotions and relegations.</p>`,null,'board',{att:{t:'table'},links:[['Competition','nav','comps']]});
@@ -1886,7 +1914,7 @@ function canSell(p){const sq=squadOf(S.user);if(sq.length<=18)return'You need at
 
 /* ---------- season end ---------- */
 function endSeason(){
- const report=[],uc0=clubOf(S.user),uLeague=S.leagues[uc0.league].name,uPos=posIn(table(uc0.league),S.user);
+ const contNext=contQualifiers(true),report=[],uc0=clubOf(S.user),uLeague=S.leagues[uc0.league].name,uPos=posIn(table(uc0.league),S.user);
  COUNTRIES.forEach(co=>{
   const [top,bot]=S.leagues.filter(l=>l.nation===co.code).sort((a,b)=>a.tier-b.tier);
   const t1=table(top.id),t2=table(bot.id);
@@ -1925,6 +1953,7 @@ function endSeason(){
  for(const p of Object.values(S.players)){p.dev=0;p.ovr0=p.ovr;p.val0=p.val}
  for(const lg of S.leagues){S.fixtures[lg.id]=roundRobin(shuffled(lg.clubs));S.results[lg.id]=[]}
  S.clubs.forEach(c=>{c.tac.xi=c.tac.xi||[];if(c.id!==S.user)c.tac.xi=[]});ensureLineup(S.user);
+ initCups(contNext);
  mail('Board of Directors',`Season ${seasonLabel()} begins`,`<p>You are in the ${esc(S.leagues[clubOf(S.user).league].name)}. The board's objective: <b>${expectation(S.user)}</b>. Transfer budget: <b>${money(clubOf(S.user).budget)}</b>.</p>`,null,'board',{att:{t:'budget'},links:[['Office','nav','office'],['Transfer hub','nav','transfers']]});
  save();return report;
 }
@@ -1943,6 +1972,145 @@ function youthIntake(cid,n){const c=clubOf(cid),co=COUNTRIES.find(x=>x.code===c.
  for(let k=0;k<n;k++){const pos=rng.pick(['GK','CB','CB','LB','RB','DM','CM','CM','AM','LW','RW','ST','ST']),roll=rng.f(),pot=clamp(Math.round(repToOvr(c.rep)+(roll<.08?rng.i(12,20):roll<.35?rng.i(4,11):rng.i(-8,3))),45,roll<.015?95:89);
   const y=genPlayer(rng,pos,clamp(pot-rng.i(16,26),35,70),cid,rng.chance(.75)?co.code:rng.pick(NAT_BAG),{age:rng.i(16,17),pot});y.con=3;y.wage=Math.max(500,Math.round(y.wage*.5/100)*100);y.id=S.npid++;S.players[y.id]=y;c.squad.push(y.id);y.num=assignNum(cid,pos);y.youth=S.season;out.push(y)}
  return out}
+/* ================= cup competitions =================
+   A season is a calendar of events: 38 league matchdays with cup rounds played in midweek between them.
+   Every country has a 32-team knockout cup; the best 16 clubs on the continent play the Continental Elite Cup
+   (four groups of four, then quarter-finals, semi-finals and a final). Single-leg ties go to penalties. */
+const CUP_NAMES={ENG:'Royal Cup',ESP:'Copa del Sol',GER:'Goldpokal',ITA:'Coppa Aurea',FRA:'Coupe Étoile',NED:'Kroonbeker'};
+const DOM_AFTER=[5,11,17,26,33],DOM_ROUNDS=['Round of 32','Round of 16','Quarter-finals','Semi-finals','Final'];
+const CONT_AFTER=[3,6,9,12,15,18,24,29,36],CONT_ROUNDS=['Group matchday 1','Group matchday 2','Group matchday 3','Group matchday 4','Group matchday 5','Group matchday 6','Quarter-finals','Semi-finals','Final'];
+const CONT_NAME='Continental Elite Cup';
+const CONT_SLOTS={ENG:3,ESP:3,GER:3,ITA:3,FRA:2,NED:2};
+const GROUP_RR=[[[0,1],[2,3]],[[2,0],[3,1]],[[0,3],[1,2]],[[1,0],[3,2]],[[0,2],[1,3]],[[3,0],[2,1]]];
+
+function contQualifiers(useTables){
+ const out=[];
+ for(const co of COUNTRIES){const top=S.leagues.find(l=>l.nation===co.code&&l.tier===0);
+  const order=useTables&&S.results[top.id].length?table(top.id).map(r=>r.id):top.clubs.slice().sort((a,b)=>clubOf(b).rep-clubOf(a).rep);
+  out.push(...order.slice(0,CONT_SLOTS[co.code]))}
+ return out;
+}
+function initCups(contTeams){
+ const cups={};
+ for(const co of COUNTRIES){
+  const [top,bot]=S.leagues.filter(l=>l.nation===co.code).sort((a,b)=>a.tier-b.tier);
+  const teams=top.clubs.concat(bot.clubs.slice().sort((a,b)=>clubOf(b).rep-clubOf(a).rep).slice(0,12));
+  cups['dom-'+co.code]={key:'dom-'+co.code,name:CUP_NAMES[co.code],nation:co.code,kind:'ko',teams,after:DOM_AFTER,names:DOM_ROUNDS,rounds:DOM_ROUNDS.map(()=>null),winner:null};
+ }
+ const ct=(contTeams||contQualifiers(false)).slice(0,16);
+ // seed into four pots by reputation, one club per pot in each group, avoiding same-country clashes where possible
+ const pots=[0,1,2,3].map(k=>ct.slice().sort((a,b)=>clubOf(b).rep-clubOf(a).rep).slice(k*4,k*4+4)),groups=[[],[],[],[]];
+ for(const pot of pots){const left=shuffled(pot);for(const g of groups){let i=left.findIndex(id=>!g.some(x=>clubOf(x).nation===clubOf(id).nation));if(i<0)i=0;g.push(left.splice(i,1)[0])}}
+ cups.cont={key:'cont',name:CONT_NAME,kind:'gko',teams:ct,after:CONT_AFTER,names:CONT_ROUNDS,groups:groups.map(ids=>({ids,res:[]})),rounds:CONT_ROUNDS.map(()=>null),winner:null};
+ S.cups=cups;buildCalendar();
+}
+function buildCalendar(){
+ const cal=[];
+ for(let md=0;md<MDAYS;md++){cal.push({t:'lg',md});
+  if(S.cups)for(const k of Object.keys(S.cups)){const c=S.cups[k],r=c.after.indexOf(md);if(r>=0)cal.push({t:'cup',key:k,r,after:md})}}
+ S.cal=cal;S.ci=cal.findIndex(e=>e.t==='lg'&&e.md===S.md);if(S.ci<0)S.ci=cal.length;
+}
+// Older saves (before cups) get a league-only calendar; cups start with their next season.
+function ensureCalendar(){if(!S.cal){S.cups=S.cups||null;buildCalendar()}}
+const curEvent=()=>S.cal&&S.cal[S.ci];
+const evDate=ev=>ev.t==='lg'?mdDate(ev.md):mdDate(ev.after)+3*DAY;
+const isGroupRound=(c,r)=>c.kind==='gko'&&r<6;
+const isFinal=(c,r)=>r===c.names.length-1;
+const tieWinner=t=>t.hg>t.ag?t.h:t.ag>t.hg?t.a:t.pens?(t.pens[0]>t.pens[1]?t.h:t.a):null;
+
+/* ---- draws ---- */
+function drawRound(c,r){
+ if(c.rounds[r])return c.rounds[r];
+ let ties=[];
+ if(isGroupRound(c,r)){c.groups.forEach((g,gi)=>GROUP_RR[r].forEach(([x,y])=>ties.push({h:g.ids[x],a:g.ids[y],g:gi})))}
+ else if(c.kind==='gko'&&r===6){const st=c.groups.map(g=>groupTable(g));ties=[[0,1],[1,0],[2,3],[3,2]].map(([a,b])=>({h:st[a][0].id,a:st[b][1].id}))}
+ else{const prev=r===0?c.teams.slice():c.rounds[r-1].map(tieWinner);const pool=shuffled(prev);for(let i=0;i+1<pool.length;i+=2)ties.push({h:pool[i],a:pool[i+1]})}
+ if(isFinal(c,r))ties.forEach(t=>t.neutral=true);
+ c.rounds[r]=ties;return ties;
+}
+function groupTable(g){
+ const T={};g.ids.forEach(id=>T[id]={id,p:0,w:0,d:0,l:0,gf:0,ga:0,pts:0});
+ for(const r of g.res){const H=T[r.h],A=T[r.a];H.p++;A.p++;H.gf+=r.hg;H.ga+=r.ag;A.gf+=r.ag;A.ga+=r.hg;if(r.hg>r.ag){H.w++;A.l++;H.pts+=3}else if(r.hg<r.ag){A.w++;H.l++;A.pts+=3}else{H.d++;A.d++;H.pts++;A.pts++}}
+ return Object.values(T).sort((a,b)=>b.pts-a.pts||(b.gf-b.ga)-(a.gf-a.ga)||b.gf-a.gf||clubOf(b.id).rep-clubOf(a.id).rep);
+}
+
+/* ---- the user's ties ---- */
+function tieLabel(c,r){return`${c.name} · ${c.names[r]}`}
+function userTieAt(ev,draw){
+ if(!ev)return null;
+ if(ev.t==='lg'){const lid=clubOf(S.user).league,f=S.fixtures[lid][ev.md].find(m=>m.includes(S.user));return f?{h:f[0],a:f[1],comp:'lg',lid,label:`${S.leagues[lid].name} · Matchday ${ev.md+1}`,short:`MD ${ev.md+1}/${MDAYS}`,date:evDate(ev)}:null}
+ const c=S.cups&&S.cups[ev.key];if(!c)return null;
+ if(!c.rounds[ev.r]&&!draw)return userAlive(c,ev.r)?{pending:true,comp:ev.key,r:ev.r,label:tieLabel(c,ev.r),short:c.names[ev.r],date:evDate(ev)}:null;
+ const t=drawRound(c,ev.r).find(x=>x.h===S.user||x.a===S.user);
+ return t&&t.hg==null?{h:t.h,a:t.a,comp:ev.key,r:ev.r,ko:!isGroupRound(c,ev.r),neutral:!!t.neutral,label:tieLabel(c,ev.r),short:c.names[ev.r],date:evDate(ev),tie:t}:null;
+}
+function userAlive(c,r){
+ if(!c.teams.includes(S.user))return false;
+ if(c.kind==='gko'&&r<6)return true;
+ const last=r-1;if(last<0)return true;
+ if(c.kind==='gko'&&last===5){if(!c.rounds[5]||c.rounds[5].some(t=>t.hg==null))return true;const g=c.groups.find(g=>g.ids.includes(S.user));return groupTable(g).slice(0,2).some(x=>x.id===S.user)}
+ const pr=c.rounds[last];if(!pr)return true;const t=pr.find(x=>x.h===S.user||x.a===S.user);return!!t&&(t.hg==null||tieWinner(t)===S.user);
+}
+const curTie=()=>userTieAt(curEvent(),true);
+function nextUserTie(){if(!S.cal)return null;for(let i=S.ci;i<S.cal.length;i++){const t=userTieAt(S.cal[i],i===S.ci);if(t)return t}return null}
+
+/* ---- penalties ---- */
+function shootout(h,a,getTakers){
+ const tk=[getTakers(h),getTakers(a)],gk=[keeperOf(h),keeperOf(a)],sc=[0,0],kicks=[];
+ const kick=(s,n)=>{const p=tk[s][n%tk[s].length],k=gk[1-s],pr=clamp(.76+(p.at[AIX.fin]-60)*.004+(p.at[AIX.cmp]-60)*.003-(k?(k.at[AIX.ref]-60)*.003:0),.55,.92),ok=G.f()<pr;if(ok)sc[s]++;kicks.push({s,pid:p.id,ok})};
+ const taken=[0,0];
+ for(let n=0;n<5;n++){for(const s of[0,1]){kick(s,n);taken[s]++;if(sc[0]+5-taken[0]<sc[1]||sc[1]+5-taken[1]<sc[0])return{pens:sc,kicks}}}
+ for(let n=5;n<30&&sc[0]===sc[1];n++){kick(0,n);kick(1,n)}
+ return{pens:sc,kicks};
+}
+function keeperOf(cid){const c=clubOf(cid),i=(FORMATIONS[c.tac.form]||[]).findIndex(s=>s[0]==='GK'),id=c.tac.xi[i>=0?i:0];return S.players[id]||squadOf(cid).find(p=>p.pos==='GK')}
+const takersOf=cid=>{const c=clubOf(cid);return(c.tac.xi.length?c.tac.xi.map(id=>S.players[id]).filter(Boolean):squadOf(cid)).filter(p=>p.pos!=='GK').sort((a,b)=>(b.at[AIX.fin]+b.at[AIX.cmp])-(a.at[AIX.fin]+a.at[AIX.cmp]))};
+
+/* ---- processing a cup round ---- */
+function cupPrize(c,r,won){const base=c.key==='cont'?[1.6e6,1.6e6,1.6e6,1.6e6,1.6e6,1.6e6,6e6,9e6,16e6]:[.15e6,.3e6,.6e6,1.2e6,3e6];return Math.round((base[r]||0)*(won?1:.5))}
+function processCupEvent(userRes,userPens){
+ const ev=curEvent(),c=S.cups[ev.key],ties=drawRound(c,ev.r),grp=isGroupRound(c,ev.r);
+ for(const t of ties){
+  if(t.hg!=null)continue;
+  if(userRes&&t.h===userRes.h&&t.a===userRes.a){t.hg=userRes.hg;t.ag=userRes.ag;t.user=true;if(userPens)t.pens=userPens}
+  else{const r=quickSim(t.h,t.a,S.md,null);t.hg=r.hg;t.ag=r.ag}
+  if(!grp&&t.hg===t.ag&&!t.pens)t.pens=shootout(t.h,t.a,takersOf).pens;
+  if(grp)c.groups[t.g].res.push({h:t.h,a:t.a,hg:t.hg,ag:t.ag});
+ }
+ for(const p of Object.values(S.players)){p.cond=Math.min(100,p.cond+16);if(p.inj){p.inj--;if(p.inj<=0)delete p.inj}}
+ // the user's tie: money, morale, board, manager record
+ const ut=ties.find(t=>t.h===S.user||t.a===S.user),uc=clubOf(S.user);
+ if(ut){const home=ut.h===S.user,gf=home?ut.hg:ut.ag,ga=home?ut.ag:ut.hg,won=grp?gf>ga:tieWinner(ut)===S.user;
+  if(home&&!ut.neutral){const g=Math.round(uc.cap*.8*38);uc.balance+=g;S.fin.gate+=g}
+  const pz=cupPrize(c,ev.r,won);uc.balance+=pz;S.fin.prize=(S.fin.prize||0)+pz;
+  for(const p of squadOf(S.user))p.mor=clamp(p.mor+(won?5:gf<ga?-4:0),25,98);
+  S.board=clamp(S.board+(won?1.5:-1),5,100);S.mgr[gf>ga?'w':gf<ga?'l':'d']++;
+  if(!grp&&!won)news(`${uc.name} are out of the ${c.name}, beaten ${Math.max(gf,ga)}–${Math.min(gf,ga)}${ut.pens?` on penalties (${Math.max(...ut.pens)}–${Math.min(...ut.pens)})`:''} by ${clubOf(home?ut.a:ut.h).name}.`,'cup',[S.user],{title:`${uc.short} knocked out of the ${c.name}`})}
+ // headline the round
+ {const big=ties.slice().sort((x,y)=>Math.abs(clubOf(y.h).rep-clubOf(y.a).rep)*(tieWinner(y)===(clubOf(y.h).rep<clubOf(y.a).rep?y.h:y.a)?1:0)-Math.abs(clubOf(x.h).rep-clubOf(x.a).rep)*(tieWinner(x)===(clubOf(x.h).rep<clubOf(x.a).rep?x.h:x.a)?1:0))[0];
+  if(big&&!isFinal(c,ev.r)){const w=tieWinner(big)||big.h,l=w===big.h?big.a:big.h;if(clubOf(w).rep<clubOf(l).rep-6)news(`${clubOf(w).name} stun ${clubOf(l).name} ${Math.max(big.hg,big.ag)}–${Math.min(big.hg,big.ag)}${big.pens?' on penalties':''} in the ${c.name} ${c.names[ev.r].toLowerCase()}.`,'cup',[w,l],{title:`Cup shock: ${clubOf(w).short} knock out ${clubOf(l).short}`})}}
+ if(isFinal(c,ev.r)){const t=ties[0],w=tieWinner(t),ru=w===t.h?t.a:t.h;c.winner=w;
+  (S.cupHist=S.cupHist||{})[c.key]=(S.cupHist[c.key]||[]);S.cupHist[c.key].unshift({season:seasonLabel(),w,ru,hg:t.hg,ag:t.ag,pens:t.pens||null,h:t.h});
+  clubOf(w).rep=clamp(clubOf(w).rep+(c.key==='cont'?3:1),30,97);
+  news(`${clubOf(w).name} win the ${c.name}, beating ${clubOf(ru).name} ${Math.max(t.hg,t.ag)}–${Math.min(t.hg,t.ag)}${t.pens?` on penalties`:''} in the final.`,'cup',[w,ru],{title:`${clubOf(w).short} lift the ${c.name}`});
+  if(w===S.user){S.mgr.trophies.push({t:c.name,season:seasonLabel(),club:S.user});S.pendingTrophy={t:c.name,club:S.user}}}
+ S.ci++;
+}
+// Play every event the user is not part of (cup rounds after elimination, rounds they never entered).
+function advanceToUser(){ensureCalendar();let n=0;while(S.ci<S.cal.length&&!curTie()&&n++<60){const ev=curEvent();if(ev.t==='lg')break;processCupEvent(null)}}
+
+/* ---- the user's full schedule (league + cups), for home and fixtures lists ---- */
+function userSchedule(){
+ if(!S.cal)return[];
+ const out=[],lid=clubOf(S.user).league;
+ S.cal.forEach((ev,i)=>{
+  if(ev.t==='lg'){const f=S.fixtures[lid][ev.md].find(m=>m.includes(S.user));if(!f)return;const r=S.results[lid].find(x=>x.md===ev.md&&x.h===f[0]&&x.a===f[1]);out.push({h:f[0],a:f[1],date:evDate(ev),comp:'lg',label:`MD ${ev.md+1}`,res:r||null,i})}
+  else{const c=S.cups[ev.key],ties=c.rounds[ev.r];const t=ties&&ties.find(x=>x.h===S.user||x.a===S.user);
+   if(t)out.push({h:t.h,a:t.a,date:evDate(ev),comp:ev.key,label:c.names[ev.r],res:t.hg!=null?t:null,i});
+   else if(!ties&&i>=S.ci&&userAlive(c,ev.r))out.push({h:null,a:null,date:evDate(ev),comp:ev.key,label:c.names[ev.r],pending:true,i})}
+ });
+ return out;
+}
 /* ================= save slots =================
    Careers live in IndexedDB (gzip-compressed where the browser supports it), one record per slot plus a small
    metadata record for the menu. Falls back to localStorage if IndexedDB is unavailable. */
@@ -2022,13 +2190,13 @@ function openPlayer(pid){ui.back=[view,sub];go('player','',{pid})}
 /* ---------- bar ---------- */
 function nextLabel(){if(S.md>=MDAYS)return'Season review';if(typeof M!=='undefined'&&M&&M.phase==='live')return'Resume match';if(typeof M!=='undefined'&&M&&M.phase==='done')return'Match report';return'Continue'}
 function renderBar(){
- const c=clubOf(S.user),fx=userFixture(),unread=S.inbox.filter(m=>!m.read).length,nav=NAV.find(n=>n[0]===view);
- const opp=fx?clubOf(fx[0]===S.user?fx[1]:fx[0]):null;
+ const c=clubOf(S.user),nt=nextUserTie(),unread=S.inbox.filter(m=>!m.read).length,nav=NAV.find(n=>n[0]===view);
+ const opp=nt&&!nt.pending?clubOf(nt.h===S.user?nt.a:nt.h):null;
  $('#bar').style.setProperty('--tc',c.colors[0]===('#ffffff')?c.colors[1]:c.colors[0]);
  $('#bar').innerHTML=`<div class="bar-row"><button class="logo" data-act="menu" title="Main menu (career saves automatically)">${LOGO}<span>DUGOUT</span></button>
  <button class="club-chip" data-act="nav" data-v="club">${crest(S.user)}<b>${esc(c.short)}</b></button>
  <nav class="nav" aria-label="Sections">${NAV.map(([k,l])=>`<button data-act="nav" data-v="${k}" ${view===k?'aria-current="page"':''}><svg viewBox="0 0 24 24">${NAV_ICON[k]}</svg>${l}${k==='home'&&unread?'<span class="dot"></span>':''}</button>`).join('')}</nav>
- <div class="when"><b>${fmtDate(mdDate(Math.min(S.md,MDAYS-1)))}</b><small>${opp?`Next: ${esc(opp.short)} (${fx[0]===S.user?'H':'A'}) · MD ${S.md+1}/${MDAYS}`:'Season complete'}</small></div>
+ <div class="when"><b>${fmtDate(nt?nt.date:mdDate(MDAYS-1))}</b><small>${nt?(opp?`Next: ${esc(opp.short)} (${nt.neutral?'N':nt.h===S.user?'H':'A'}) · ${esc(nt.short)}`:`Next: ${esc(nt.short)} draw`):'Season complete'}</small></div>
  <button class="go" data-act="continue"><span class="lbl">${nextLabel()}</span>${ARROW}</button></div>
  ${nav&&nav[2].length>1?`<div class="sub">${nav[2].map(([k,l])=>`<button data-act="sub" data-v="${k}" aria-current="${sub===k}">${l}</button>`).join('')}<span class="sp"></span></div>`:view==='player'?`<div class="sub"><button data-act="back">‹ Back</button><span class="sp"></span></div>`:''}`;
 }
@@ -2056,14 +2224,14 @@ function viewStart(){
 function viewHome(){
  if(sub==='inbox')return inboxView();
  if(sub==='news')return newsView(S.news);
- const c=clubOf(S.user),fx=userFixture(),tb=table(c.league),lg=S.leagues[c.league],fxs=fixturesOf(S.user),wb=wageBill(S.user);
- const next=fxs.filter(f=>!f.res).slice(0,5),last=fxs.filter(f=>f.res).slice(-5).reverse();
+ const c=clubOf(S.user),ct=curTie(),fx=ct?[ct.h,ct.a]:null,tb=table(c.league),lg=S.leagues[c.league],sch=userSchedule(),wb=wageBill(S.user);
+ const next=sch.filter(f=>!f.res).slice(0,5),last=sch.filter(f=>f.res).slice(-3);
  const sq=squadOf(S.user),unavailable=sq.filter(p=>p.inj||p.ban),tired=sq.filter(p=>p.cond<75).sort((a,b)=>a.cond-b.cond).slice(0,4),top=sq.filter(p=>p.s.ap>=2).sort((a,b)=>avg(b)-avg(a)).slice(0,5);
  const opp=fx?(fx[0]===S.user?fx[1]:fx[0]):null,oppRow=opp!=null?tb.find(r=>r.id===opp):null;
  return`<div class="grid">
  <section class="panel c4"><div class="ph"><h3>Inbox</h3><button class="link btn" data-act="sub" data-v="inbox">All</button></div><div class="list">${S.inbox.slice(0,8).map(msgRow).join('')||'<p class="pb muted">No messages.</p>'}</div></section>
- <section class="panel c5"><div class="ph"><h3>Next match <small>${fx?fmtDate(mdDate(S.md)):''}</small></h3>${fx?`<span class="chip hot">Matchday ${S.md+1}</span>`:''}</div><div class="pb">
- ${fx?`<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;text-align:center">${[fx[0],fx[1]].map((id,k)=>`<div${k?' style="order:3"':''}>${crest(id,64)}<div style="font:700 18px var(--fd);text-transform:uppercase;margin-top:6px">${esc(clubOf(id).short)}</div><small>${S.results[c.league].length?ordinal(posIn(tb,id))+' · ':''}${formHTML(tb.find(r=>r.id===id).form)}</small></div>`).join('<div style="order:2"><div class="kpi" style="color:var(--dim)">VS</div><small>'+esc(clubOf(fx[0]).stadium)+'</small></div>')}</div>
+ <section class="panel c5"><div class="ph"><h3>Next match <small>${fx?fmtDate(ct.date):''}</small></h3>${fx?`<span class="chip hot">${compBadge(ct.comp,16)} ${esc(ct.short)}</span>`:''}</div><div class="pb">
+ ${fx?`<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;text-align:center">${[fx[0],fx[1]].map((id,k)=>`<div${k?' style="order:3"':''}>${crest(id,64)}<div style="font:700 18px var(--fd);text-transform:uppercase;margin-top:6px">${esc(clubOf(id).short)}</div><small>${(()=>{const r=tb.find(x=>x.id===id);return r?(S.results[c.league].length?ordinal(posIn(tb,id))+' · ':'')+formHTML(r.form):esc(S.leagues[clubOf(id).league].name)})()}</small></div>`).join('<div style="order:2"><div class="kpi" style="color:var(--dim)">VS</div><small>'+esc(clubOf(fx[0]).stadium)+'</small></div>')}</div>
  <div style="display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap"><button class="btn" data-act="nav" data-v="tactics">Tactics</button><button class="btn pri" data-act="continue">Go to match ${ARROW}</button></div>
  ${oppRow?`<p class="muted" style="font-size:13px;text-align:center;margin:10px 0 0">${esc(clubOf(opp).name)} usually line up in a ${clubOf(opp).tac.form}. Their danger man: ${(()=>{const p=squadOf(opp).sort((a,b)=>b.ovr-a.ovr)[0];return pName(p)+' ('+p.pos+')'})()}.</p>`:''}`
  :`<p>The season is over.</p><button class="btn pri" data-act="continue">Season review ${ARROW}</button>`}</div></section>
@@ -2072,7 +2240,7 @@ function viewHome(){
  <div class="eyebrow" style="color:var(--muted);margin-top:14px">Board objective</div><div style="font-weight:600;margin-top:3px">${expectation(S.user)}</div>
  <div style="margin-top:12px"><span class="chip ${windowOpen()?'ok':''}">${windowOpen()?'Transfer window open':'Transfer window closed'}</span></div></div></section>
  <section class="panel c5"><div class="ph"><h3>${esc(lg.name)}</h3><button class="btn" data-act="nav" data-v="comps">Competition</button></div><div class="tw">${leagueTable(c.league,true)}</div></section>
- <section class="panel c4"><div class="ph"><h3>Fixtures &amp; results</h3></div><div class="list">${last.slice(0,3).reverse().concat(next).map(fixtureRow).join('')}</div></section>
+ <section class="panel c4"><div class="ph"><h3>Fixtures &amp; results</h3></div><div class="list">${last.concat(next).map(schedRow).join('')}</div></section>
  <section class="panel c3"><div class="ph"><h3>Squad status</h3></div><div class="list">
  ${top.length?top.map(p=>`<button class="li" data-act="player" data-id="${p.id}">${posChip(p.pos)}<span><b>${pName(p)}</b><small>${p.s.ap} apps · ${p.s.g} G · ${p.s.a} A</small></span><span class="rt" style="background:${rtColor(avg(p))}">${avg(p).toFixed(2)}</span></button>`).join(''):'<p class="pb muted" style="margin:0">Form guide appears after two matches.</p>'}
  ${unavailable.map(p=>`<button class="li" data-act="player" data-id="${p.id}">${posChip(p.pos)}<span><b>${pName(p)}</b><small>${p.inj?`Injured · ${p.inj} md`:`Suspended · ${p.ban} md`}</small></span><span class="chip bad">Out</span></button>`).join('')}
@@ -2080,6 +2248,11 @@ function viewHome(){
  </div>`;
 }
 const newsRow=n=>`<div class="ns" style="grid-template-columns:46px 1fr auto">${newsTile(n)}<span><b>${esc(n.title||n.text)}</b>${n.title?`<small style="display:block;color:var(--muted);font-size:12px;margin-top:2px">${esc(n.text)}</small>`:''}</span><small>MD ${n.md+1}</small></div>`;
+function schedRow(f){
+ if(f.pending)return`<div class="li">${compBadge(f.comp,22)}<span><b>${esc(f.label)} draw</b><small>${shortDate(f.date)} · opponent to be drawn</small></span><small>–</small></div>`;
+ const home=f.h===S.user,opp=home?f.a:f.h,r=f.res;let res='';
+ if(r){const gf=home?r.hg:r.ag,ga=home?r.ag:r.hg,pw=r.pens?(home?r.pens[0]>r.pens[1]:r.pens[1]>r.pens[0]):null,o=gf>ga||pw===true?'win':gf<ga||pw===false?'loss':'draw';res=`<span class="rt" style="background:var(--${o})">${gf}–${ga}${r.pens?'p':''}</span>`}
+ return`<div class="li">${crest(opp,22)}<span><b>${esc(clubOf(opp).name)} <small style="display:inline">(${f.neutral?'N':home?'H':'A'})</small></b><small>${compBadge(f.comp,12)} ${shortDate(f.date)} · ${esc(f.label)}</small></span>${res||'<small>–</small>'}</div>`}
 function fixtureRow(f){const home=f.h===S.user,opp=home?f.a:f.h,r=f.res;let res='';if(r){const gf=home?r.hg:r.ag,ga=home?r.ag:r.hg;res=`<span class="rt" style="background:${gf>ga?'var(--win)':gf<ga?'var(--loss)':'var(--draw)'}">${gf}–${ga}</span>`}
  return`<div class="li">${crest(opp,22)}<span><b>${esc(clubOf(opp).name)} <small style="display:inline">(${home?'H':'A'})</small></b><small>${shortDate(mdDate(f.md))} · Matchday ${f.md+1}</small></span>${res||'<small>–</small>'}</div>`}
 function newsView(list){return`<div class="grid"><section class="panel c12"><div class="ph"><h3>News</h3></div><div class="list">${list.map(newsRow).join('')||'<p class="pb muted">Nothing yet.</p>'}</div></section></div>`}
@@ -2213,7 +2386,8 @@ function leagueLogo(lid,size=48){
  ${emblemSVG(st.em,50,42,40,st.c2)}
  <rect x="27" y="68" width="46" height="15" rx="2" fill="${st.c2}"/><text x="50" y="79.5" text-anchor="middle" ${FONT} font-weight="800" font-size="12" letter-spacing="2" fill="${mix(st.c1,'#000000',.25)}">${compAbbr(lid)}</text></svg>`;
 }
-function compStrip(lid){return`<div class="comp-strip">${S.leagues.map(l=>`<button class="comp-pick" data-act="pickComp" data-v="${l.id}" aria-pressed="${l.id===lid}" title="${esc(l.name)}">${leagueLogo(l.id,30)}<span>${esc(l.name)}</span></button>`).join('')}</div>`}
+function compStrip(lid){const cups=S.cups?Object.values(S.cups).sort((a,b)=>(a.key==='cont'?-1:0)-(b.key==='cont'?-1:0)):[];
+ return`<div class="comp-strip">${cups.map(c=>`<button class="comp-pick cup" data-act="pickComp" data-v="${c.key}" aria-pressed="${c.key===lid}" title="${esc(c.name)}">${cupLogo(c.key,30)}<span>${esc(c.name)}</span></button>`).join('')}${cups.length?'<i class="cs-div"></i>':''}${S.leagues.map(l=>`<button class="comp-pick" data-act="pickComp" data-v="${l.id}" aria-pressed="${l.id===lid}" title="${esc(l.name)}">${leagueLogo(l.id,30)}<span>${esc(l.name)}</span></button>`).join('')}</div>`}
 function compHeader(lid){
  const lg=S.leagues[lid],st=compStyle(lid),tb=table(lid),played=S.results[lid].length,sc=Object.values(S.players).filter(p=>lg.clubs.includes(p.club)).sort((a,b)=>b.s.g-a.s.g)[0];
  const goals=S.results[lid].reduce((a,r)=>a+r.hg+r.ag,0);
@@ -2229,7 +2403,8 @@ function leagueTable(lid,compact){
 function resultRows(lid,md){const res=S.results[lid].filter(r=>r.md===md);
  return S.fixtures[lid][md].map(([h,a])=>{const r=res.find(x=>x.h===h&&x.a===a);return`<div class="fxr ${h===S.user||a===S.user?'mine':''}"><span class="t r">${esc(clubOf(h).short)} ${crest(h,20)}</span><span class="sc">${r?r.hg+' – '+r.ag:shortDate(mdDate(md))}</span><span class="t">${crest(a,20)} ${esc(clubOf(a).short)}</span></div>`}).join('')}
 function viewComps(){
- const lid=ui.lg??clubOf(S.user).league,lg=S.leagues[lid],top=compStrip(lid)+compHeader(lid);
+ if(typeof ui.lg==='string'&&S.cups&&S.cups[ui.lg])return viewCup(ui.lg);
+ const lid=typeof ui.lg==='number'?ui.lg:clubOf(S.user).league,lg=S.leagues[lid],top=compStrip(lid)+compHeader(lid);
  const pl=()=>Object.values(S.players).filter(p=>lg.clubs.includes(p.club));
  const legend=`<div class="legend">${lg.tier===0?'<span><i class="zc"></i>Champions</span><span><i class="zq"></i>Top four</span><span><i class="zr"></i>Relegation</span>':'<span><i class="zp"></i>Promotion</span><span><i class="zq"></i>Chasing pack</span>'}</div>`;
  if(sub==='table')return top+`<div class="panel"><div class="ph"><h3>Standings</h3>${legend}</div><div class="tw">${leagueTable(lid,false)}</div></div>`;
@@ -2247,6 +2422,45 @@ function viewComps(){
  <div class="c5" style="display:grid;gap:12px;align-content:start"><section class="panel"><div class="ph"><h3>${S.md?'Latest results':'Opening fixtures'} <small>Matchday ${(S.md?lastMd:0)+1}</small></h3></div><div class="fx-grid one">${resultRows(lid,S.md?lastMd:0)}</div></section>
  <section class="panel"><div class="ph"><h3>Season in numbers</h3></div><div class="pb kpis"><div><small>Goals</small><b>${goals}</b></div><div><small>Per game</small><b>${S.results[lid].length?(goals/S.results[lid].length).toFixed(2):'–'}</b></div><div><small>Home wins</small><b>${S.results[lid].length?Math.round(hw/S.results[lid].length*100)+'%':'–'}</b></div><div><small>Biggest win</small><b>${big?`${big.hg}–${big.ag}`:'–'}</b></div></div></section>
  <section class="panel"><div class="ph"><h3>Golden boot</h3><button class="btn" data-act="sub" data-v="stats">All stats</button></div><div class="list">${ps.filter(p=>p.s.g).sort((a,b)=>b.s.g-a.s.g).slice(0,5).map((p,i)=>`<button class="li" style="grid-template-columns:22px auto 1fr auto" data-act="player" data-id="${p.id}"><small>${i+1}</small>${crest(p.club,20)}<span><b>${pName(p)}</b></span><b class="av">${p.s.g}</b></button>`).join('')||'<p class="pb muted">No goals yet.</p>'}</div></section></div></div>`;
+}
+
+/* ---------- cups ---------- */
+function cupStyle(key){if(key==='cont')return{c1:'#101a3c',c2:'#dfe5f0',c3:'#7d8fbf'};const n=key.slice(4),[c1,c2]=COMP_STYLE[n];return{c1:mix(c1,'#000000',.45),c2:'#e8c25a',c3:c2}}
+const TROPHY='M30 22h40v14c0 13-9 23-20 24-11-1-20-11-20-24zM30 27H22c0 9 5 15 11 16M70 27h8c0 9-5 15-11 16M45 60h10v8H45zM36 68h28l3 7H33z';
+function cupLogo(key,size=48){
+ const st=cupStyle(key),id=uid('cl'),c=S.cups&&S.cups[key],ab=key==='cont'?'ECC':(c?c.name:'CUP').split(' ').map(w=>w[0]).join('').slice(0,3).toUpperCase();
+ const ring=key==='cont'?Array.from({length:12},(_,i)=>{const a=i/12*Math.PI*2;return`<circle cx="${(50+Math.cos(a)*36).toFixed(1)}" cy="${(46+Math.sin(a)*36).toFixed(1)}" r="2.3" fill="${st.c2}" opacity=".75"/>`}).join(''):'';
+ return`<svg class="lgo" width="${size}" height="${size}" viewBox="0 0 100 100" role="img" aria-label="${esc(c?c.name:'Cup')} logo"><defs><radialGradient id="${id}" cx=".35" cy=".3" r=".9"><stop offset="0" stop-color="${mix(st.c1,'#ffffff',.18)}"/><stop offset="1" stop-color="${mix(st.c1,'#000000',.35)}"/></radialGradient>
+ <linearGradient id="${id}t" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${mix(st.c2,'#ffffff',.35)}"/><stop offset=".55" stop-color="${st.c2}"/><stop offset="1" stop-color="${mix(st.c2,'#000000',.35)}"/></linearGradient></defs>
+ <circle cx="50" cy="50" r="46" fill="url(#${id})"/><circle cx="50" cy="50" r="46" fill="none" stroke="${st.c2}" stroke-width="2.4"/><circle cx="50" cy="50" r="40" fill="none" stroke="${st.c2}" stroke-opacity=".25"/>${ring}
+ <path d="${TROPHY}" fill="url(#${id}t)" stroke="${mix(st.c2,'#000000',.45)}" stroke-width="1.2" stroke-linejoin="round" transform="translate(0 -4)"/>
+ <rect x="28" y="74" width="44" height="13" rx="2" fill="${st.c2}"/><text x="50" y="84" text-anchor="middle" ${FONT} font-weight="800" font-size="10.5" letter-spacing="2" fill="${st.c1}">${ab}</text></svg>`;
+}
+const compBadge=(comp,size=18)=>comp==='lg'||typeof comp==='number'?leagueLogo(typeof comp==='number'?comp:clubOf(S.user).league,size):cupLogo(comp,size);
+function cupStage(c){const done=c.rounds.findIndex(r=>!r||r.some(t=>t.hg==null));return c.winner!=null?'Complete':done<0?'Complete':c.names[done]}
+function tieCard(t,c,r){
+ if(!t)return`<div class="tie tbd"><span>To be drawn</span></div>`;
+ const w=t.hg!=null?tieWinner(t):null,row=id=>`<div class="tr ${w===id?'w':w!=null?'l':''} ${id===S.user?'me':''}">${crest(id,16)}<b>${esc(clubOf(id).short)}</b><em>${t.hg!=null?(id===t.h?t.hg:t.ag):''}${t.pens?`<sup>${id===t.h?t.pens[0]:t.pens[1]}</sup>`:''}</em></div>`;
+ return`<div class="tie ${t.h===S.user||t.a===S.user?'mine':''}">${row(t.h)}${row(t.a)}${t.pens?'<small class="tp">pens</small>':''}</div>`;
+}
+function bracketHTML(c){
+ const start=c.kind==='gko'?6:0,cols=[];let n=c.kind==='gko'?4:16;
+ for(let r=start;r<c.names.length;r++){const ties=c.rounds[r]||Array(n).fill(null);cols.push(`<div class="br-col"><div class="br-h">${esc(c.names[r])}<small>${shortDate(mdDate(c.after[r])+3*DAY)}</small></div><div class="br-ties">${ties.map(t=>tieCard(t,c,r)).join('')}</div></div>`);n=Math.max(1,n/2)}
+ const champ=c.winner!=null?`<div class="br-col champ"><div class="br-h">Winner</div><div class="br-ties"><div class="br-win">${crest(c.winner,54)}<b>${esc(clubOf(c.winner).name)}</b></div></div></div>`:'';
+ return`<div class="bracket">${cols.join('')}${champ}</div>`;
+}
+function groupsHTML(c){return`<div class="groups">${c.groups.map((g,gi)=>`<section class="panel"><div class="ph"><h3>Group ${'ABCD'[gi]}</h3></div><table class="tbl"><thead><tr><th>#</th><th>Club</th><th class="r">P</th><th class="r">GD</th><th class="r">Pts</th></tr></thead><tbody>${groupTable(g).map((r,i)=>`<tr class="${i<2?'zq':''} ${r.id===S.user?'me':''}"><td>${i+1}</td><td><div class="who">${crest(r.id,18)}<b>${esc(clubOf(r.id).short)}</b> ${flagSVG(clubOf(r.id).nation)}</div></td><td class="r">${r.p}</td><td class="r">${r.gf-r.ga>0?'+':''}${r.gf-r.ga}</td><td class="r"><b>${r.pts}</b></td></tr>`).join('')}</tbody></table></section>`).join('')}</div>`}
+function viewCup(key){
+ const c=S.cups[key],st=cupStyle(key),hist=(S.cupHist||{})[key]||[],holder=hist[0];
+ const ut=c.teams.includes(S.user),alive=ut&&(c.winner===S.user||userAlive(c,c.rounds.findIndex(r=>!r||r.some(t=>t.hg==null))<0?c.names.length-1:c.rounds.findIndex(r=>!r||r.some(t=>t.hg==null))));
+ const all=c.rounds.filter(Boolean).flat().filter(t=>t.hg!=null),goals=all.reduce((a,t)=>a+t.hg+t.ag,0);
+ const top=compStrip(key)+`<section class="comp-hero cup" style="--lc:${st.c1};--lc2:${st.c2}">${cupLogo(key,88)}<div class="ch-main"><div class="eyebrow" style="color:${st.c2}">${key==='cont'?'Continental':`${flagSVG(c.nation)} ${NATIONS[c.nation].n}`} · Cup · ${seasonLabel()}</div><h1>${esc(c.name)}</h1><div class="ch-stats">
+ <div><small>Stage</small><b>${esc(cupStage(c))}</b></div><div><small>Holders</small><b>${holder?`${crest(holder.w,20)} ${esc(clubOf(holder.w).short)}`:'–'}</b></div><div><small>Your club</small><b>${!ut?'Not entered':c.winner===S.user?'Winners':alive?'Still in':'Knocked out'}</b></div><div><small>Clubs</small><b>${c.teams.length}</b></div><div><small>Goals per game</small><b>${all.length?(goals/all.length).toFixed(2):'–'}</b></div></div></div></section>`;
+ if(sub==='history')return top+`<div class="panel"><div class="ph"><h3>Roll of honour</h3></div>${hist.length?`<div class="tw"><table class="tbl"><thead><tr><th>Season</th><th>Winners</th><th class="r">Final</th><th>Runners-up</th></tr></thead><tbody>${hist.map(x=>`<tr><td>${x.season}</td><td><div class="who">${crest(x.w,18)}<b>${esc(clubOf(x.w).name)}</b></div></td><td class="r">${x.h===x.w?x.hg+'–'+x.ag:x.ag+'–'+x.hg}${x.pens?' (p)':''}</td><td><div class="who">${crest(x.ru,18)}${esc(clubOf(x.ru).name)}</div></td></tr>`).join('')}</tbody></table></div>`:'<p class="pb muted">The first final is still to be played.</p>'}</div>`;
+ if(sub==='fixtures')return top+c.names.map((nm,r)=>c.rounds[r]?`<section class="panel" style="margin-bottom:12px"><div class="ph"><h3>${esc(nm)} <small>${fmtDate(mdDate(c.after[r])+3*DAY)}</small></h3></div><div class="fx-grid">${c.rounds[r].map(t=>`<div class="fxr ${t.h===S.user||t.a===S.user?'mine':''}"><span class="t r">${esc(clubOf(t.h).short)} ${crest(t.h,20)}</span><span class="sc">${t.hg!=null?t.hg+' – '+t.ag+(t.pens?` <small>(${t.pens[0]}–${t.pens[1]} p)</small>`:''):shortDate(mdDate(c.after[r])+3*DAY)}</span><span class="t">${crest(t.a,20)} ${esc(clubOf(t.a).short)}</span></div>`).join('')}</div></section>`:'').join('')||top+'<p class="muted">No ties drawn yet.</p>';
+ if(sub==='clubs'||sub==='stats')return top+`<div class="club-cards">${c.teams.map(clubOf).sort((a,b)=>b.rep-a.rep).map(k=>`<div class="cc" style="--cc:${k.colors[0]}">${crest(k.id,56)}<div><b>${esc(k.name)}</b><small>${esc(S.leagues[k.league].name)}</small><div class="cc-row">${starHTML(stars(repToOvr(k.rep)))}</div></div></div>`).join('')}</div>`;
+ const legend=c.kind==='gko'?'<p class="muted" style="margin:0 0 10px">Top two in each group reach the quarter-finals. Group winners face runners-up.</p>':'<p class="muted" style="margin:0 0 10px">Single-leg ties, redrawn every round. Level after 90 minutes goes to penalties.</p>';
+ return top+legend+(c.kind==='gko'?groupsHTML(c):'')+`<section class="panel"><div class="ph"><h3>Knockout</h3></div><div class="pb" style="overflow-x:auto">${bracketHTML(c)}</div></section>`;
 }
 /* ================= transfer centre ================= */
 const KEY_ATTRS={GK:['ref','div','han','one'],CB:['tck','mar','hea','pos'],LB:['pac','tck','cro','sta'],RB:['pac','tck','cro','sta'],DM:['tck','pos','pas','dec'],CM:['pas','vis','dec','sta'],AM:['vis','pas','dri','fir'],LW:['pac','dri','cro','fin'],RW:['pac','dri','cro','fin'],ST:['fin','cmp','fir','acc']};
@@ -2701,7 +2915,7 @@ function askMenu(){
 async function menuLoad(n){
  if(ui.busy)return;ui.busy=true;
  try{const s=await loadSlot(n);if(!s){toast('That save could not be read');await refreshMetas();render();return}
-  S=s;W=null;M=null;view='home';sub='overview';ui.mode='game';render();window.scrollTo(0,0)}
+  S=s;ensureCalendar();advanceToUser();W=null;M=null;view='home';sub='overview';ui.mode='game';render();window.scrollTo(0,0)}
  catch(e){toast('That save could not be read')}
  finally{ui.busy=false}
 }
@@ -2715,7 +2929,7 @@ const MODES={key:{label:'Key highlights',ff:120},ext:{label:'Extended',ff:70},fu
 // Pre-match ceremony timeline in seconds (3D), and the shorter overlay-only version for the 2D view.
 const INTRO3D={walk:3,anthem:13.5,shake:22.5,disperse:27,end:32.5,l3:[.6,6.4],lu:[6.9,13.3],music:3};
 const INTRO2D={end:9.5,l3:[.3,3.6],lu:[3.6,9],music:.3};
-function newMatchDay(){const fx=userFixture();if(!fx)return null;return{fx,wx:forecast(S.md,fx[0]),phase:'pre',mode:'key',hs:1,fs:12,viewMode:'3d',camMode:'tv',paused:false,pt:0,shown:0,scan:0,wins:[],score:[0,0],sel:null,tab:'feed',ss:{sh:[0,0],sot:[0,0],xg:[0,0],cor:[0,0],fo:[0,0],yc:[0,0],off:[0,0]}}}
+function newMatchDay(){const t=curTie();if(!t)return null;const fx=[t.h,t.a];return{fx,tie:t,wx:forecast(S.md,fx[0]),phase:'pre',mode:'key',hs:1,fs:12,viewMode:'3d',camMode:'tv',paused:false,pt:0,shown:0,scan:0,wins:[],score:[0,0],sel:null,tab:'feed',ss:{sh:[0,0],sot:[0,0],xg:[0,0],cor:[0,0],fo:[0,0],yc:[0,0],off:[0,0]}}}
 function kickOff(){
  const[h,a]=M.fx;prepAI(h,a);prepAI(a,h);ensureLineup(S.user);
  const team=c=>({club:c,tac:clubOf(c).tac,bench:clubOf(c).tac.bench.slice(),ai:c!==S.user});
@@ -2800,7 +3014,7 @@ function viewMatch(){
   const sheet=cid=>{const c=clubOf(cid),t=c.tac;return`<section class="panel c4"><div class="ph"><h3>${esc(c.short)}</h3><small>${t.form}${t.formIn&&t.formIn!==t.form?' → '+t.formIn:''}</small></div><div class="list">${t.xi.map((id,i)=>{const p=S.players[id];return p?`<button class="li" style="grid-template-columns:30px 1fr auto" data-act="player" data-id="${p.id}">${posChip(FORMATIONS[t.form][i][0])}<span><b>${pName(p)}</b><small>${esc(roleName(FORMATIONS[t.form][i][0],t.roles[i]))}</small></span>${starHTML(stars(p.ovr))}</button>`:''}).join('')}</div></section>`};
   const sH=strength(H.tac.xi,H.tac.form),sA=strength(A.tac.xi,A.tac.form);
   return bar+`<div class="grid">${sheet(h)}<section class="panel c4"><div class="ph"><h3>Match preview</h3></div><div class="pb">${['Attack','Midfield','Defence'].map((l,i)=>{const x=[sH.att,sH.mid,sH.def][i],y=[sA.att,sA.mid,sA.def][i];return`<div class="srow" style="padding:6px 0"><span>${at20(x)}</span><div>${l}</div><span>${at20(y)}</span><span class="bar"><i style="width:${x/(x+y)*100}%"></i><i style="width:${y/(x+y)*100}%"></i></span></div>`}).join('')}
-  <p class="muted" style="font-size:13px">${fmtDate(mdDate(S.md))} · ${esc(H.stadium)}</p><div class="forecast">${wxIcon(M.wx.type)}<div><b>${WX[M.wx.type].n}, ${M.wx.temp}°C</b><small>${kickLabel(M.wx.kick)} kick-off${daylight(M.wx,0)<.5?' under the floodlights':daylight(M.wx,6000)<.5?' · finishes under the lights':''} · wind ${M.wx.wSpd} km/h</small><small>${wxAdvice(M.wx.type)}</small></div></div>
+  <p class="muted" style="font-size:13px">${esc(M.tie?M.tie.label:'')}<br>${fmtDate(M.tie?M.tie.date:mdDate(S.md))} · ${esc(H.stadium)}</p><div class="forecast">${wxIcon(M.wx.type)}<div><b>${WX[M.wx.type].n}, ${M.wx.temp}°C</b><small>${kickLabel(M.wx.kick)} kick-off${daylight(M.wx,0)<.5?' under the floodlights':daylight(M.wx,6000)<.5?' · finishes under the lights':''} · wind ${M.wx.wSpd} km/h</small><small>${wxAdvice(M.wx.type)}</small></div></div>
   <div class="eyebrow" style="color:var(--muted);margin-top:12px">Team talk</div><div class="seg" role="group" aria-label="Team talk" style="display:flex;margin-top:6px">${TALKS.map(([k,l])=>`<button style="flex:1" data-act="pretalk" data-v="${k}" aria-pressed="${M.preTalk===k}">${l}</button>`).join('')}</div>
   <div style="display:grid;gap:8px;margin-top:12px"><button class="btn pri lg" data-act="kickoff">Kick off ${ARROW}</button><button class="btn" data-act="nav" data-v="tactics">Edit tactics</button><button class="btn" data-act="instant">Instant result</button></div></div></section>${sheet(a)}</div>`;
  }
@@ -2834,17 +3048,25 @@ function viewMatch(){
 const shortOf=s=>esc(clubOf(M.E.T[s].club).abbr||clubOf(M.E.T[s].club).short.slice(0,3).toUpperCase());
 function sbugHTML(){if(!M.E)return'';const[hk,ak]=kitColors(M.E);return`<span class="sb-t" style="--k:${hk.base}">${shortOf(0)}</span><b id="m-sbs">${M.score[0]}–${M.score[1]}</b><span class="sb-t" style="--k:${ak.base}">${shortOf(1)}</span><i id="m-sbc">${clockAt(M.E,M.pt)}</i>`}
 function l3HTML(){const[h,a]=M.fx,H=clubOf(h),lg=S.leagues[H.league];
- return`<div class="l3-in"><small>${esc(lg.name)} · Matchday ${S.md+1}</small><div class="l3-teams">${crest(h,34)}<b>${esc(H.name)}</b><i>v</i><b>${esc(clubOf(a).name)}</b>${crest(a,34)}</div><span>${esc(H.stadium)} · ${kickLabel(M.wx.kick)} · ${WX[M.wx.type].n}, ${M.wx.temp}°C</span></div>`}
+ return`<div class="l3-in"><small>${esc(M.tie?M.tie.label:lg.name)}</small><div class="l3-teams">${crest(h,34)}<b>${esc(H.name)}</b><i>v</i><b>${esc(clubOf(a).name)}</b>${crest(a,34)}</div><span>${esc(H.stadium)} · ${kickLabel(M.wx.kick)} · ${WX[M.wx.type].n}, ${M.wx.temp}°C</span></div>`}
 function lineupCards(){if(!M.E)return'';const ks=kitColors(M.E);
  return[0,1].map(s=>{const c=clubOf(M.E.T[s].club);return`<div class="lu-card" style="--k:${ks[s].base};--ki:${ink(ks[s].base)}"><header>${crest(c.id,38)}<div><b>${esc(c.short)}</b><small>${esc(c.tac.form)}</small></div></header>
  <ol>${M.E.P.slice(s*11,s*11+11).map((p,i)=>`<li style="--d:${i*45}ms"><i>${p.num}</i><span>${esc(p.name)}</span><em>${p.pos}</em></li>`).join('')}</ol></div>`}).join('<div class="lu-vs">VS</div>')}
 function caption(tx,cls){const el=$('#m-cap');if(!el||M.intro)return;el.className='ov-cap on '+(cls||'');el.innerHTML=`<b>${clockAt(M.E,M.pt)}</b><span>${esc(tx)}</span>`;M.capAt=performance.now();const t=$('#m-tlt');if(t)t.textContent=tx}
+function penaltiesFor(M){const E=M.E;if(M.so)return M.so;
+ const on=s=>E.P.filter(p=>p.s===s&&!p.off&&!p.red).map(p=>S.players[p.pid]).filter(p=>p&&p.pos!=='GK').sort((a,b)=>(b.at[AIX.fin]+b.at[AIX.cmp])-(a.at[AIX.fin]+a.at[AIX.cmp]));
+ M.so=shootout(E.T[0].club,E.T[1].club,cid=>on(cid===E.T[0].club?0:1));M.pens=M.so.pens;return M.so}
+function shootoutHTML(){const so=penaltiesFor(M),E=M.E,w=so.pens[0]>so.pens[1]?0:1;let i=0;
+ const row=s=>so.kicks.filter(k=>k.s===s).map(k=>`<i class="pk ${k.ok?'ok':'miss'}" style="--d:${(i++*2+s)*0.55}s" title="${esc(S.players[k.pid]?S.players[k.pid].ln:'')}">${k.ok?'✓':'✕'}</i>`).join('');
+ return`<div class="so"><div class="eyebrow">Penalty shootout</div>${[0,1].map(s=>`<div class="so-row">${crest(E.T[s].club,22)}<b>${esc(clubOf(E.T[s].club).short)}</b><span>${row(s)}</span><em>${so.pens[s]}</em></div>`).join('')}
+ <p class="so-res" style="--d:${so.kicks.length*0.55+.3}s">${esc(clubOf(E.T[w].club).name)} win ${Math.max(...so.pens)}–${Math.min(...so.pens)} on penalties</p></div>`}
 function postHTML(){
  const E=M.E,us=M.us,gf=E.score[us],ga=E.score[1-us],all=E.P.concat(E.old).filter(p=>p.rating!=null);
  const motm=all.slice().sort((a,b)=>b.rating-a.rating)[0];
  const goals=s=>E.events.filter(e=>e.type==='goal'&&e.s===s).map(e=>`${esc(S.players[e.pid].ln)} ${clockAt(E,e.t)}${e.pen?' (pen)':''}`).join('<br>')||'&nbsp;';
  const rt=s=>all.filter(p=>p.s===s).sort((a,b)=>b.rating-a.rating).map(p=>`<tr class="click" data-act="player" data-id="${p.pid}"><td><span class="num-badge">${p.num}</span></td><td><b>${pName(S.players[p.pid])}</b></td><td>${posChip(p.pos)}</td><td class="r"><small>${[p.st.g?p.st.g+' G':'',p.st.as?p.st.as+' A':'',p.st.sv?p.st.sv+' saves':'',p.st.pa?`${p.st.pc}/${p.st.pa} passes`:''].filter(Boolean).join(' · ')}</small></td><td class="r"><span class="rt" style="background:${rtColor(p.rating)}">${p.rating.toFixed(1)}</span></td></tr>`).join('');
- return`<div class="grid"><section class="panel c4"><div class="ph"><h3>${gf>ga?'Victory':gf<ga?'Defeat':'Draw'}</h3></div><div class="pb"><div style="display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted)"><div>${goals(0)}</div><div style="text-align:right">${goals(1)}</div></div></div><div>${statsHTML()}</div>
+ const so=M.tie&&M.tie.ko&&gf===ga?penaltiesFor(M):null,wonP=so&&(so.pens[us]>so.pens[1-us]);
+ return`<div class="grid"><section class="panel c4"><div class="ph"><h3>${so?(wonP?'Through on penalties':'Out on penalties'):gf>ga?'Victory':gf<ga?'Defeat':'Draw'}</h3>${M.tie&&M.tie.comp!=='lg'?`<small>${esc(M.tie.label)}</small>`:''}</div>${so?shootoutHTML():''}<div class="pb"><div style="display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted)"><div>${goals(0)}</div><div style="text-align:right">${goals(1)}</div></div></div><div>${statsHTML()}</div>
  <div class="pb"><div class="eyebrow">Player of the match</div><p style="margin:6px 0 0;font:700 20px var(--fd)">${esc(S.players[motm.pid].fn+' '+motm.name)} <span class="rt" style="background:${rtColor(motm.rating)}">${motm.rating.toFixed(1)}</span></p><small>${esc(clubOf(E.T[motm.s].club).name)}</small>
  <button class="btn pri lg" style="width:100%;margin-top:14px" data-act="match-finish">Continue ${ARROW}</button></div></section>
  ${[0,1].map(s=>`<section class="panel c4"><div class="ph"><h3>${esc(clubOf(E.T[s].club).short)} ratings</h3></div><div class="tw"><table class="tbl"><tbody>${rt(s)}</tbody></table></div></section>`).join('')}</div>`;
@@ -2925,9 +3147,12 @@ function instantResult(){
  runToEnd(M.E);M.pt=M.E.t;M.shown=M.E.events.length;M.score=M.E.score.slice();M.repQ=null;finishLive();SND.stop();
 }
 function finishMatchday(){
- const E=M.E,res=applyUserMatch(E);processMatchday(res);
+ const E=M.E,res=applyUserMatch(E);
+ if(M.tie&&M.tie.comp!=='lg'){if(M.tie.ko&&E.score[0]===E.score[1]&&!M.pens)M.pens=penaltiesFor(M).pens;processCupEvent(res,M.pens)}else processMatchday(res);
+ advanceToUser();
  const us=M.us,gf=E.score[us],ga=E.score[1-us],opp=clubOf(E.T[1-us].club);M=null;
  save();go('home');toast(`${gf>ga?'Won':gf<ga?'Lost':'Drew'} ${gf}–${ga} against ${opp.short}`);if(S.sacked)setTimeout(sackedFlow,600);
+ if(S.pendingTrophy){const t=S.pendingTrophy;S.pendingTrophy=null;setTimeout(()=>celebrateTrophy(`${t.t} winners`,`${seasonLabel()} · ${clubOf(t.club).name}`,t.club),700)}
 }
 
 /* ---------- interpolated frame access (shared by 2D/3D) ---------- */
@@ -3434,7 +3659,7 @@ document.addEventListener('click',e=>{
   case'neg-years':ui.neg.years=+v;renderNeg();break;
   case'neg-role':ui.neg.role=v;renderNeg();break;
   case'neg-accept-counter':ui.neg.fee=ui.neg.counter;ui.neg.counter=null;negBid();break;
-  case'pickComp':ui.lg=+v;ui.lgMd=null;render();break;
+  case'pickComp':ui.lg=/^\d+$/.test(v)?+v:v;ui.lgMd=null;render();break;
   case'board-req':{const c=clubOf(S.user);S.boardReq=S.season;if(S.board>=62){const g=Math.round(c.budget*.2/1e5)*1e5+5e6;c.budget+=g;toast(`The board has added ${money(g)} to your transfer budget`)}else{S.board=Math.max(5,S.board-3);toast('The board turned down your request')}save();render();break}
   case'split-apply':{const c=clubOf(S.user),w=+$('#sp-r').value,total=c.budget+c.wageBudget*WAGE_TO_FEE;c.wageBudget=w;c.budget=Math.max(0,Math.round((total-w*WAGE_TO_FEE)/1e5)*1e5);save();render();toast('Budgets updated');break}
   case'sell':sellUI(id);break;
@@ -3490,7 +3715,7 @@ document.addEventListener('keydown',e=>{
  if(e.key===' '&&view==='match'&&M&&M.phase==='live'&&!/INPUT|SELECT|BUTTON/.test(e.target.tagName)){e.preventDefault();M.paused=!M.paused;M.paused?SND.stop():SND.resume();const b=$('#m-pause');if(b)b.textContent=M.paused?'Resume':'Pause'}
 });
 async function boot(data){
- if(data&&data.S&&data.S.slot){S=data.S;ui.mode='game';view='home';sub='overview';render();return}
+ if(data&&data.S&&data.S.slot){S=data.S;ensureCalendar();ui.mode='game';view='home';sub='overview';render();return}
  render();await migrateLegacy();await refreshMetas();if(!S)render();
 }
 // Write the pending save before the tab closes or is hidden (mobile browsers rarely fire unload).

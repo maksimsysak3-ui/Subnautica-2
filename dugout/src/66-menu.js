@@ -74,7 +74,7 @@ function askMenu(){
 async function menuLoad(n){
  if(ui.busy)return;ui.busy=true;
  try{const s=await loadSlot(n);if(!s){toast('That save could not be read');await refreshMetas();render();return}
-  S=s;W=null;M=null;view='home';sub='overview';ui.mode='game';render();window.scrollTo(0,0)}
+  S=s;ensureCalendar();advanceToUser();W=null;M=null;view='home';sub='overview';ui.mode='game';render();window.scrollTo(0,0)}
  catch(e){toast('That save could not be read')}
  finally{ui.busy=false}
 }
