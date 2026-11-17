@@ -837,6 +837,23 @@ body.ingame main{max-width:none;width:100%;padding:0 max(22px,env(safe-area-inse
  body.ingame main{padding:0 14px 50px}
  .pghead{margin:0 -14px 14px;padding:12px 14px 0;top:54px}.pg-date{display:none}
 }
+
+/* player profile v2 */
+.pp2-hero{position:relative;display:grid;grid-template-columns:130px minmax(0,1fr) auto;gap:6px 22px;align-items:center;padding:20px 22px 0;margin-bottom:14px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:radial-gradient(70% 160% at 0% 30%,color-mix(in srgb,var(--cc) 34%,transparent),transparent 70%),linear-gradient(180deg,#17171a,#121214)}
+.pp2-kit .kit{width:124px;height:auto;filter:drop-shadow(0 12px 20px rgba(0,0,0,.6))}
+.pp2-club{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}.pp2-club .crest{width:20px;height:24px}
+.pp2-main h1{font:400 clamp(30px,3.6vw,48px)/1 var(--fd);letter-spacing:.01em;margin:6px 0 10px}.pp2-main h1 b{font-weight:800;text-transform:uppercase}
+.pp2-meta{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:#c9c7c0;align-items:center}.pp2-meta span{display:flex;align-items:center;gap:6px}.pp2-meta small{color:var(--dim)}
+.pp2-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.chip.warn{color:#ffd27f;border-color:rgba(255,207,74,.4)}
+.pp2-rate{display:flex;flex-direction:column;gap:10px;align-items:flex-end;text-align:right}.pp2-rate small{display:block;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}.pp2-rate b{font:800 24px var(--fd)}
+.pp2-tabs{grid-column:1/-1;display:flex;gap:2px;margin-top:12px;border-top:1px solid rgba(255,255,255,.06)}
+.pp2-tabs button{padding:11px 16px;font:500 13.5px var(--fb);color:var(--muted);border-bottom:2px solid transparent}.pp2-tabs button:hover{color:#fff}.pp2-tabs button[aria-selected="true"]{color:#fff;font-weight:600;border-bottom-color:var(--cc)}
+.sw{display:grid;grid-template-columns:1fr 1fr;gap:14px}.sw div{display:flex;flex-direction:column;gap:6px}.sw small{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}.sw span{display:flex;justify-content:space-between;font-size:13px}.sw b{font:700 15px var(--fd)}
+.pp2-per b{font:700 20px var(--fd);text-transform:uppercase}.pp2-per p{margin:4px 0 0;color:var(--muted)}
+.tf-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.tf{padding:9px 10px;border:1px solid var(--line2);border-radius:4px;text-align:left;font-size:13px;color:#cfcdc6}.tf:hover{border-color:#4a4a50}.tf.on{border-color:var(--accent);background:rgba(255,180,58,.08);color:#fff}
+.neg-f{margin:0 0 14px}.neg-f label{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:6px}.neg-f label b{color:#fff;font:700 16px var(--fd)}.neg-f input[type=range]{width:100%}
+.ren-msg{padding:10px 12px;border-left:3px solid var(--accent);background:rgba(255,180,58,.07);font-size:13.5px}
+@media (max-width:900px){.pp2-hero{grid-template-columns:84px minmax(0,1fr);padding:14px 14px 0}.pp2-kit .kit{width:80px}.pp2-rate{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:space-between;text-align:left}}
 </style>
 
 <aside id="bar" hidden></aside>
@@ -1927,7 +1944,7 @@ function processMatchday(userRes){
   if(p.age<=23&&p.ovr<p.pot&&G.f()<.055*(mine?ti*(tr.focus==='youth'?1.5:1):1)){if(mine)trainBump(p);else bump(p,1);if(mine){p.dev=(p.dev||0)+1;if(p.ovr>=p.lastNote+2||!p.lastNote){p.lastNote=p.ovr;S.devNews=(S.devNews||[]).concat(p.id)}}}
   else if(p.age>=31&&G.f()<.03*(mine&&tr.focus==='fitness'?.6:1))bump(p,-1);
   if(mine){if(tr.focus==='fitness')p.cond=Math.min(100,p.cond+6);if(tr.int===2){p.cond=Math.max(40,p.cond-5);if(G.f()<.004)p.inj=G.i(1,3)}if(tr.int===0)p.cond=Math.min(100,p.cond+5)}
-  p.val=valueOf(p);if(md%4===0){(p.vh=p.vh||[]).push(Math.round(p.val/1e4));if(p.vh.length>10)p.vh.shift()}
+  p.val=valueOf(p);if(md%4===0){(p.vh=p.vh||[]).push(Math.round(p.val/1e4));if(p.vh.length>10)p.vh.shift();if(mine){(p.oh=p.oh||[]).push(p.ovr);if(p.oh.length>30)p.oh.shift()}}
  }
  const uc=clubOf(S.user),mine=S.results[uc.league].find(r=>r.md===md&&(r.h===S.user||r.a===S.user));
  if(mine){const home=mine.h===S.user,gf=home?mine.hg:mine.ag,ga=home?mine.ag:mine.hg,d=gf>ga?6:gf<ga?-6:0;
@@ -1941,7 +1958,8 @@ function processMatchday(userRes){
  if(S.board<14&&!S.sacked)S.sacked=true;
  if(windowOpen())aiTransfers();
  aiManagers();
- if(windowOpen()&&G.f()<.3)incomingOffer();
+ if(windowOpen()&&G.f()<(squadOf(S.user).some(p=>p.tl)?.6:.3))incomingOffer();
+ if(typeof squadMood==='function')squadMood();
  S.md++;if(S.cal)S.ci++;
  if(S.md===WIN2[0])mail('Director of Football','January window opens',`<p>The winter transfer window is open until matchday ${WIN2[1]}. Our current position and budget are below.</p>`,null,'transfer',{att:{t:'budget'},links:[['Transfer hub','nav','transfers']]});
  if(S.md===WIN1)mail('Director of Football','Transfer window closed',`<p>The summer window has closed. It reopens at matchday ${WIN2[0]+1}.</p>`,null,'transfer',{att:{t:'budget'}});
@@ -2006,9 +2024,9 @@ function aiManagers(){
 }
 function incomingOffer(){
  const cand=squadOf(S.user).filter(p=>p.ovr>=55);if(!cand.length)return;
- const p=pickW(cand,x=>Math.pow(Math.max(1,x.ovr-50),2)),uc=clubOf(S.user);
+ const p=pickW(cand,x=>Math.pow(Math.max(1,x.ovr-50),2)*(x.tl?8:1)),uc=clubOf(S.user);
  const pool=S.clubs.filter(c=>c.id!==S.user&&c.rep>=uc.rep-6&&c.budget>p.val);if(!pool.length)return;
- const club=G.pick(pool),fee=Math.round(p.val*(1.05+G.f()*.4)/5e4)*5e4;
+ const club=G.pick(pool),fee=Math.round(p.val*(p.tl?.85+G.f()*.3:1.05+G.f()*.4)/5e4)*5e4;
  mail(club.name,`Offer for ${p.ln}`,`<p>${esc(club.name)} have bid <b>${money(fee)}</b> for ${esc(p.fn+' '+p.ln)} (${p.pos}, age ${p.age}). We value him at ${money(p.val)}.</p><p>Let us know if you are willing to do business.</p>`,{type:'offer',pid:p.id,club:club.id,fee},'transfer',{att:{t:'player',pid:p.id}});
 }
 function wageBill(cid){return squadOf(cid).reduce((a,p)=>a+p.wage,0)}
@@ -2038,6 +2056,7 @@ function canSell(p){const sq=squadOf(S.user);if(sq.length<=18)return'You need at
 /* ---------- season end ---------- */
 function endSeason(){
  seasonHistory();
+ if(typeof contractExits==='function')contractExits();
  const contNext=contQualifiers(true),report=[],uc0=clubOf(S.user),uLeague=S.leagues[uc0.league].name,uPos=posIn(table(uc0.league),S.user);
  COUNTRIES.forEach(co=>{
   const [top,bot]=S.leagues.filter(l=>l.nation===co.code).sort((a,b)=>a.tier-b.tier);
@@ -2085,7 +2104,7 @@ function endSeason(){
 /* ---------- training ---------- */
 const TRAIN={balanced:{n:'Balanced',d:'Even work across all areas.',a:null},attack:{n:'Attacking',d:'Finishing, passing, dribbling and movement.',a:['fin','pas','dri','fir','vis','cmp']},defend:{n:'Defending',d:'Tackling, marking, positioning and heading.',a:['tck','mar','pos','hea','dec']},
  fitness:{n:'Fitness',d:'Faster recovery between matches and slower decline for veterans.',a:['sta','pac','acc','str','agi']},tactical:{n:'Tactical',d:'Decisions, positioning, work rate and vision.',a:['dec','pos','wor','vis']},youth:{n:'Youth development',d:'Young players develop 50% faster.',a:null}};
-function trainBump(p){const f=TRAIN[S.train.focus].a;if(!f){bump(p,1);return}
+function trainBump(p){const f=(p.tf&&typeof IND_FOCUS!=='undefined'&&IND_FOCUS[p.tf]&&IND_FOCUS[p.tf][1])||TRAIN[S.train.focus].a;if(!f){bump(p,1);return}
  for(let k=0;k<3;k++){const a=G.pick(f),i=AIX[a];p.at[i]=Math.min(99,p.at[i]+2)}p.ovr=calcOvr(p.pos,p.at);if(p.pot<p.ovr)p.pot=p.ovr;p.val=valueOf(p)}
 /* ---------- manager career ---------- */
 function jobOffers(n,minRep,maxRep){return shuffled(S.clubs.filter(c=>c.id!==S.user&&c.rep>=minRep&&c.rep<=maxRep)).slice(0,n)}
@@ -2399,7 +2418,7 @@ function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('on');c
 function openModal(html){$('#modal-body').innerHTML=html;$('#modal').hidden=false;$('#modal').scrollTop=0}
 function closeModal(){$('#modal').hidden=true;$('#modal-body').innerHTML='';$('#modal .modal-box').classList.remove('wide')}
 function go(v,sb,extra){if(typeof leaveMatch==='function'&&view==='match'&&v!=='match')leaveMatch();view=v;sub=sb||(NAV.find(n=>n[0]===v)||[0,0,[['','']]])[2][0][0];Object.assign(ui,extra||{});render();window.scrollTo(0,0)}
-function openPlayer(pid){ui.back=[view,sub];go('player','',{pid})}
+function openPlayer(pid){ui.back=[view,sub];if(ui.pid!==pid)ui.pTab='overview';go('player','',{pid})}
 
 /* ---------- bar ---------- */
 function nextLabel(){if(S.md>=MDAYS)return'Season review';if(typeof M!=='undefined'&&M&&M.phase==='live')return'Resume match';if(typeof M!=='undefined'&&M&&M.phase==='done')return'Match report';return'Continue'}
@@ -2501,7 +2520,7 @@ const trendHTML=p=>{const r=p.val/(p.val0||p.val)-1;return Math.abs(r)<.01?'<sma
 const moraleWord=m=>m>=85?'<span class="v6">Superb</span>':m>=72?'<span class="v5">Good</span>':m>=55?'<span class="v3">Okay</span>':m>=40?'<span class="v2">Poor</span>':'<span class="v1">Very poor</span>';
 
 /* ---------- player profile ---------- */
-function viewPlayer(){
+function viewPlayerV1(){
  const p=S.players[ui.pid];if(!p)return'<p>Player not found.</p>';
  const c=clubOf(p.club),mine=p.club===S.user,gk=p.pos==='GK',groups=gk?['Goalkeeping','Mental','Physical']:['Technical','Mental','Physical'];
  const posmap=Object.entries({GK:[50,94],CB:[50,78],LB:[14,72],RB:[86,72],DM:[50,62],CM:[50,48],AM:[50,32],LW:[14,28],RW:[86,28],ST:[50,12]}).map(([k,[x,y]])=>`<i class="${p.pos===k?'n':p.sec.includes(k)?'s':'x'}" style="left:${x}%;top:${y}%">${k}</i>`).join('');
@@ -3188,6 +3207,106 @@ function viewCalendar(){
  <div class="cal-legend">${legend}</div></section>
  <aside class="panel cal-side"><div class="ph"><h3>${MONTH_FULL[mo]} at a glance</h3></div><div class="pb"><div class="cal-kpis"><div><small>Matches</small><b>${monthFx.filter(f=>!f.pending).length}</b></div><div><small>Record</small><b>${rec[0]}-${rec[1]}-${rec[2]}</b></div><div><small>Competitions</small><b>${used.length}</b></div></div></div>
  <div class="list">${monthFx.map(f=>schedRow(f)).join('')||'<p class="pb muted" style="margin:0">No fixtures this month.</p>'}</div></aside></div>`;
+}
+/* ================= player profile, contracts and happiness ================= */
+ui.pTab='overview';ui.ren=null;
+const PERSONALITIES=[['Model professional','Trains hard and sets the standard for everyone around him.'],['Ambitious','Wants to play at the highest level and win trophies.'],['Resolute','Rarely rattled; thrives when the pressure is on.'],['Determined','Never gives up on a lost cause.'],['Leader','Organises those around him and lifts the dressing room.'],['Fairly professional','Does what is asked of him, rarely more.'],['Easy-going','Relaxed, popular, occasionally lacks urgency.'],['Temperamental','Brilliant on his day but prone to cards and outbursts.'],['Spirited','Plays with energy and visible passion.']];
+const personality=p=>PERSONALITIES[(Math.imul(p.id+7,2654435761)>>>0)%PERSONALITIES.length];
+const PROMISES=[['key','Key player'],['first','First-team regular'],['rot','Rotation option'],['back','Backup'],['youth','Youngster']];
+const IND_FOCUS={none:['Follow team schedule',null],finishing:['Finishing',['fin','lon','cmp']],creativity:['Creativity',['pas','vis','fir','dec']],dribbling:['Ball carrying',['dri','agi','fir']],defending:['Defending',['tck','mar','pos']],aerial:['Aerial',['hea','jmp','str']],physical:['Athleticism',['pac','acc','sta']],keeping:['Goalkeeping',['ref','han','div','one']]};
+function squadRole(p){if(p.prom)return p.prom;const sq=squadOf(p.club).filter(q=>GROUP[q.pos]===GROUP[p.pos]).sort((a,b)=>b.ovr-a.ovr),i=sq.indexOf(p);return p.age<=19?'youth':i===0?'key':i<(GROUP[p.pos]==='GK'?1:3)?'first':i<5?'rot':'back'}
+const promName=k=>(PROMISES.find(x=>x[0]===k)||['',''])[1];
+function happiness(p){const m=p.mor;return m>=85?['Very happy','v6']:m>=70?['Content','v5']:m>=55?['Settled','v4']:m>=40?['Frustrated','v3']:['Unhappy','v2']}
+function cardAxes(p){const a=k=>at20(p.at[AIX[k]]),m=(...ks)=>Math.round(ks.reduce((s,k)=>s+a(k),0)/ks.length);
+ return p.pos==='GK'?[['Reflexes',a('ref')],['Handling',a('han')],['Diving',a('div')],['One on ones',a('one')],['Positioning',a('pos')],['Distribution',a('pas')]]
+ :[['Pace',m('pac','acc')],['Shooting',m('fin','lon')],['Passing',m('pas','vis')],['Dribbling',m('dri','fir','agi')],['Defending',m('tck','mar','pos')],['Physical',m('str','sta','jmp')]]}
+function strengths(p){const keys=(p.pos==='GK'?['ref','han','div','one','pos','cmp','dec','pas']:ATTRS.filter(k=>!['ref','han','div','dst','one'].includes(k))).map(k=>[k,at20(p.at[AIX[k]])]).sort((a,b)=>b[1]-a[1]);return{good:keys.slice(0,4),bad:keys.slice(-3).reverse()}}
+function ovrHistSVG(p){
+ const pts=(p.oh||[]).concat([p.ovr]);if(pts.length<2)return'<p class="muted" style="margin:0">Progress is charted every few matchdays.</p>';
+ const W=600,H=150,mn=Math.min(...pts)-2,mx=Math.max(...pts,p.pot)+1,X=i=>16+i*(W-32)/(pts.length-1),Y=v=>H-16-(v-mn)/(mx-mn)*(H-30);
+ return`<svg class="an-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Ability over time"><line x1="16" x2="${W-16}" y1="${Y(p.pot)}" y2="${Y(p.pot)}" stroke="#e8c25a" stroke-dasharray="4 4" opacity=".6"/><text x="${W-18}" y="${Y(p.pot)-5}" text-anchor="end" font-size="10" fill="#e8c25a">Potential ${starsText(p.pot)}</text>
+ <path d="M${pts.map((v,i)=>`${X(i)} ${Y(v)}`).join(' L')}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>${pts.map((v,i)=>`<circle cx="${X(i)}" cy="${Y(v)}" r="3.5" fill="#141416" stroke="var(--accent)" stroke-width="2"/>`).join('')}</svg>`;
+}
+const starsText=v=>stars(v).toFixed(1).replace('.0','')+'★';
+function viewPlayer(){
+ const p=S.players[ui.pid];if(!p)return'<p>Player not found.</p>';
+ const c=clubOf(p.club),mine=p.club===S.user,per=personality(p),[hp,hc]=happiness(p),role=squadRole(p),sw=strengths(p),shortl=S.shortlist.includes(p.id);
+ const badges=[p.inj?`<span class="chip bad">Injured · ${p.inj} md</span>`:'',p.ban?`<span class="chip bad">Suspended · ${p.ban} md</span>`:'',p.tl?'<span class="chip">Transfer listed</span>':'',mine&&p.con<=1?'<span class="chip warn">Contract expiring</span>':'',(p.hon||[]).length?`<span class="chip ok">${p.hon.length} honour${p.hon.length>1?'s':''}</span>`:''].join('');
+ const tabs=[['overview','Overview'],['career','Career'],['contract','Contract'],['dev','Development']];
+ const hero=`<section class="pp2-hero" style="--cc:${c.colors[0]==='#ffffff'?c.colors[1]:c.colors[0]}"><div class="pp2-kit">${kitSVG(c,'home',{back:true,name:p.ln,num:p.num})}</div>
+ <div class="pp2-main"><div class="pp2-club">${crest(c.id,22)} ${esc(c.name)} · No. ${p.num}</div><h1>${esc(p.fn)} <b>${esc(p.ln)}</b></h1>
+ <div class="pp2-meta"><span>${posChip(p.pos)} ${POS_NAME[p.pos]}${p.sec.length?` <small>also ${p.sec.join(', ')}</small>`:''}</span><span>${flagSVG(p.nat)} ${esc(NATIONS[p.nat].n)}</span><span>${p.age} years</span><span>${p.ht} cm</span><span>${p.foot==='L'?'Left':'Right'} foot</span></div>
+ <div class="pp2-badges">${badges}</div></div>
+ <div class="pp2-rate"><div><small>Current ability</small>${starHTML(stars(p.ovr))}</div><div><small>Potential ability</small>${starHTML(stars(p.pot))}</div><div><small>Value</small><b>${money(p.val)}</b></div></div>
+ <div class="pp2-tabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" data-act="p-tab" data-v="${k}" aria-selected="${ui.pTab===k}">${l}</button>`).join('')}</div></section>`;
+ const t=ui.pTab;let body='';
+ if(t==='career'){const car=(p.car||[]).slice().reverse(),cur={season:seasonLabel(),club:p.club,ap:p.s.ap,g:p.s.g,a:p.s.a,r:avg(p)},all=[cur,...car],tot=all.reduce((a,x)=>({ap:a.ap+x.ap,g:a.g+x.g,a:a.a+x.a}),{ap:0,g:0,a:0});
+  body=`<div class="grid"><section class="panel c8"><div class="ph"><h3>Career statistics</h3><small>${tot.ap} apps · ${tot.g} goals · ${tot.a} assists</small></div><div class="tw"><table class="tbl"><thead><tr><th>Season</th><th>Club</th><th class="r">Apps</th><th class="r">Goals</th><th class="r">Assists</th><th class="r">Av rating</th></tr></thead><tbody>
+  ${all.map((x,i)=>`<tr class="${i===0?'me':''}"><td>${x.season}${i===0?' <small>(current)</small>':''}</td><td><div class="who">${crest(x.club,16)}${esc(clubOf(x.club).short)}</div></td><td class="r">${x.ap}</td><td class="r">${x.g}</td><td class="r">${x.a}</td><td class="r">${x.r?(+x.r).toFixed(2):'–'}</td></tr>`).join('')}</tbody></table></div></section>
+  <section class="panel c4"><div class="ph"><h3>Honours</h3></div><div class="list">${(p.hon||[]).slice().reverse().map(h=>`<div class="li" style="grid-template-columns:28px 1fr"><svg viewBox="0 0 100 100" width="24" height="24"><path d="${TROPHY}" fill="#e8c25a"/></svg><span><b>${esc(h.t)}</b><small>${esc(h.lg)} · ${h.season}</small></span></div>`).join('')||'<p class="pb muted" style="margin:0">No individual honours yet.</p>'}</div></section></div>`}
+ else if(t==='contract'){const ren=mine?`<button class="btn pri" data-act="renew" data-id="${p.id}">Offer new contract</button>`:'';
+  body=`<div class="grid"><section class="panel c6"><div class="ph"><h3>Contract</h3></div><div class="pb"><dl class="facts"><div><dt>Wage</dt><dd>${money(p.wage)} p/w</dd></div><div><dt>Expires</dt><dd>June ${2027+S.season+p.con-1} <small>(${p.con} season${p.con>1?'s':''})</small></dd></div><div><dt>Squad status</dt><dd>${promName(role)}${p.prom?' <small>(promised)</small>':''}</dd></div><div><dt>Market value</dt><dd>${money(p.val)}</dd></div><div><dt>Release clause</dt><dd>${p.rc?money(p.rc):'None'}</dd></div><div><dt>Happiness</dt><dd><span class="${hc}">${hp}</span></dd></div></dl>
+  <div class="toolbar" style="margin:12px 0 0">${mine?`${ren}<button class="btn" data-act="tlist" data-id="${p.id}">${p.tl?'Remove from transfer list':'Transfer list'}</button><button class="btn" data-act="sell" data-id="${p.id}">Find a buyer</button>`:`<button class="btn pri" data-act="negotiate" data-id="${p.id}">Make an offer</button><button class="btn" data-act="shortlist" data-id="${p.id}">${shortl?'Remove from shortlist':'Add to shortlist'}</button>`}</div></div></section>
+  <section class="panel c6"><div class="ph"><h3>Personality</h3></div><div class="pb"><div class="pp2-per"><b>${per[0]}</b><p>${per[1]}</p></div><p class="muted" style="font-size:13px;margin:10px 0 0">${mine?(p.mor<55?`${esc(p.ln)} is not happy at the moment. ${p.prom&&['key','first'].includes(p.prom)?'He feels you are not keeping your promise about playing time.':'A new contract or more minutes could help.'}`:`${esc(p.ln)} is settled at the club.`):`Agents suggest he would consider a move${c.rep<clubOf(S.user).rep?' to a bigger club':''}.`}</p></div></section></div>`}
+ else if(t==='dev'){const f=p.tf||'none',dv=p.ovr-(p.ovr0||p.ovr);
+  body=`<div class="grid"><section class="panel c8"><div class="ph"><h3>Ability over time</h3><small>${dv>0?`+${dv} this season`:dv<0?`${dv} this season`:'No change this season'}</small></div><div class="pb">${ovrHistSVG(p)}</div></section>
+  <section class="panel c4"><div class="ph"><h3>Individual training</h3></div><div class="pb">${mine?`<p class="muted" style="font-size:13px;margin:0 0 10px">Give him a personal focus on top of the team schedule. Under-24s with room to grow develop fastest.</p><div class="tf-grid">${Object.entries(IND_FOCUS).filter(([k])=>k!=='keeping'||p.pos==='GK').map(([k,[l]])=>`<button class="tf ${f===k?'on':''}" data-act="tfocus" data-id="${p.id}" data-v="${k}">${l}</button>`).join('')}</div>`:'<p class="muted" style="margin:0">Only your own players can be given individual training.</p>'}</div></section>
+  <section class="panel c6"><div class="ph"><h3>Market value</h3>${trendHTML(p)}</div><div class="pb"><div class="kpi sm">${money(p.val)}</div>${sparkSVG((p.vh||[]).map(v=>v*1e4).concat([p.val]))}</div></section>
+  <section class="panel c6"><div class="ph"><h3>Outlook</h3></div><div class="pb" style="font-size:13px;line-height:1.6">${p.age<=23&&p.pot>p.ovr+3?`At ${p.age}, ${esc(p.ln)} still has plenty of growth in him. Regular football and focused training will help him reach ${starsText(p.pot)}.`:p.age>=31?`${esc(p.ln)} is past his peak; expect his physical attributes to start declining.`:`${esc(p.ln)} is at or near his peak.`}</div></section></div>`}
+ else{const groups=p.pos==='GK'?['Goalkeeping','Mental','Physical']:['Technical','Mental','Physical'],ax=cardAxes(p);
+  const posmap=Object.entries({GK:[50,94],CB:[50,78],LB:[14,72],RB:[86,72],DM:[50,62],CM:[50,48],AM:[50,32],LW:[14,28],RW:[86,28],ST:[50,12]}).map(([k,[x,y]])=>`<i class="${p.pos===k?'n':p.sec.includes(k)?'s':'x'}" style="left:${x}%;top:${y}%">${k}</i>`).join('');
+  body=`<div class="grid"><section class="panel c8"><div class="ph"><h3>Attributes</h3><small>out of 20</small></div><div class="pb attrs">${groups.map(g=>`<div class="ag"><h4>${g}</h4>${ATTR_GROUPS[g].map(a=>{const v=at20(p.at[AIX[a]]);return`<div class="ar"><span>${ATTR_NAME[a]}</span><b class="${v>=16?'v6':v>=13?'v5':v>=10?'v4':v>=7?'v3':'v2'}">${v}</b></div>`}).join('')}</div>`).join('')}</div></section>
+  <section class="panel c4"><div class="ph"><h3>Profile</h3></div><div class="pb" style="display:grid;place-items:center">${radarSVG(ax.map(x=>x[0]),[{v:ax.map(x=>x[1]),c:'#ffb43a'}],250)}</div></section>
+  <section class="panel c4"><div class="ph"><h3>Strengths and weaknesses</h3></div><div class="pb sw"><div><small>Strengths</small>${sw.good.map(([k,v])=>`<span class="v6">${ATTR_NAME[k]} <b>${v}</b></span>`).join('')}</div><div><small>Weaknesses</small>${sw.bad.map(([k,v])=>`<span class="v2">${ATTR_NAME[k]} <b>${v}</b></span>`).join('')}</div></div></section>
+  <section class="panel c4"><div class="ph"><h3>Positions</h3></div><div class="pb"><div class="posmap">${posmap}</div></div></section>
+  <section class="panel c4"><div class="ph"><h3>This season</h3></div><div class="pb"><dl class="facts"><div><dt>Appearances</dt><dd>${p.s.ap}</dd></div><div><dt>Goals</dt><dd>${p.s.g}</dd></div><div><dt>Assists</dt><dd>${p.s.a}</dd></div><div><dt>Player of the match</dt><dd>${p.s.mom}</dd></div><div><dt>Average rating</dt><dd>${avg(p)?avg(p).toFixed(2):'–'}</dd></div><div><dt>Condition</dt><dd>${p.cond}%</dd></div></dl></div></section>
+  <section class="panel c12"><div class="ph"><h3>Scout report</h3><small>${per[0]}</small></div><div class="pb" style="font-size:13.5px;line-height:1.65">${scoutReport(p)}</div></section></div>`}
+ return hero+body;
+}
+
+/* ---------- contract renewal ---------- */
+function renewDemand(p){const role=squadRole(p),k={key:1.35,first:1.2,rot:1.05,back:.95,youth:.9}[role]||1;return Math.round(Math.max(p.wage*1.05,wageOf(p))*k*(p.age<=24?1.08:1)/100)*100}
+function openRenew(pid){const p=S.players[pid];ui.ren={pid,wage:renewDemand(p),years:p.age>=31?2:p.age<=23?5:4,role:squadRole(p),tries:0,msg:''};renderRenew()}
+function renderRenew(){
+ const r=ui.ren,p=S.players[r.pid],d=renewDemand(p),room=clubOf(S.user).wageBudget-wageBill(S.user)+p.wage,max=Math.max(p.wage,Math.min(room,Math.round(d*1.6/100)*100));
+ openModal(`<div class="eyebrow">Contract talks · ${esc(p.fn+' '+p.ln)}</div><h2 style="font-size:26px;margin:6px 0 4px">Offer a new contract</h2><p class="muted" style="margin:0 0 14px">Currently ${money(p.wage)} p/w until June ${2027+S.season+p.con-1}. His agent is looking for around <b>${money(d)}</b> p/w${p.age>=31?' and the security of a longer deal':''}.</p>
+ <div class="neg-f"><label>Weekly wage <b id="rw-o">${money(r.wage)}</b></label><input type="range" min="${Math.round(p.wage*.8/100)*100}" max="${max}" step="100" value="${Math.min(r.wage,max)}" data-input="ren-w"></div>
+ <div class="neg-f"><label>Length</label><div class="seg" role="group">${[1,2,3,4,5].map(y=>`<button data-act="ren-y" data-v="${y}" aria-pressed="${r.years===y}">${y} yr${y>1?'s':''}</button>`).join('')}</div></div>
+ <div class="neg-f"><label>Squad status promised</label><div class="seg" role="group">${PROMISES.filter(x=>x[0]!=='youth'||p.age<=21).map(([k,l])=>`<button data-act="ren-r" data-v="${k}" aria-pressed="${r.role===k}">${l}</button>`).join('')}</div></div>
+ ${r.msg?`<p class="ren-msg">${esc(r.msg)}</p>`:''}<p class="muted" style="font-size:12px">Wage room after this deal: ${money(room-r.wage)} p/w</p>
+ <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" data-act="close">Walk away</button><button class="btn pri" data-act="ren-offer">Submit offer</button></div>`);
+}
+function renewOffer(){
+ const r=ui.ren,p=S.players[r.pid],d=renewDemand(p),cur=squadRole(p),roleRank=k=>['back','youth','rot','first','key'].indexOf(k);
+ const roleBonus=(roleRank(r.role)-roleRank(cur))*.06,yearsOk=p.age>=31?r.years>=2:p.age<=22?r.years<=5:true,need=d*(1-roleBonus)*(p.mor<50?1.1:1);
+ const room=clubOf(S.user).wageBudget-wageBill(S.user)+p.wage;
+ if(r.wage>room){r.msg='That would take you over the wage budget. Free up wages or ask the board for more.';return renderRenew()}
+ if(roleRank(r.role)>roleRank(cur)+1){r.msg=`His agent doesn't believe the promise: "He knows where he stands in the squad. Be realistic."`;return renderRenew()}
+ if(r.wage>=need&&yearsOk){p.wage=r.wage;p.con=r.years;p.prom=r.role;p.mor=clamp(p.mor+10,25,98);p.compl=0;closeModal();save();render();
+  mail('Director of Football',`${p.ln} signs a new contract`,`<p>${esc(p.fn+' '+p.ln)} has agreed a new ${r.years}-year deal worth <b>${money(r.wage)}</b> a week, as a ${promName(r.role).toLowerCase()}.</p>`,null,'transfer',{att:{t:'player',pid:p.id,note:'New contract'},links:[['View player','player',p.id,1]]});toast(`${p.ln} has signed a new contract`);return}
+ r.tries++;p.mor=clamp(p.mor-3,25,98);
+ if(r.tries>=4){closeModal();toast(`${p.ln}'s agent has ended talks for now`);p.noTalks=S.md+6;save();render();return}
+ r.msg=!yearsOk?(p.age>=31?'"At his age he wants security. At least two years."':'"He wants a long-term deal."'):`"We're not there yet. He's looking for something closer to ${money(Math.round(need/100)*100)} a week."`;renderRenew();
+}
+
+/* ---------- happiness and contract expiry, run each matchday ---------- */
+function squadMood(){
+ const xi=new Set(clubOf(S.user).tac.xi);
+ for(const p of squadOf(S.user)){
+  if(xi.has(p.id))p.benched=0;else p.benched=(p.benched||0)+1;
+  const want=p.prom||squadRole(p),lim=want==='key'?3:want==='first'?5:99;
+  if(p.benched>=lim){p.mor=clamp(p.mor-4,25,98);if(!p.compl||S.md-p.compl>8){p.compl=S.md;
+   mail(p.fn+' '+p.ln,'Playing time',`<p>Boss, I was told I'd be a ${promName(want).toLowerCase()} here, but I haven't started for ${p.benched} matches. I want to be playing.</p>`,null,'staff',{att:{t:'player',pid:p.id},links:[['View player','player',p.id,1],['Tactics','nav','tactics']]})}}
+ }
+ if(S.md===24){const exp=squadOf(S.user).filter(p=>p.con<=1);if(exp.length)mail('Director of Football','Contracts expiring this summer',`<p>${exp.length} player${exp.length>1?'s are':' is'} out of contract at the end of the season and will leave on a free unless we agree new terms: ${exp.map(p=>esc(p.fn+' '+p.ln)).join(', ')}.</p>`,null,'transfer',{att:{t:'players',pids:exp.map(p=>p.id)},links:exp.slice(0,3).map(p=>[`Talk to ${p.ln}`,'player',p.id,1])})}
+}
+// At season end, the user's players whose contracts have run out leave on a free transfer.
+function contractExits(){
+ const gone=[];
+ for(const p of squadOf(S.user).slice()){if(p.con>1)continue;if(squadOf(S.user).length<=18)break;
+  const to=S.clubs.filter(c=>c.id!==S.user&&Math.abs(repToOvr(c.rep)-p.ovr)<8&&c.squad.length<30).sort(()=>G.f()-.5)[0];if(!to)continue;
+  moveP(p.id,to.id,0);p.con=G.i(2,4);gone.push(p);news(`${p.fn} ${p.ln} joins ${to.name} on a free transfer after his contract with ${clubOf(S.user).name} expired.`,'transfer',[to.id,S.user])}
+ if(gone.length)mail('Director of Football','Players released',`<p>These players left on free transfers when their contracts expired: ${gone.map(p=>esc(p.fn+' '+p.ln)).join(', ')}.</p>`,null,'transfer');
 }
 /* ================= match day ================= */
 let M=null;
@@ -4055,6 +4174,13 @@ document.addEventListener('click',e=>{
   case'an-player':{const p=M&&M.E&&M.E.P.concat(M.E.old).find(q=>q.pid===id);if(p){ui.anPid=id;ui.anSide=p.s;ui.anTab='heat';refreshAn();document.querySelector('.an')?.scrollIntoView({behavior:'smooth',block:'nearest'})}break}
   case'cal-m':ui.calM=(ui.calM??null)===null?null:ui.calM;{const cur=document.querySelector('.cal-months [aria-pressed=true]');ui.calM=(cur?+cur.dataset.v:0)+ +t.dataset.d}render();break;
   case'cal-go':ui.calM=+v;render();break;
+  case'p-tab':ui.pTab=v;render();break;
+  case'renew':{const p=S.players[id];if(p.noTalks&&S.md<p.noTalks){toast(`${p.ln}'s agent is not ready to talk again yet`);break}openRenew(id);break}
+  case'ren-y':ui.ren.years=+v;renderRenew();break;
+  case'ren-r':ui.ren.role=v;renderRenew();break;
+  case'ren-offer':renewOffer();break;
+  case'tlist':{const p=S.players[id];p.tl=!p.tl;save();render();toast(p.tl?`${p.ln} has been transfer listed`:`${p.ln} removed from the transfer list`);break}
+  case'tfocus':{const p=S.players[id];p.tf=v==='none'?null:v;save();render();break}
   case'goto':{const[g,sb]=v.split('/');closeModal();go(g,sb);break}
   case'mailf':ui.mailF=v;ui.msg=null;render();break;
   case'mail-read-all':S.inbox.forEach(m=>m.read=true);save();render();renderBar();break;
@@ -4120,7 +4246,8 @@ document.addEventListener('input',e=>{const k=e.target.dataset.input,v=+e.target
  if(k==='neg'){const key=e.target.dataset.k;ui.neg[key]=v;const o=document.getElementById(e.target.id+'-o');if(o)o.textContent=key==='sellOn'?v+'%':money(v);negLive()}
  else if(k==='split'){const c=clubOf(S.user),total=c.budget+c.wageBudget*WAGE_TO_FEE;$('#sp-w').textContent=money(v)+'/w';$('#sp-t').textContent=money(Math.max(0,total-v*WAGE_TO_FEE))}
  else if(k==='trq'){ui.trQ=e.target.value;renderSearch()}
- else if(k==='an-pid'){ui.anPid=v;refreshAn()}});
+ else if(k==='an-pid'){ui.anPid=v;refreshAn()}
+ else if(k==='ren-w'){ui.ren.wage=v;const o=document.getElementById('rw-o');if(o)o.textContent=money(v)}});
 document.addEventListener('keydown',e=>{
  if(e.key==='Escape'&&!$('#modal').hidden)closeModal();
  if(e.key===' '&&view==='match'&&M&&M.phase==='live'&&!/INPUT|SELECT|BUTTON/.test(e.target.tagName)){e.preventDefault();M.paused=!M.paused;M.paused?SND.stop():SND.resume();const b=$('#m-pause');if(b)b.textContent=M.paused?'Resume':'Pause'}

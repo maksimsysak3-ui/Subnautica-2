@@ -138,7 +138,7 @@ function processMatchday(userRes){
   if(p.age<=23&&p.ovr<p.pot&&G.f()<.055*(mine?ti*(tr.focus==='youth'?1.5:1):1)){if(mine)trainBump(p);else bump(p,1);if(mine){p.dev=(p.dev||0)+1;if(p.ovr>=p.lastNote+2||!p.lastNote){p.lastNote=p.ovr;S.devNews=(S.devNews||[]).concat(p.id)}}}
   else if(p.age>=31&&G.f()<.03*(mine&&tr.focus==='fitness'?.6:1))bump(p,-1);
   if(mine){if(tr.focus==='fitness')p.cond=Math.min(100,p.cond+6);if(tr.int===2){p.cond=Math.max(40,p.cond-5);if(G.f()<.004)p.inj=G.i(1,3)}if(tr.int===0)p.cond=Math.min(100,p.cond+5)}
-  p.val=valueOf(p);if(md%4===0){(p.vh=p.vh||[]).push(Math.round(p.val/1e4));if(p.vh.length>10)p.vh.shift()}
+  p.val=valueOf(p);if(md%4===0){(p.vh=p.vh||[]).push(Math.round(p.val/1e4));if(p.vh.length>10)p.vh.shift();if(mine){(p.oh=p.oh||[]).push(p.ovr);if(p.oh.length>30)p.oh.shift()}}
  }
  const uc=clubOf(S.user),mine=S.results[uc.league].find(r=>r.md===md&&(r.h===S.user||r.a===S.user));
  if(mine){const home=mine.h===S.user,gf=home?mine.hg:mine.ag,ga=home?mine.ag:mine.hg,d=gf>ga?6:gf<ga?-6:0;
@@ -152,7 +152,8 @@ function processMatchday(userRes){
  if(S.board<14&&!S.sacked)S.sacked=true;
  if(windowOpen())aiTransfers();
  aiManagers();
- if(windowOpen()&&G.f()<.3)incomingOffer();
+ if(windowOpen()&&G.f()<(squadOf(S.user).some(p=>p.tl)?.6:.3))incomingOffer();
+ if(typeof squadMood==='function')squadMood();
  S.md++;if(S.cal)S.ci++;
  if(S.md===WIN2[0])mail('Director of Football','January window opens',`<p>The winter transfer window is open until matchday ${WIN2[1]}. Our current position and budget are below.</p>`,null,'transfer',{att:{t:'budget'},links:[['Transfer hub','nav','transfers']]});
  if(S.md===WIN1)mail('Director of Football','Transfer window closed',`<p>The summer window has closed. It reopens at matchday ${WIN2[0]+1}.</p>`,null,'transfer',{att:{t:'budget'}});
@@ -217,9 +218,9 @@ function aiManagers(){
 }
 function incomingOffer(){
  const cand=squadOf(S.user).filter(p=>p.ovr>=55);if(!cand.length)return;
- const p=pickW(cand,x=>Math.pow(Math.max(1,x.ovr-50),2)),uc=clubOf(S.user);
+ const p=pickW(cand,x=>Math.pow(Math.max(1,x.ovr-50),2)*(x.tl?8:1)),uc=clubOf(S.user);
  const pool=S.clubs.filter(c=>c.id!==S.user&&c.rep>=uc.rep-6&&c.budget>p.val);if(!pool.length)return;
- const club=G.pick(pool),fee=Math.round(p.val*(1.05+G.f()*.4)/5e4)*5e4;
+ const club=G.pick(pool),fee=Math.round(p.val*(p.tl?.85+G.f()*.3:1.05+G.f()*.4)/5e4)*5e4;
  mail(club.name,`Offer for ${p.ln}`,`<p>${esc(club.name)} have bid <b>${money(fee)}</b> for ${esc(p.fn+' '+p.ln)} (${p.pos}, age ${p.age}). We value him at ${money(p.val)}.</p><p>Let us know if you are willing to do business.</p>`,{type:'offer',pid:p.id,club:club.id,fee},'transfer',{att:{t:'player',pid:p.id}});
 }
 function wageBill(cid){return squadOf(cid).reduce((a,p)=>a+p.wage,0)}
@@ -249,6 +250,7 @@ function canSell(p){const sq=squadOf(S.user);if(sq.length<=18)return'You need at
 /* ---------- season end ---------- */
 function endSeason(){
  seasonHistory();
+ if(typeof contractExits==='function')contractExits();
  const contNext=contQualifiers(true),report=[],uc0=clubOf(S.user),uLeague=S.leagues[uc0.league].name,uPos=posIn(table(uc0.league),S.user);
  COUNTRIES.forEach(co=>{
   const [top,bot]=S.leagues.filter(l=>l.nation===co.code).sort((a,b)=>a.tier-b.tier);
@@ -296,7 +298,7 @@ function endSeason(){
 /* ---------- training ---------- */
 const TRAIN={balanced:{n:'Balanced',d:'Even work across all areas.',a:null},attack:{n:'Attacking',d:'Finishing, passing, dribbling and movement.',a:['fin','pas','dri','fir','vis','cmp']},defend:{n:'Defending',d:'Tackling, marking, positioning and heading.',a:['tck','mar','pos','hea','dec']},
  fitness:{n:'Fitness',d:'Faster recovery between matches and slower decline for veterans.',a:['sta','pac','acc','str','agi']},tactical:{n:'Tactical',d:'Decisions, positioning, work rate and vision.',a:['dec','pos','wor','vis']},youth:{n:'Youth development',d:'Young players develop 50% faster.',a:null}};
-function trainBump(p){const f=TRAIN[S.train.focus].a;if(!f){bump(p,1);return}
+function trainBump(p){const f=(p.tf&&typeof IND_FOCUS!=='undefined'&&IND_FOCUS[p.tf]&&IND_FOCUS[p.tf][1])||TRAIN[S.train.focus].a;if(!f){bump(p,1);return}
  for(let k=0;k<3;k++){const a=G.pick(f),i=AIX[a];p.at[i]=Math.min(99,p.at[i]+2)}p.ovr=calcOvr(p.pos,p.at);if(p.pot<p.ovr)p.pot=p.ovr;p.val=valueOf(p)}
 /* ---------- manager career ---------- */
 function jobOffers(n,minRep,maxRep){return shuffled(S.clubs.filter(c=>c.id!==S.user&&c.rep>=minRep&&c.rep<=maxRep)).slice(0,n)}

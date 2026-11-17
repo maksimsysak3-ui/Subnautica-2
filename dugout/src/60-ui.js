@@ -29,7 +29,7 @@ function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('on');c
 function openModal(html){$('#modal-body').innerHTML=html;$('#modal').hidden=false;$('#modal').scrollTop=0}
 function closeModal(){$('#modal').hidden=true;$('#modal-body').innerHTML='';$('#modal .modal-box').classList.remove('wide')}
 function go(v,sb,extra){if(typeof leaveMatch==='function'&&view==='match'&&v!=='match')leaveMatch();view=v;sub=sb||(NAV.find(n=>n[0]===v)||[0,0,[['','']]])[2][0][0];Object.assign(ui,extra||{});render();window.scrollTo(0,0)}
-function openPlayer(pid){ui.back=[view,sub];go('player','',{pid})}
+function openPlayer(pid){ui.back=[view,sub];if(ui.pid!==pid)ui.pTab='overview';go('player','',{pid})}
 
 /* ---------- bar ---------- */
 function nextLabel(){if(S.md>=MDAYS)return'Season review';if(typeof M!=='undefined'&&M&&M.phase==='live')return'Resume match';if(typeof M!=='undefined'&&M&&M.phase==='done')return'Match report';return'Continue'}
@@ -131,7 +131,7 @@ const trendHTML=p=>{const r=p.val/(p.val0||p.val)-1;return Math.abs(r)<.01?'<sma
 const moraleWord=m=>m>=85?'<span class="v6">Superb</span>':m>=72?'<span class="v5">Good</span>':m>=55?'<span class="v3">Okay</span>':m>=40?'<span class="v2">Poor</span>':'<span class="v1">Very poor</span>';
 
 /* ---------- player profile ---------- */
-function viewPlayer(){
+function viewPlayerV1(){
  const p=S.players[ui.pid];if(!p)return'<p>Player not found.</p>';
  const c=clubOf(p.club),mine=p.club===S.user,gk=p.pos==='GK',groups=gk?['Goalkeeping','Mental','Physical']:['Technical','Mental','Physical'];
  const posmap=Object.entries({GK:[50,94],CB:[50,78],LB:[14,72],RB:[86,72],DM:[50,62],CM:[50,48],AM:[50,32],LW:[14,28],RW:[86,28],ST:[50,12]}).map(([k,[x,y]])=>`<i class="${p.pos===k?'n':p.sec.includes(k)?'s':'x'}" style="left:${x}%;top:${y}%">${k}</i>`).join('');

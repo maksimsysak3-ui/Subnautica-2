@@ -837,6 +837,23 @@ body.ingame main{max-width:none;width:100%;padding:0 max(22px,env(safe-area-inse
  body.ingame main{padding:0 14px 50px}
  .pghead{margin:0 -14px 14px;padding:12px 14px 0;top:54px}.pg-date{display:none}
 }
+
+/* player profile v2 */
+.pp2-hero{position:relative;display:grid;grid-template-columns:130px minmax(0,1fr) auto;gap:6px 22px;align-items:center;padding:20px 22px 0;margin-bottom:14px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:radial-gradient(70% 160% at 0% 30%,color-mix(in srgb,var(--cc) 34%,transparent),transparent 70%),linear-gradient(180deg,#17171a,#121214)}
+.pp2-kit .kit{width:124px;height:auto;filter:drop-shadow(0 12px 20px rgba(0,0,0,.6))}
+.pp2-club{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}.pp2-club .crest{width:20px;height:24px}
+.pp2-main h1{font:400 clamp(30px,3.6vw,48px)/1 var(--fd);letter-spacing:.01em;margin:6px 0 10px}.pp2-main h1 b{font-weight:800;text-transform:uppercase}
+.pp2-meta{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:#c9c7c0;align-items:center}.pp2-meta span{display:flex;align-items:center;gap:6px}.pp2-meta small{color:var(--dim)}
+.pp2-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.chip.warn{color:#ffd27f;border-color:rgba(255,207,74,.4)}
+.pp2-rate{display:flex;flex-direction:column;gap:10px;align-items:flex-end;text-align:right}.pp2-rate small{display:block;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}.pp2-rate b{font:800 24px var(--fd)}
+.pp2-tabs{grid-column:1/-1;display:flex;gap:2px;margin-top:12px;border-top:1px solid rgba(255,255,255,.06)}
+.pp2-tabs button{padding:11px 16px;font:500 13.5px var(--fb);color:var(--muted);border-bottom:2px solid transparent}.pp2-tabs button:hover{color:#fff}.pp2-tabs button[aria-selected="true"]{color:#fff;font-weight:600;border-bottom-color:var(--cc)}
+.sw{display:grid;grid-template-columns:1fr 1fr;gap:14px}.sw div{display:flex;flex-direction:column;gap:6px}.sw small{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}.sw span{display:flex;justify-content:space-between;font-size:13px}.sw b{font:700 15px var(--fd)}
+.pp2-per b{font:700 20px var(--fd);text-transform:uppercase}.pp2-per p{margin:4px 0 0;color:var(--muted)}
+.tf-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.tf{padding:9px 10px;border:1px solid var(--line2);border-radius:4px;text-align:left;font-size:13px;color:#cfcdc6}.tf:hover{border-color:#4a4a50}.tf.on{border-color:var(--accent);background:rgba(255,180,58,.08);color:#fff}
+.neg-f{margin:0 0 14px}.neg-f label{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:6px}.neg-f label b{color:#fff;font:700 16px var(--fd)}.neg-f input[type=range]{width:100%}
+.ren-msg{padding:10px 12px;border-left:3px solid var(--accent);background:rgba(255,180,58,.07);font-size:13.5px}
+@media (max-width:900px){.pp2-hero{grid-template-columns:84px minmax(0,1fr);padding:14px 14px 0}.pp2-kit .kit{width:80px}.pp2-rate{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:space-between;text-align:left}}
 </style>
 
 <aside id="bar" hidden></aside>
