@@ -90,7 +90,7 @@ document.addEventListener('click',e=>{
   case'autoxi':tac.xi=pickXI(S.user,tac.form);tac.bench=pickBench(S.user,tac.xi);save();render();toast('Best XI selected');break;
   case'md':ui.lgMd=clamp((ui.lgMd??Math.min(S.md,MDAYS-1))+ +t.dataset.d,0,MDAYS-1);render();break;
   case'kitflip':ui.kitBack=!ui.kitBack;render();break;
-  case'new-season':{closeModal();endSeason();M=null;go('home');const ls=S.lastSeason;
+  case'new-season':{closeModal();endSeason();M=null;go('home');const ls=S.lastSeason;fxQueue.push(()=>awardsCeremony());
    if(ls&&(ls.champ||ls.promoted))fxQueue.push(()=>celebrateTrophy(ls.champ?`${ls.league} champions`:`Promoted from ${ls.league}`,`${seasonLabel()} · ${clubOf(ls.club).name}`,ls.club));
    if(S.youth&&S.youth.length)fxQueue.push(()=>revealYouth(S.youth));
    if(S.offers&&S.offers.length)fxQueue.push(()=>jobsModal(S.offers,'Job offers','Your reputation is growing',false));

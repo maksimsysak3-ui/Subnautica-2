@@ -248,6 +248,7 @@ function canSell(p){const sq=squadOf(S.user);if(sq.length<=18)return'You need at
 
 /* ---------- season end ---------- */
 function endSeason(){
+ seasonHistory();
  const contNext=contQualifiers(true),report=[],uc0=clubOf(S.user),uLeague=S.leagues[uc0.league].name,uPos=posIn(table(uc0.league),S.user);
  COUNTRIES.forEach(co=>{
   const [top,bot]=S.leagues.filter(l=>l.nation===co.code).sort((a,b)=>a.tier-b.tier);
@@ -260,7 +261,7 @@ function endSeason(){
   for(const id of up){clubOf(id).rep=clamp(clubOf(id).rep+3,30,96);clubOf(id).league=top.id}
   top.clubs=top.clubs.filter(x=>!down.includes(x)).concat(up);bot.clubs=bot.clubs.filter(x=>!up.includes(x)).concat(down);
  });
- S.hist.unshift({season:seasonLabel(),league:uLeague,pos:uPos});
+ S.hist.unshift(Object.assign({season:seasonLabel(),league:uLeague,pos:uPos,club:S.user},S.lastRow||{}));
  {const lg0=S.leagues[uc0.league],tp=targetPos(S.user);S.mgr.seasons++;S.mgr.rep=clamp(S.mgr.rep+(tp-uPos)*1.6+(uPos===1?6:0),5,99);
   S.lastSeason={pos:uPos,league:uLeague,tier:lg0.tier,champ:uPos===1,promoted:lg0.tier===1&&uPos<=DROP,relegated:lg0.tier===0&&uPos>PER-DROP,club:S.user};
   if(uPos===1)S.mgr.trophies.push({t:uLeague,season:seasonLabel(),club:S.user});
@@ -275,7 +276,7 @@ function endSeason(){
   if(p.age>=35&&G.f()<.6&&p.club!==S.user||p.age>=37){
    const c=clubOf(p.club),rng=R((Math.random()*2e9)|0),co=COUNTRIES.find(x=>x.code===c.nation);
    const y=genPlayer(rng,p.pos,repToOvr(c.rep)-rng.i(10,16),c.id,rng.chance(.7)?co.code:rng.pick(NAT_BAG),{age:rng.i(16,18),pot:clamp(repToOvr(c.rep)+rng.i(-2,12),55,rng.chance(.04)?93:88)});
-   y.id=S.npid++;S.players[y.id]=y;c.squad=c.squad.filter(x=>x!==p.id).concat(y.id);y.num=p.num;delete S.players[p.id];
+   y.id=S.npid++;S.players[y.id]=y;c.squad=c.squad.filter(x=>x!==p.id).concat(y.id);y.num=p.num;keepLegend(p);delete S.players[p.id];
    if(c.id===S.user)mail('Head of Youth',`${p.ln} retires`,`<p>${esc(p.fn+' '+p.ln)} has retired. ${esc(y.fn+' '+y.ln)} (${y.pos}, 17) has been promoted from the academy.</p>`,null,'staff',{att:{t:'player',pid:y.id,note:'Academy graduate'},links:[['View player','player',y.id,1]]});
   }
  }
