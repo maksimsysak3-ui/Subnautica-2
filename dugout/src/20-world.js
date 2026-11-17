@@ -108,12 +108,12 @@ function genAttrs(rng,pos,target,age){
 // Live valuation: ability, potential, age, current form and contract length. Recomputed every matchday.
 function valueOf(p){const af=p.age<=21?1.5:p.age<=24?1.32:p.age<=27?1.08:p.age<=29?.92:p.age<=31?.6:.3;
  const form=p.s&&p.s.ap>=3?clamp(1+(p.s.rs/p.s.ap-6.7)*.24,.8,1.32):1,con=p.con<=1?.62:p.con===2?.86:1;
- return Math.max(25e3,Math.round(6e5*Math.pow(1.116,p.ovr-60)*af*(1+Math.max(0,p.pot-p.ovr)/32)*form*con/25e3)*25e3)}
-const wageOf=p=>Math.max(500,Math.round(700*Math.pow(1.12,p.ovr-50)/100)*100);
+ return Math.max(25e3,Math.round(6e5*Math.pow(1.116,p.ovr-60)*Math.pow(1.2,Math.max(0,p.ovr-78))*af*(1+Math.max(0,p.pot-p.ovr)/32)*form*con/25e3)*25e3)}
+const wageOf=p=>Math.max(500,Math.round(700*Math.pow(1.12,p.ovr-50)*Math.pow(1.08,Math.max(0,p.ovr-80))/100)*100);
 function genPlayer(rng,pos,target,club,nat,o={}){
  const pool=NAMES[NATIONS[nat].pool],age=o.age??rng.i(18,33),at=genAttrs(rng,pos,target,age);
  const p={id:0,fn:rng.pick(pool.f),ln:rng.pick(pool.l),nat,pos,sec:NEAR[pos].filter(()=>rng.chance(.3)).slice(0,2),age,at,ovr:calcOvr(pos,at),pot:0,club,num:0,foot:rng.chance(.25)?'L':'R',ht:pos==='GK'?rng.i(185,198):pos==='CB'?rng.i(181,195):rng.i(167,190),cond:100,mor:70,con:rng.i(1,4),s:{ap:0,g:0,a:0,rs:0,mom:0}};
- p.pot=clamp(o.pot??p.ovr+Math.max(0,Math.round((24-age)*rng.f()*2.4)),p.ovr,96);
+ p.pot=clamp(o.pot??p.ovr+Math.max(0,Math.round((24-age)*rng.f()*2.4)),p.ovr,Math.max(p.ovr,o.pot?96:rng.chance(.05)?93:89));
  p.val=valueOf(p);p.wage=wageOf(p);p.ovr0=p.ovr;p.val0=p.val;return p;
 }
 function bump(p,d){p.at=p.at.map((v,i)=>{const a=ATTRS[i];const phys=['pac','acc','sta','agi'].includes(a);return clamp(v+(d<0&&phys?d*1.5:d),5,99)});p.ovr=calcOvr(p.pos,p.at);if(p.pot<p.ovr)p.pot=p.ovr;p.val=valueOf(p)}

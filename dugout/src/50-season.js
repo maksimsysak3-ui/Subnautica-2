@@ -4,7 +4,9 @@ const SEASON_START=Date.UTC(2027,7,7);
 const mdDate=md=>SEASON_START+(S.season-1)*364*DAY+Math.round(md*7.4)*DAY;
 const seasonLabel=()=>`${2026+S.season}/${String(2027+S.season).slice(2)}`;
 const windowOpen=()=>S.md<WIN1||(S.md>=WIN2[0]&&S.md<WIN2[1]);
-const stars=v=>clamp(Math.round((v-38)/10*2)/2,.5,5);
+// Star bands get steeper at the top: 4★ and above is a small, expensive elite.
+const STAR_BANDS=[[88,5],[84,4.5],[81,4],[76,3.5],[71,3],[66,2.5],[60,2],[54,1.5],[47,1]];
+const stars=v=>{for(const[min,s]of STAR_BANDS)if(v>=min)return s;return .5};
 const at20=v=>clamp(Math.round(v/5),1,20);
 const clubOf=id=>S.clubs[id];
 const leagueOf=cid=>S.leagues[S.clubs[cid].league];
@@ -31,8 +33,9 @@ function genWorld(seed){
     const base=repToOvr(rep),star=rng.i(3,TEMPLATE.length-1),youth=rng.i(3,TEMPLATE.length-1),seen={};
     TEMPLATE.forEach((pos,k)=>{
      const depth=seen[pos]=(seen[pos]||0)+1;let target=base+(depth===1?rng.i(-1,4):-rng.i(3,10)),age=depth===1?rng.i(22,31):rng.i(19,33),pot;
-     if(k===star)target=base+rng.i(6,9);
-     if(k===youth&&k!==star){age=rng.i(17,19);target=base-rng.i(10,15);pot=clamp(base+rng.i(2,14),target+8,95)}
+     // A standout player is likelier at bigger clubs; only the elite get a world-class marquee.
+     if(k===star&&rng.chance(clamp((rep-50)/50,.12,.75)))target=base+rng.i(3,7)+(rep>=82&&rng.chance(.7)?rng.i(3,5):0);
+     if(k===youth&&k!==star){age=rng.i(17,19);target=base-rng.i(10,15);pot=clamp(base+rng.i(2,14),target+8,rng.chance(.04)?94:89)}
      const nat=rng.chance(tier?.78:.6)?co.code:rng.pick(NAT_BAG);
      const p=genPlayer(rng,pos,clamp(target,32,93),c.id,nat,{age,pot});p.id=S.npid++;S.players[p.id]=p;c.squad.push(p.id);p.num=assignNum(c.id,pos);
     });
@@ -263,7 +266,7 @@ function endSeason(){
  for(const p of Object.values(S.players)){
   if(p.age>=35&&G.f()<.6&&p.club!==S.user||p.age>=37){
    const c=clubOf(p.club),rng=R((Math.random()*2e9)|0),co=COUNTRIES.find(x=>x.code===c.nation);
-   const y=genPlayer(rng,p.pos,repToOvr(c.rep)-rng.i(10,16),c.id,rng.chance(.7)?co.code:rng.pick(NAT_BAG),{age:rng.i(16,18),pot:clamp(repToOvr(c.rep)+rng.i(-2,12),55,95)});
+   const y=genPlayer(rng,p.pos,repToOvr(c.rep)-rng.i(10,16),c.id,rng.chance(.7)?co.code:rng.pick(NAT_BAG),{age:rng.i(16,18),pot:clamp(repToOvr(c.rep)+rng.i(-2,12),55,rng.chance(.04)?93:88)});
    y.id=S.npid++;S.players[y.id]=y;c.squad=c.squad.filter(x=>x!==p.id).concat(y.id);y.num=p.num;delete S.players[p.id];
    if(c.id===S.user)mail('Head of Youth',`${p.ln} retires`,`<p>${esc(p.fn+' '+p.ln)} has retired. ${esc(y.fn+' '+y.ln)} (${y.pos}, 17) has been promoted from the academy.</p>`,null,'staff');
   }
@@ -291,6 +294,6 @@ function takeJob(cid,reason){const old=S.user;S.mgr.clubs.push({club:old,season:
  const c=clubOf(cid);ensureLineup(cid);mail('Board of Directors',`Welcome to ${c.name}`,`<p>We are delighted to appoint you. Your objective: <b>${expectation(cid)}</b>. Transfer budget: <b>${money(c.budget)}</b>.</p>`,null,'board');
  news(`${c.name} have appointed a new manager.`,'club',[cid],{title:`${c.short} name new manager`});save()}
 function youthIntake(cid,n){const c=clubOf(cid),co=COUNTRIES.find(x=>x.code===c.nation),rng=R((Math.random()*2e9)|0),out=[];
- for(let k=0;k<n;k++){const pos=rng.pick(['GK','CB','CB','LB','RB','DM','CM','CM','AM','LW','RW','ST','ST']),roll=rng.f(),pot=clamp(Math.round(repToOvr(c.rep)+(roll<.08?rng.i(12,20):roll<.35?rng.i(4,11):rng.i(-8,3))),45,96);
+ for(let k=0;k<n;k++){const pos=rng.pick(['GK','CB','CB','LB','RB','DM','CM','CM','AM','LW','RW','ST','ST']),roll=rng.f(),pot=clamp(Math.round(repToOvr(c.rep)+(roll<.08?rng.i(12,20):roll<.35?rng.i(4,11):rng.i(-8,3))),45,roll<.015?95:89);
   const y=genPlayer(rng,pos,clamp(pot-rng.i(16,26),35,70),cid,rng.chance(.75)?co.code:rng.pick(NAT_BAG),{age:rng.i(16,17),pot});y.con=3;y.wage=Math.max(500,Math.round(y.wage*.5/100)*100);y.id=S.npid++;S.players[y.id]=y;c.squad.push(y.id);y.num=assignNum(cid,pos);y.youth=S.season;out.push(y)}
  return out}
