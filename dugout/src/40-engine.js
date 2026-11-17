@@ -148,6 +148,8 @@ function movePlayer(E,p){
  if(d>5&&E.poss!==p.s)p.sprint=true;else if(d>9)p.sprint=true;
  let vmax=(5.4+p.a.pac*3.4)*fat*(p.sprint?1:.68)*E.wx.spd;
  if(p.stun>E.t)vmax*=.35;
+ // Rest-defence cost: a side committed forward (very attacking or pressing high) is slow to recover after losing the ball.
+ {const ti=E.T[p.s].tac.ins;if(E.poss!==p.s&&p.pos!=='GK'&&E.t-E.gain[1-p.s]<8&&(ti.ment>=3||ti.press===2)){const f=(ti.ment===4?.74:ti.ment===3?.86:1)*(ti.press===2?.9:1);vmax*=GROUP[p.pos]==='DEF'?Math.sqrt(f):f}}
  if(E.ball.owner===p.i)vmax*=.76+.1*p.a.dri;
  let vx=0,vy=0;if(d>.12){const sp=Math.min(vmax,d*1.8);vx=dx/d*sp;vy=dy/d*sp}
  const acc=(4+p.a.acc*5)*fat*DT;let ax=vx-p.vx,ay=vy-p.vy;const am=Math.hypot(ax,ay);if(am>acc){ax*=acc/am;ay*=acc/am}
