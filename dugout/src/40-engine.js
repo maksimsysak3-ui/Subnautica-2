@@ -218,7 +218,7 @@ function decide(E,c,pr){
  if(fx>66&&dg<34){
   const x=xgAt(fx,fy)*Math.pow(.7,blockers(c,op,s))*Math.pow(.8,density(c,op,s)),sk=dg>20?c.a.lon:c.a.fin;
   const mul=(rf.shoot||1)*[1,1,1.6,.9][ins.final]*(ins.final===0&&dg>18?.55:1);
-  if(x*mul>(ins.final===2?.21:.33)*(1-.3*urg))opts.push({k:'shot',u:x*1.1*mul*(.7+.6*sk)*(pr<1.5?.75:1)-.16+.02*urg});
+  if(x*mul>(ins.final===2?.16:.25)*(1-.4*urg))opts.push({k:'shot',u:x*1.1*mul*(.7+.6*sk)*(pr<1.5?.75:1)-.12+.02*urg});
  }
  if((fy<15||fy>53)&&fx>72){let n=0,h=0;for(const m of ms){const mx=fX(s,m.x),my=fY(s,m.y);if(mx>86&&my>22&&my<46){n++;h=Math.max(h,m.a.hea)}}
   if(n)opts.push({k:'cross',u:(.03+.034*n*h+.05*c.a.cro)*(rf.cross||1)*(ins.final===3?1.6:1)*(1+urg)})}
@@ -331,7 +331,7 @@ function shoot(E,c,head,pen){
  const s=c.s,b=E.ball,fx=fX(s,c.x),fy=fY(s,c.y),dg=Math.hypot(PW-fx,fy-34),op=opps(E,s),gk=op.find(o=>o.pos==='GK');
  const gks=gk?(gk.a.ref+gk.a.div+gk.a.one+gk.a.pos)/4:.2,bl=pen?0:blockers(c,op,s),sk=head?c.a.hea:dg>20?c.a.lon:c.a.fin;
  let x=pen?.76:xgAt(fx,fy)*(head?.55:1)*Math.pow(.75,bl)*Math.pow(.8,density(c,op,s));
- const prs=pen?9:pressure(E,c);x*=(.72+.56*sk)*(.9+.2*c.a.cmp)*(prs<1.5?.72:prs<3?.86:1)*(1.12-.5*gks)*(pen?1:.43)*(!pen&&E.T[1-s].tac.ins.ment>=3&&E.t-E.gain[s]<10?1.25:1);x=clamp(x,.01,.95);
+ const prs=pen?9:pressure(E,c);x*=(.72+.56*sk)*(.9+.2*c.a.cmp)*(prs<1.5?.72:prs<3?.86:1)*(1.12-.5*gks)*(pen?1:.40)*(!pen&&E.T[1-s].tac.ins.ment>=3&&E.t-E.gain[s]<10?1.25:1);x=clamp(x,.01,.95);
  const pOT=clamp(Math.max(x+.08,.28+.4*sk-.006*dg),.1,.93),blockP=Math.min(.45,bl*.22),r=E.rng.f();
  const out=E.rng.f()<blockP?'block':r<x?'goal':r<pOT?'save':'miss';
  c.st.sh++;E.st.sh[s]++;E.st.xg[s]+=x;if(out==='goal'||out==='save'){c.st.so++;E.st.sot[s]++}
