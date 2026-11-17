@@ -1036,17 +1036,12 @@ body.topnav .pghead{top:62px;margin:0 -22px 18px;padding:16px 22px 0}
 @media (max-width:900px){.hub .fit{min-height:0}.hub .fit>.panel,.hub .fit>.hub-col{position:static}.hub .fit .list{max-height:340px}}
 @media (max-width:600px){.mc-main{grid-template-columns:1fr 1fr}.mc-mid{grid-column:1/-1;order:3}.mc-btns{flex-direction:row}.mc-team b{font-size:18px}}
 
-/* section backdrops */
-#pgbg{position:fixed;left:0;right:0;top:0;height:min(84vh,780px);z-index:0;pointer-events:none;opacity:.9;-webkit-mask-image:linear-gradient(180deg,#000 0,rgba(0,0,0,.75) 35%,transparent 92%);mask-image:linear-gradient(180deg,#000 0,rgba(0,0,0,.75) 35%,transparent 92%);animation:bdIn .5s ease both}
-#pgbg svg{width:100%;height:100%;display:block}
-#pgbg::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(11,11,12,.5),rgba(11,11,12,0) 40%,rgba(11,11,12,.35)),linear-gradient(180deg,rgba(11,11,12,0),rgba(11,11,12,.55))}
-#pgbg[data-scene=lockers]{opacity:.75}#pgbg[data-scene=wall]{opacity:.8}
-@keyframes bdIn{from{opacity:0}}
 body.topnav main{position:relative;z-index:1}
 body.topnav .pghead{background:linear-gradient(180deg,rgba(11,11,12,.35),rgba(11,11,12,.72));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom-color:rgba(255,255,255,.07)}
 body.topnav .pghead h1{text-shadow:0 2px 18px rgba(0,0,0,.6)}
-body.topnav .panel{background:rgba(20,20,22,.86);border-color:rgba(255,255,255,.075)}
+body.topnav .panel{background:var(--panel);border-color:rgba(255,255,255,.075)}
 body.topnav .panel .ph{background:linear-gradient(90deg,color-mix(in srgb,var(--tc) 9%,transparent),transparent 55%)}
+.nr-foot{align-items:center;gap:10px}.nr-status{flex:1;min-width:0;font-size:13px;line-height:1.35;color:var(--text);padding:6px 10px;border-left:3px solid var(--line2)}.nr-status:empty{border:0;padding:0}.nr-status small{display:block;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}.nr-status.warn{border-left-color:#f5a524}.nr-status.agent,.nr-status.club{border-left-color:var(--accent)}
 </style>
 
 <aside id="bar" hidden></aside>

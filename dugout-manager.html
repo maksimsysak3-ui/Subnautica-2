@@ -1036,17 +1036,12 @@ body.topnav .pghead{top:62px;margin:0 -22px 18px;padding:16px 22px 0}
 @media (max-width:900px){.hub .fit{min-height:0}.hub .fit>.panel,.hub .fit>.hub-col{position:static}.hub .fit .list{max-height:340px}}
 @media (max-width:600px){.mc-main{grid-template-columns:1fr 1fr}.mc-mid{grid-column:1/-1;order:3}.mc-btns{flex-direction:row}.mc-team b{font-size:18px}}
 
-/* section backdrops */
-#pgbg{position:fixed;left:0;right:0;top:0;height:min(84vh,780px);z-index:0;pointer-events:none;opacity:.9;-webkit-mask-image:linear-gradient(180deg,#000 0,rgba(0,0,0,.75) 35%,transparent 92%);mask-image:linear-gradient(180deg,#000 0,rgba(0,0,0,.75) 35%,transparent 92%);animation:bdIn .5s ease both}
-#pgbg svg{width:100%;height:100%;display:block}
-#pgbg::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(11,11,12,.5),rgba(11,11,12,0) 40%,rgba(11,11,12,.35)),linear-gradient(180deg,rgba(11,11,12,0),rgba(11,11,12,.55))}
-#pgbg[data-scene=lockers]{opacity:.75}#pgbg[data-scene=wall]{opacity:.8}
-@keyframes bdIn{from{opacity:0}}
 body.topnav main{position:relative;z-index:1}
 body.topnav .pghead{background:linear-gradient(180deg,rgba(11,11,12,.35),rgba(11,11,12,.72));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom-color:rgba(255,255,255,.07)}
 body.topnav .pghead h1{text-shadow:0 2px 18px rgba(0,0,0,.6)}
-body.topnav .panel{background:rgba(20,20,22,.86);border-color:rgba(255,255,255,.075)}
+body.topnav .panel{background:var(--panel);border-color:rgba(255,255,255,.075)}
 body.topnav .panel .ph{background:linear-gradient(90deg,color-mix(in srgb,var(--tc) 9%,transparent),transparent 55%)}
+.nr-foot{align-items:center;gap:10px}.nr-status{flex:1;min-width:0;font-size:13px;line-height:1.35;color:var(--text);padding:6px 10px;border-left:3px solid var(--line2)}.nr-status:empty{border:0;padding:0}.nr-status small{display:block;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}.nr-status.warn{border-left-color:#f5a524}.nr-status.agent,.nr-status.club{border-left-color:var(--accent)}
 </style>
 
 <aside id="bar" hidden></aside>
@@ -3052,128 +3047,6 @@ function homeHub(){
  const tf=`<section class="panel"><div class="ph"><h3>Transfer wire</h3><button class="btn ghost" data-act="nav" data-v="transfers">Transfers</button></div><div class="list">${deals.sort((a,b)=>(lgIds.has(b.to)||lgIds.has(b.from))-(lgIds.has(a.to)||lgIds.has(a.from))).map(d=>`<button class="li" style="grid-template-columns:auto 1fr auto" data-act="player" data-id="${d.pid}">${crest(d.to,24)}<span><b>${esc(d.name)} <small style="display:inline">${d.pos||''}</small></b><small>${esc(clubOf(d.from).short)} → ${esc(clubOf(d.to).short)}</small></span><b class="hub-fee">${d.loan?'Loan':money(d.fee)}</b></button>`).join('')||`<p class="pb muted">${windowOpen()?'No deals done yet this window.':'The window is closed.'}</p>`}</div></section>`;
  return`<div class="grid hub">${mc}${right}${snap}${fitCell('c4',fixtures.replace('class="panel c4"','class="panel"'))}${fitCell('c3',news)}${visionPanel(true).replace('class="panel "','class="panel c4 hub-anchor"')}${fitCell('c4',squad)}${fitCell('c4',tf)}</div>`;
 }
-/* ================= page backdrops =================
-   Each section gets its own faded scene behind the page header, tinted with the club's colour: the stadium
-   bowl (home), the dressing room with the squad's shirts hanging up (squad), a chalk tactics board,
-   the signing-day sponsor wall (transfers), the league trophy (competitions), the city from the boardroom
-   (office) and the stadium's front (club). Pure SVG, no faces, cached per club and section. */
-const BD={key:null};
-const bdRng=seed=>{let a=seed>>>0;return()=>{a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}};
-const BD_SCENE={home:'stadium',squad:'lockers',player:'lockers',tactics:'board',transfers:'wall',comps:'trophy',office:'skyline',club:'facade'};
-const nest=(svg,x,y,w,h)=>svg.replace(/^<svg /,`<svg x="${x}" y="${y}" width="${w}" height="${h}" `).replace(/ class="[^"]*"/,'').replace(/ style="[^"]*"/,'');
-// Crowd texture: a few pattern tiles of coloured specks, so a whole stand costs a handful of elements.
-function crowdDefs(R,tc,n=3){
- const cols=[tc,mix(tc,'#ffffff',.45),mix(tc,'#000',.35),'#2c2c33','#3a3a42','#d8d5cc'];let s='';
- for(let k=0;k<n;k++){let d='';for(let i=0;i<46;i++){const x=R()*140,y=R()*16,c=cols[(R()*cols.length)|0];d+=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="3.4" height="4.6" rx="1.2" fill="${c}" opacity="${(.45+R()*.55).toFixed(2)}"/>`}
-  s+=`<pattern id="bdcr${k}" width="140" height="16" patternUnits="userSpaceOnUse">${d}</pattern>`}
- return s;
-}
-function bdStadium(c,tc,R){
- let s=`<defs><linearGradient id="bdsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${mix(tc,'#05060a',.78)}"/><stop offset="1" stop-color="#07080b"/></linearGradient>
- <radialGradient id="bdglow"><stop offset="0" stop-color="#fffbe8" stop-opacity=".95"/><stop offset=".25" stop-color="#fff3c4" stop-opacity=".35"/><stop offset="1" stop-color="#fff3c4" stop-opacity="0"/></radialGradient>${crowdDefs(R,tc)}</defs>
- <rect width="1600" height="700" fill="url(#bdsky)"/>`;
- // roof and its truss
- s+=`<path d="M0,40 L1600,40 L1600,92 L0,92 Z" fill="#0d0e12"/>`;for(let x=0;x<1600;x+=40)s+=`<path d="M${x},40 L${x+20},92 L${x+40},40" stroke="#22242b" stroke-width="2" fill="none"/>`;
- // three tiers, each slightly narrower toward the pitch
- [[96,250,0],[262,380,1],[392,470,2]].forEach(([y0,y1,k])=>{s+=`<rect x="0" y="${y0}" width="1600" height="${y1-y0}" fill="#121318"/><rect x="0" y="${y0}" width="1600" height="${y1-y0}" fill="url(#bdcr${k})"/><rect x="0" y="${y1-6}" width="1600" height="6" fill="${mix(tc,'#000',.45)}"/>`});
- // aisles and the tier fascias in club colour
- for(let x=90;x<1600;x+=230)s+=`<rect x="${x}" y="96" width="9" height="374" fill="#0b0c10" opacity=".85"/>`;
- s+=`<rect x="0" y="250" width="1600" height="12" fill="${tc}" opacity=".85"/><text x="800" y="260" text-anchor="middle" ${FONT} font-weight="800" font-size="11" letter-spacing="14" fill="${ink(tc)}" opacity=".85">${esc(c.stadium.toUpperCase())}</text>`;
- // floodlight banks with glow
- for(const x of [160,560,1040,1440]){s+=`<rect x="${x-46}" y="6" width="92" height="30" rx="3" fill="#1b1c22"/>`;for(let i=0;i<4;i++)for(let j=0;j<2;j++)s+=`<rect x="${x-40+i*21}" y="${10+j*12}" width="17" height="9" rx="2" fill="#fffbe8"/>`;s+=`<circle cx="${x}" cy="21" r="170" fill="url(#bdglow)"/>`}
- // LED boards and the pitch
- s+=`<rect x="0" y="470" width="1600" height="30" fill="#0a0a0d"/>`;for(let x=0;x<1600;x+=400)s+=`<rect x="${x+4}" y="474" width="392" height="22" fill="${x/400%2?mix(tc,'#000',.2):'#15161b'}"/><text x="${x+200}" y="490" text-anchor="middle" ${FONT} font-weight="800" font-size="16" letter-spacing="4" fill="${x/400%2?ink(tc):tc}">${esc(x/400%2?c.sponsor:c.short.toUpperCase())}</text>`;
- s+=`<path d="M0,500 H1600 V700 H0 Z" fill="#163a22"/>`;for(let k=0;k<8;k++)s+=`<path d="M${k*200},500 H${k*200+100} L${k*230-60},700 H${k*230-175} Z" fill="#1a4428"/>`;
- s+=`<path d="M0,540 H1600" stroke="#e8f0e8" stroke-opacity=".5" stroke-width="3"/>`;
- return s;
-}
-function bdLockers(c,tc){
- const sq=squadOf(c.id).slice().sort((a,b)=>a.num-b.num).filter((_,i)=>i%3===0).slice(0,9);
- let s=`<defs><linearGradient id="bdwall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${mix(tc,'#08090c',.82)}"/><stop offset="1" stop-color="#0a0b0e"/></linearGradient>
- <radialGradient id="bdspot" cx=".5" cy="0" r=".9"><stop offset="0" stop-color="#fff6dc" stop-opacity=".22"/><stop offset="1" stop-color="#fff6dc" stop-opacity="0"/></radialGradient></defs><rect width="1600" height="700" fill="url(#bdwall)"/>`;
- const W=1600/9;
- sq.forEach((p,i)=>{const x=i*W;
-  s+=`<rect x="${x+8}" y="40" width="${W-16}" height="560" rx="4" fill="#121319" stroke="#1f2028"/><rect x="${x+8}" y="40" width="${W-16}" height="560" fill="url(#bdspot)"/>`;
-  s+=`<rect x="${x+8}" y="40" width="${W-16}" height="34" fill="${mix(tc,'#000',.3)}"/><text x="${x+W/2}" y="64" text-anchor="middle" ${FONT} font-weight="800" font-size="18" letter-spacing="3" fill="${ink(mix(tc,'#000',.3))}">${esc(p.ln.toUpperCase().slice(0,11))}</text>`;
-  s+=`<path d="M${x+W/2-34},104 H${x+W/2+34}" stroke="#5a5c66" stroke-width="4" stroke-linecap="round"/>`;
-  s+=nest(kitSVG(c,'home',{back:true,name:p.ln,num:p.num}),x+W/2-70,100,140,148);
-  s+=`<rect x="${x+22}" y="440" width="${W-44}" height="12" rx="2" fill="#191a21"/><rect x="${x+22}" y="520" width="${W-44}" height="64" rx="3" fill="#0e0f13"/>`;
-  // boots on the shelf, as simple shapes
-  s+=`<path d="M${x+W/2-40},440 q4,-16 18,-16 h14 q6,0 8,8 l2,8 z M${x+W/2+4},440 q4,-16 18,-16 h14 q6,0 8,8 l2,8 z" fill="${mix(tc,'#111',.55)}"/>`;
- });
- s+=`<rect x="0" y="600" width="1600" height="100" fill="#0c0c10"/><rect x="0" y="600" width="1600" height="18" fill="#2a2016"/><rect x="0" y="618" width="1600" height="4" fill="#000" opacity=".5"/>`;
- return s;
-}
-function bdBoard(c,tc){
- const F=FORMATIONS[c.tac.form]||FORMATIONS['4-3-3'],P=(x,y)=>{const t=y/100,hw=760-t*380;return[800+(x-50)/50*hw,640-t*540]};
- let s=`<defs><radialGradient id="bdbd" cx=".5" cy=".3" r=".8"><stop offset="0" stop-color="${mix(tc,'#0e2018',.7)}"/><stop offset="1" stop-color="#07090a"/></radialGradient></defs><rect width="1600" height="700" fill="url(#bdbd)"/>`;
- const L='stroke="#e9efe7" stroke-opacity=".38" fill="none" stroke-width="3"';
- const c4=[P(0,0),P(100,0),P(100,100),P(0,100)];s+=`<polygon points="${c4.map(p=>p.join(',')).join(' ')}" ${L}/>`;
- const mid=[P(0,50),P(100,50)];s+=`<path d="M${mid[0]} L${mid[1]}" ${L}/><ellipse cx="${P(50,50)[0]}" cy="${P(50,50)[1]}" rx="120" ry="44" ${L}/>`;
- for(const y0 of [0,100]){const d=y0?-1:1,b=[P(20,y0),P(20,y0+16*d),P(80,y0+16*d),P(80,y0)];s+=`<path d="M${b.join(' L')}" ${L}/>`}
- // chalk markers and arrows: circles for our shape, crosses for the opposition
- F.forEach(([pos,x,y],i)=>{const[px,py]=P(x,y*.55+4),r=13+y*.05;s+=`<circle cx="${px}" cy="${py}" r="${r}" stroke="${mix(tc,'#ffffff',.5)}" stroke-width="3.5" fill="none" opacity=".75"/>`;
-  if(i>5){const[qx,qy]=P(x+(x<50?10:x>50?-10:0),y*.55+26);s+=`<path d="M${px},${py-r-4} Q${(px+qx)/2+30},${(py+qy)/2} ${qx},${qy}" stroke="#f0f0e8" stroke-opacity=".55" stroke-width="2.6" stroke-dasharray="10 8" fill="none"/><path d="M${qx-9},${qy+10} L${qx},${qy} L${qx+10},${qy+8}" stroke="#f0f0e8" stroke-opacity=".55" stroke-width="2.6" fill="none"/>`}});
- F.forEach(([pos,x,y])=>{const[px,py]=P(100-x,100-y*.42-4);s+=`<path d="M${px-9},${py-9} L${px+9},${py+9} M${px+9},${py-9} L${px-9},${py+9}" stroke="#f0c8c0" stroke-opacity=".5" stroke-width="3"/>`});
- s+=`<text x="1530" y="80" text-anchor="end" ${FONT} font-weight="800" font-size="64" fill="#e9efe7" opacity=".14" letter-spacing="6">${esc(c.tac.form)}</text>`;
- return s;
-}
-function bdWall(c,tc){
- const cr=crestSVG(c,{x:0,y:0,w:64}).replace(/^<svg /,'<svg id="bdcrest" ');
- let s=`<defs>${cr}<radialGradient id="bdsp" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>
- <rect width="1600" height="700" fill="${mix(tc,'#0a0b0e',.72)}"/>`;
- for(let r=0;r<8;r++)for(let k=0;k<9;k++){const x=k*200+(r%2?100:0)-40,y=r*92+10;
-  s+=(r+k)%2?`<use href="#bdcrest" x="${x+64}" y="${y}" opacity=".55"/>`:`<text x="${x+96}" y="${y+50}" text-anchor="middle" ${FONT} font-weight="800" font-size="22" letter-spacing="3" fill="${mix(tc,'#ffffff',.55)}" opacity=".5">${esc(c.sponsor)}</text>`}
- // spotlights and camera flashes
- s+=`<ellipse cx="560" cy="300" rx="420" ry="300" fill="url(#bdsp)"/><ellipse cx="1150" cy="260" rx="360" ry="280" fill="url(#bdsp)"/>`;
- for(const[x,y,r]of[[300,160,40],[1320,420,28],[880,110,22]])s+=`<circle cx="${x}" cy="${y}" r="${r*3}" fill="url(#bdsp)"/><path d="M${x-r},${y} H${x+r} M${x},${y-r} V${y+r}" stroke="#fff" stroke-opacity=".5" stroke-width="2"/>`;
- // the signing table edge
- s+=`<rect x="0" y="560" width="1600" height="140" fill="#0b0b0e"/><rect x="0" y="560" width="1600" height="6" fill="${tc}" opacity=".8"/>`;
- return s;
-}
-function bdTrophy(c,tc,R){
- const info=trophyInfo({key:'lg:'+c.league});
- let s=`<defs><radialGradient id="bdtg" cx=".7" cy=".45" r=".6"><stop offset="0" stop-color="${mix(info.c1,'#000',.35)}"/><stop offset="1" stop-color="#07080a"/></radialGradient></defs><rect width="1600" height="700" fill="url(#bdtg)"/>`;
- for(let k=0;k<14;k++){const a=-Math.PI/2+(k-6.5)*.17;s+=`<polygon points="1160,320 ${1160+Math.cos(a-.035)*1100},${320+Math.sin(a-.035)*1100} ${1160+Math.cos(a+.035)*1100},${320+Math.sin(a+.035)*1100}" fill="#fff" opacity="${k%2?.035:.06}"/>`}
- for(let i=0;i<70;i++){const x=R()*1600,y=R()*560,col=[info.c1,info.c2,'#f2d16b','#ffffff'][i%4];s+=`<rect x="${x.toFixed(0)}" y="${y.toFixed(0)}" width="${(4+R()*7).toFixed(1)}" height="${(9+R()*10).toFixed(1)}" fill="${col}" opacity="${(.25+R()*.4).toFixed(2)}" transform="rotate(${(R()*180).toFixed(0)} ${x.toFixed(0)} ${y.toFixed(0)})"/>`}
- s+=nest(trophySVG(info,300),1010,70,300,375);
- s+=`<ellipse cx="1160" cy="456" rx="210" ry="22" fill="#000" opacity=".5"/>`;
- return s;
-}
-function bdSkyline(c,tc,R){
- let s=`<defs><linearGradient id="bddusk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#07080d"/><stop offset=".7" stop-color="${mix(tc,'#141018',.7)}"/><stop offset="1" stop-color="${mix(tc,'#3a2418',.55)}"/></linearGradient>
- <pattern id="bdwin" width="16" height="20" patternUnits="userSpaceOnUse"><rect x="3" y="4" width="8" height="10" fill="#ffe7a8" opacity=".55"/></pattern>
- <pattern id="bdwin2" width="16" height="20" patternUnits="userSpaceOnUse"><rect x="3" y="4" width="8" height="10" fill="#ffe7a8" opacity=".18"/></pattern></defs><rect width="1600" height="700" fill="url(#bddusk)"/>`;
- let x=0;while(x<1600){const w=60+R()*120,h=140+R()*360,y=640-h;s+=`<rect x="${x.toFixed(0)}" y="${y.toFixed(0)}" width="${w.toFixed(0)}" height="${h.toFixed(0)}" fill="#0d0e13"/><rect x="${(x+6).toFixed(0)}" y="${(y+10).toFixed(0)}" width="${(w-12).toFixed(0)}" height="${(h-10).toFixed(0)}" fill="url(#bdwin${R()<.45?'':'2'})"/>`;if(R()<.25)s+=`<rect x="${(x+w/2-1).toFixed(0)}" y="${(y-40).toFixed(0)}" width="2" height="40" fill="#1a1b22"/><circle cx="${(x+w/2).toFixed(0)}" cy="${(y-40).toFixed(0)}" r="3" fill="#ff5050" opacity=".8"/>`;x+=w+4+R()*14}
- // looking out through the boardroom glass
- s+=`<rect x="0" y="0" width="1600" height="700" fill="none" stroke="#050507" stroke-width="28"/>`;for(const mx of [400,800,1200])s+=`<rect x="${mx-7}" y="0" width="14" height="700" fill="#050507"/>`;
- s+=`<rect x="0" y="640" width="1600" height="60" fill="#09090c"/><rect x="0" y="640" width="1600" height="3" fill="${tc}" opacity=".6"/>`;
- return s;
-}
-function bdFacade(c,tc){
- let s=`<defs><linearGradient id="bdfa" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${mix(tc,'#090a0e',.8)}"/><stop offset="1" stop-color="#0a0a0d"/></linearGradient></defs><rect width="1600" height="700" fill="url(#bdfa)"/>`;
- s+=`<rect x="0" y="150" width="1600" height="470" fill="#121318"/>`;
- for(let k=0;k<16;k++){const x=k*100+10;s+=`<path d="M${x},620 V420 Q${x+40},360 ${x+80},420 V620 Z" fill="#0a0b0f"/><path d="M${x},420 Q${x+40},360 ${x+80},420" stroke="${tc}" stroke-opacity=".5" stroke-width="3" fill="none"/>`}
- for(let k=0;k<32;k++)s+=`<rect x="${k*50+14}" y="190" width="22" height="150" fill="#181a21"/>`;
- s+=`<rect x="0" y="150" width="1600" height="18" fill="${tc}" opacity=".8"/>`;
- s+=crestSVG(c,{x:725,y:-4,w:150});
- s+=`<text x="800" y="388" text-anchor="middle" ${FONT} font-weight="800" font-size="46" letter-spacing="16" fill="#e9e6dc" opacity=".5">${esc(c.stadium.toUpperCase())}</text>`;
- return s;
-}
-function backdropSVG(scene,c){
- const tc=c.colors[0]==='#ffffff'?c.colors[1]:c.colors[0],R=bdRng(strHash(c.name+scene));
- const body={stadium:bdStadium,lockers:bdLockers,board:bdBoard,wall:bdWall,trophy:bdTrophy,skyline:bdSkyline,facade:bdFacade}[scene](c,tc,R);
- return`<svg viewBox="0 0 1600 700" preserveAspectRatio="xMidYMin slice" aria-hidden="true">${body}</svg>`;
-}
-// Called on every render; only rebuilds when the section, club or squad shape changes.
-function setBackdrop(){
- let el=document.getElementById('pgbg');
- if(!S||view==='match'){if(el)el.hidden=true;return}
- if(!el){el=document.createElement('div');el.id='pgbg';document.body.prepend(el)}
- const scene=BD_SCENE[view]||'stadium',c=clubOf(S.user),key=`${scene}|${c.id}|${scene==='lockers'?c.squad.length+'.'+c.squad[0]:''}|${scene==='board'?c.tac.form:''}`;
- el.hidden=false;if(BD.key===key)return;BD.key=key;
- el.dataset.scene=scene;el.innerHTML=backdropSVG(scene,c);
-}
 /* ================= competitions: identity + hub ================= */
 const COMP_STYLE={ENG:['#4b1f7a','#f2c14e','crown'],ESP:['#c8401f','#ffd36b','flame'],GER:['#a70f1d','#ececec','bolt'],ITA:['#1b52b0','#f0c75e','tower'],FRA:['#0d5a60','#f5f1e6','star'],NED:['#e05f1b','#16224f','crown']};
 function compStyle(lid){const lg=S.leagues[lid],[c1,c2,em]=COMP_STYLE[lg.nation];return lg.tier?{c1:mix(c1,'#000000',.38),c2,em}:{c1,c2,em}}
@@ -3371,7 +3244,7 @@ function renderNeg(){
   <label class="nr-check"><input type="checkbox" id="ni" data-change="negInst" ${n.inst?'checked':''}> Pay in two instalments (half now, half next season)</label>
   <div id="nr-sum">${feeSum(n,p)}</div></div>
   <div class="nr-col"><div id="nr-gauge">${gauge(negValue(n,p),n.est,c)}</div>${n.counter?`<div class="neg-counter"><span>${esc(clubOf(p.club).short)} would accept <b>${money(n.counter)}</b> up front with your current add-ons.</span><button class="btn" data-act="neg-accept-counter">Accept counter</button></div>`:''}${negLog(n)}</div></div>
-  <div class="nr-foot"><button class="btn" data-act="close">Walk away</button><button class="btn pri lg" data-act="neg-bid" ${n.round>n.max?'disabled':''}>Submit offer</button></div>`;
+  <div class="nr-foot">${negStatus(n)}<button class="btn" data-act="close">Walk away</button><button class="btn pri lg" data-act="neg-bid" ${n.round>n.max?'disabled':''}>Submit offer</button></div>`;
  }else if(n.stage==='call'){
   body=agentCallHTML(n,p);
  }else if(n.stage==='terms'){
@@ -3385,13 +3258,20 @@ function renderNeg(){
   <label class="nr-check"><input type="checkbox" data-change="negClause" ${n.clause?'checked':''}> Include a release clause</label>
   <div id="nr-sum">${termsSum(n,p)}</div></div>
   <div class="nr-col"><div id="nr-gauge">${termsRead(n,p)}</div>${negLog(n)}</div></div>
-  <div class="nr-foot"><button class="btn" data-act="close">Walk away</button><button class="btn pri lg" data-act="neg-terms">Offer contract</button></div>`;
+  <div class="nr-foot">${negStatus(n)}<button class="btn" data-act="close">Walk away</button><button class="btn pri lg" data-act="neg-terms">Offer contract</button></div>`;
  }else{
   body=`<div class="nr-done"><div class="eyebrow">Done deal</div><h2>${esc(p.fn)} ${esc(p.ln)} is a ${esc(uc.short)} player</h2>
   <div class="nr-sum big"><div><small>Fee</small><b>${money(n.fee)}</b></div><div><small>Add-ons</small><b>${money(n.addons)}</b></div><div><small>Wage</small><b>${money(n.wage)}/w</b></div><div><small>Contract</small><b>${n.years} years</b></div><div><small>Shirt</small><b>No. ${p.num}</b></div></div>
   <div class="nr-foot" style="justify-content:center"><button class="btn" data-act="close">Close</button><button class="btn pri lg" data-act="player" data-id="${p.id}">View player</button></div></div>`;
  }
- openModal(`<div class="nroom">${negHeader(n,p)}${body}</div>`);$('#modal .modal-box').classList.add('wide');
+ openModal(`<div class="nroom">${negHeader(n,p)}${body}</div>`);$('#modal .modal-box').classList.add('wide');const lg=$('#modal .nr-log');if(lg)lg.scrollTop=lg.scrollHeight;
+}
+// The latest message in the talks, shown next to the buttons so a click always has a visible answer.
+function negStatus(n){
+ const m=n.log[n.log.length-1];if(!m||n.log.length<2)return'<span class="nr-status"></span>';
+ const uc=clubOf(S.user),over=wageBill(S.user)+n.wage-uc.wageBudget,cost=Math.ceil(over/500)*500*WAGE_TO_FEE;
+ const fix=n.block==='wage'&&over>0&&uc.budget-cost>=n.fee*(n.inst?.5:1)+n.bonus+(n.agentFee||0)?`<button class="btn" data-act="neg-wageroom">Move ${money(cost)} into wages</button>`:'';
+ return`<span class="nr-status ${m.who==='us'?'warn':m.who}"><small>${m.who==='us'?'Director of football':m.who==='agent'?'Agent':esc(clubOf(S.players[n.pid].club).short)}</small>${esc(m.t)}</span>${fix}`;
 }
 function feeSum(n,p){const uc=clubOf(S.user),now=n.fee*(n.inst?.5:1);return`<div class="nr-sum"><div><small>Due now</small><b>${money(now)}</b></div><div><small>Budget after</small><b class="${uc.budget-now<0?'v1':''}">${money(uc.budget-now)}</b></div><div><small>Round</small><b>${Math.min(n.round,n.max)} of ${n.max}</b></div></div>`}
 function termsSum(n,p){const uc=clubOf(S.user),now=n.fee*(n.inst?.5:1)+n.bonus+(n.agentFee||0);return`<div class="nr-sum"><div><small>Wage room</small><b>${money(uc.wageBudget-wageBill(S.user))}/w</b></div><div><small>Due now</small><b class="${now>uc.budget?'v1':''}">${money(now)}</b></div><div><small>Total cost</small><b>${money(n.fee+n.bonus+(n.agentFee||0)+n.wage*52*n.years)}</b></div></div>`}
@@ -3416,10 +3296,11 @@ function negBid(){
 }
 function negTerms(){
  const n=ui.neg,p=S.players[n.pid],uc=clubOf(S.user),need=termsNeed(n,p);n.tries++;
- if(wageBill(S.user)+n.wage>uc.wageBudget){n.log.push({who:'us',t:'We cannot go that high: it breaks our wage budget.'});renderNeg();return}
+ if(wageBill(S.user)+n.wage>uc.wageBudget){n.log.push({who:'us',t:`We cannot offer ${money(n.wage)} a week: it breaks our wage budget (room ${money(Math.max(0,uc.wageBudget-wageBill(S.user)))} a week).`});n.block='wage';toast('Over the wage budget: lower the wage or raise the wage budget');renderNeg();return}
+ n.block=null;
  n.log.push({who:'us',t:`We offer ${money(n.wage)} a week for ${n.years} years as a ${ROLES_SQ.find(r=>r[0]===n.role)[1].toLowerCase()}${n.bonus?`, with a ${money(n.bonus)} signing bonus`:''}${n.clause?' and a release clause':''}.`});
  const c=sig((n.wage/need-1)*16+(n.clause?.3:0)+(n.interest||0)*3+((n.agentFee/(n.agentAsk||1))-1)*1.6);
- if(n.fee*(n.inst?.5:1)+n.bonus+(n.agentFee||0)>uc.budget){n.log.push({who:'us',t:'We cannot cover the fee, bonus and agent fee from the transfer budget.'});renderNeg();return}
+ if(n.fee*(n.inst?.5:1)+n.bonus+(n.agentFee||0)>uc.budget){n.log.push({who:'us',t:'We cannot cover the fee, bonus and agent fee from the transfer budget.'});n.block='cash';toast('Not enough transfer budget for the fee, bonus and agent fee');renderNeg();return}
  if(G.f()<c){
   const from=p.club,now=n.fee*(n.inst?.5:1);moveP(p.id,S.user,0);uc.budget-=now+n.bonus+(n.agentFee||0);clubOf(from).budget+=n.fee;if(n.inst)S.owed=(S.owed||0)+n.fee/2;
   p.wage=n.wage;p.con=n.years;S.fin.buys+=now+n.bonus;logDeal(p.id,from,S.user,n.fee);
@@ -5143,7 +5024,7 @@ async function create3D(stage,cv,E){
 }
 /* ================= app shell ================= */
 function render(){
- $('#bar').hidden=!S;setBackdrop();document.body.classList.toggle('ingame',!!S);
+ $('#bar').hidden=!S;document.body.classList.toggle('ingame',!!S);
  if(!S){$('#bar').innerHTML='';
   if(ui.mode==='new'){$('#view').innerHTML=viewStart();return}
   // Keep the menu backdrop mounted so the intro animation plays once, not on every click.
@@ -5256,6 +5137,7 @@ document.addEventListener('click',e=>{
   case'negotiate':openNegotiation(id);break;
   case'neg-bid':negBid();break;
   case'neg-terms':negTerms();break;
+  case'neg-wageroom':{const n=ui.neg,c=clubOf(S.user),over=Math.ceil((wageBill(S.user)+n.wage-c.wageBudget)/500)*500,cost=over*WAGE_TO_FEE;if(over>0&&c.budget>=cost){c.wageBudget+=over;c.budget-=cost;n.block=null;n.log.push({who:'us',t:`Done: ${money(cost)} moved from the transfer budget into wages. Now submit the offer.`});save();toast(`Wage budget raised by ${money(over)}/w`)}renderNeg();break}
   case'neg-years':ui.neg.years=+v;renderNeg();break;
   case'neg-role':ui.neg.role=v;renderNeg();break;
   case'neg-accept-counter':ui.neg.fee=ui.neg.counter;ui.neg.counter=null;negBid();break;
@@ -5329,6 +5211,6 @@ window.addEventListener('pagehide',()=>{if(S)flushSave()});
 if(window.claude&&window.claude.hot&&window.claude.hot.snapshot)window.claude.hot.snapshot(()=>({S}));
 window.claude?.hot?.ready?window.claude.hot.ready(boot):boot(window.claude?.hot?.data??{});
 // Test hook, only with #dbg in the address: jump a live match to full time and force a trophy celebration.
-if(location.hash==='#dbg')window.__dg={sample(){return S.clubs.slice(0,48).map(c=>`<div style="text-align:center;color:#999;font-size:10px">${crestSVG(c,{size:64})}<div style="width:70px;margin:auto">${kitSVG(c,'home')}</div><div style="width:50px;margin:auto">${kitSVG(c,'away')}</div>${esc(c.short)} ${crestStyle(c)}</div>`).join('')},finishWithTrophy(){if(!M||M.phase!=='live')return false;M.intro=null;runToEnd(M.E);M.pt=M.E.t;M.shown=M.E.events.length;M.repQ=null;M.forceCel=true;return true}};
+if(location.hash==='#dbg')window.__dg={run:src=>eval(src),sample(){return S.clubs.slice(0,48).map(c=>`<div style="text-align:center;color:#999;font-size:10px">${crestSVG(c,{size:64})}<div style="width:70px;margin:auto">${kitSVG(c,'home')}</div><div style="width:50px;margin:auto">${kitSVG(c,'away')}</div>${esc(c.short)} ${crestStyle(c)}</div>`).join('')},finishWithTrophy(){if(!M||M.phase!=='live')return false;M.intro=null;runToEnd(M.E);M.pt=M.E.t;M.shown=M.E.events.length;M.repQ=null;M.forceCel=true;return true}};
 })();
 </script>

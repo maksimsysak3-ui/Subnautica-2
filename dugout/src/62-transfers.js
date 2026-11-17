@@ -105,7 +105,7 @@ function renderNeg(){
   <label class="nr-check"><input type="checkbox" id="ni" data-change="negInst" ${n.inst?'checked':''}> Pay in two instalments (half now, half next season)</label>
   <div id="nr-sum">${feeSum(n,p)}</div></div>
   <div class="nr-col"><div id="nr-gauge">${gauge(negValue(n,p),n.est,c)}</div>${n.counter?`<div class="neg-counter"><span>${esc(clubOf(p.club).short)} would accept <b>${money(n.counter)}</b> up front with your current add-ons.</span><button class="btn" data-act="neg-accept-counter">Accept counter</button></div>`:''}${negLog(n)}</div></div>
-  <div class="nr-foot"><button class="btn" data-act="close">Walk away</button><button class="btn pri lg" data-act="neg-bid" ${n.round>n.max?'disabled':''}>Submit offer</button></div>`;
+  <div class="nr-foot">${negStatus(n)}<button class="btn" data-act="close">Walk away</button><button class="btn pri lg" data-act="neg-bid" ${n.round>n.max?'disabled':''}>Submit offer</button></div>`;
  }else if(n.stage==='call'){
   body=agentCallHTML(n,p);
  }else if(n.stage==='terms'){
@@ -119,13 +119,20 @@ function renderNeg(){
   <label class="nr-check"><input type="checkbox" data-change="negClause" ${n.clause?'checked':''}> Include a release clause</label>
   <div id="nr-sum">${termsSum(n,p)}</div></div>
   <div class="nr-col"><div id="nr-gauge">${termsRead(n,p)}</div>${negLog(n)}</div></div>
-  <div class="nr-foot"><button class="btn" data-act="close">Walk away</button><button class="btn pri lg" data-act="neg-terms">Offer contract</button></div>`;
+  <div class="nr-foot">${negStatus(n)}<button class="btn" data-act="close">Walk away</button><button class="btn pri lg" data-act="neg-terms">Offer contract</button></div>`;
  }else{
   body=`<div class="nr-done"><div class="eyebrow">Done deal</div><h2>${esc(p.fn)} ${esc(p.ln)} is a ${esc(uc.short)} player</h2>
   <div class="nr-sum big"><div><small>Fee</small><b>${money(n.fee)}</b></div><div><small>Add-ons</small><b>${money(n.addons)}</b></div><div><small>Wage</small><b>${money(n.wage)}/w</b></div><div><small>Contract</small><b>${n.years} years</b></div><div><small>Shirt</small><b>No. ${p.num}</b></div></div>
   <div class="nr-foot" style="justify-content:center"><button class="btn" data-act="close">Close</button><button class="btn pri lg" data-act="player" data-id="${p.id}">View player</button></div></div>`;
  }
- openModal(`<div class="nroom">${negHeader(n,p)}${body}</div>`);$('#modal .modal-box').classList.add('wide');
+ openModal(`<div class="nroom">${negHeader(n,p)}${body}</div>`);$('#modal .modal-box').classList.add('wide');const lg=$('#modal .nr-log');if(lg)lg.scrollTop=lg.scrollHeight;
+}
+// The latest message in the talks, shown next to the buttons so a click always has a visible answer.
+function negStatus(n){
+ const m=n.log[n.log.length-1];if(!m||n.log.length<2)return'<span class="nr-status"></span>';
+ const uc=clubOf(S.user),over=wageBill(S.user)+n.wage-uc.wageBudget,cost=Math.ceil(over/500)*500*WAGE_TO_FEE;
+ const fix=n.block==='wage'&&over>0&&uc.budget-cost>=n.fee*(n.inst?.5:1)+n.bonus+(n.agentFee||0)?`<button class="btn" data-act="neg-wageroom">Move ${money(cost)} into wages</button>`:'';
+ return`<span class="nr-status ${m.who==='us'?'warn':m.who}"><small>${m.who==='us'?'Director of football':m.who==='agent'?'Agent':esc(clubOf(S.players[n.pid].club).short)}</small>${esc(m.t)}</span>${fix}`;
 }
 function feeSum(n,p){const uc=clubOf(S.user),now=n.fee*(n.inst?.5:1);return`<div class="nr-sum"><div><small>Due now</small><b>${money(now)}</b></div><div><small>Budget after</small><b class="${uc.budget-now<0?'v1':''}">${money(uc.budget-now)}</b></div><div><small>Round</small><b>${Math.min(n.round,n.max)} of ${n.max}</b></div></div>`}
 function termsSum(n,p){const uc=clubOf(S.user),now=n.fee*(n.inst?.5:1)+n.bonus+(n.agentFee||0);return`<div class="nr-sum"><div><small>Wage room</small><b>${money(uc.wageBudget-wageBill(S.user))}/w</b></div><div><small>Due now</small><b class="${now>uc.budget?'v1':''}">${money(now)}</b></div><div><small>Total cost</small><b>${money(n.fee+n.bonus+(n.agentFee||0)+n.wage*52*n.years)}</b></div></div>`}
@@ -150,10 +157,11 @@ function negBid(){
 }
 function negTerms(){
  const n=ui.neg,p=S.players[n.pid],uc=clubOf(S.user),need=termsNeed(n,p);n.tries++;
- if(wageBill(S.user)+n.wage>uc.wageBudget){n.log.push({who:'us',t:'We cannot go that high: it breaks our wage budget.'});renderNeg();return}
+ if(wageBill(S.user)+n.wage>uc.wageBudget){n.log.push({who:'us',t:`We cannot offer ${money(n.wage)} a week: it breaks our wage budget (room ${money(Math.max(0,uc.wageBudget-wageBill(S.user)))} a week).`});n.block='wage';toast('Over the wage budget: lower the wage or raise the wage budget');renderNeg();return}
+ n.block=null;
  n.log.push({who:'us',t:`We offer ${money(n.wage)} a week for ${n.years} years as a ${ROLES_SQ.find(r=>r[0]===n.role)[1].toLowerCase()}${n.bonus?`, with a ${money(n.bonus)} signing bonus`:''}${n.clause?' and a release clause':''}.`});
  const c=sig((n.wage/need-1)*16+(n.clause?.3:0)+(n.interest||0)*3+((n.agentFee/(n.agentAsk||1))-1)*1.6);
- if(n.fee*(n.inst?.5:1)+n.bonus+(n.agentFee||0)>uc.budget){n.log.push({who:'us',t:'We cannot cover the fee, bonus and agent fee from the transfer budget.'});renderNeg();return}
+ if(n.fee*(n.inst?.5:1)+n.bonus+(n.agentFee||0)>uc.budget){n.log.push({who:'us',t:'We cannot cover the fee, bonus and agent fee from the transfer budget.'});n.block='cash';toast('Not enough transfer budget for the fee, bonus and agent fee');renderNeg();return}
  if(G.f()<c){
   const from=p.club,now=n.fee*(n.inst?.5:1);moveP(p.id,S.user,0);uc.budget-=now+n.bonus+(n.agentFee||0);clubOf(from).budget+=n.fee;if(n.inst)S.owed=(S.owed||0)+n.fee/2;
   p.wage=n.wage;p.con=n.years;S.fin.buys+=now+n.bonus;logDeal(p.id,from,S.user,n.fee);

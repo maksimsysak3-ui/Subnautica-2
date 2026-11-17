@@ -1,6 +1,6 @@
 /* ================= app shell ================= */
 function render(){
- $('#bar').hidden=!S;setBackdrop();document.body.classList.toggle('ingame',!!S);
+ $('#bar').hidden=!S;document.body.classList.toggle('ingame',!!S);
  if(!S){$('#bar').innerHTML='';
   if(ui.mode==='new'){$('#view').innerHTML=viewStart();return}
   // Keep the menu backdrop mounted so the intro animation plays once, not on every click.
@@ -113,6 +113,7 @@ document.addEventListener('click',e=>{
   case'negotiate':openNegotiation(id);break;
   case'neg-bid':negBid();break;
   case'neg-terms':negTerms();break;
+  case'neg-wageroom':{const n=ui.neg,c=clubOf(S.user),over=Math.ceil((wageBill(S.user)+n.wage-c.wageBudget)/500)*500,cost=over*WAGE_TO_FEE;if(over>0&&c.budget>=cost){c.wageBudget+=over;c.budget-=cost;n.block=null;n.log.push({who:'us',t:`Done: ${money(cost)} moved from the transfer budget into wages. Now submit the offer.`});save();toast(`Wage budget raised by ${money(over)}/w`)}renderNeg();break}
   case'neg-years':ui.neg.years=+v;renderNeg();break;
   case'neg-role':ui.neg.role=v;renderNeg();break;
   case'neg-accept-counter':ui.neg.fee=ui.neg.counter;ui.neg.counter=null;negBid();break;
@@ -186,4 +187,4 @@ window.addEventListener('pagehide',()=>{if(S)flushSave()});
 if(window.claude&&window.claude.hot&&window.claude.hot.snapshot)window.claude.hot.snapshot(()=>({S}));
 window.claude?.hot?.ready?window.claude.hot.ready(boot):boot(window.claude?.hot?.data??{});
 // Test hook, only with #dbg in the address: jump a live match to full time and force a trophy celebration.
-if(location.hash==='#dbg')window.__dg={sample(){return S.clubs.slice(0,48).map(c=>`<div style="text-align:center;color:#999;font-size:10px">${crestSVG(c,{size:64})}<div style="width:70px;margin:auto">${kitSVG(c,'home')}</div><div style="width:50px;margin:auto">${kitSVG(c,'away')}</div>${esc(c.short)} ${crestStyle(c)}</div>`).join('')},finishWithTrophy(){if(!M||M.phase!=='live')return false;M.intro=null;runToEnd(M.E);M.pt=M.E.t;M.shown=M.E.events.length;M.repQ=null;M.forceCel=true;return true}};
+if(location.hash==='#dbg')window.__dg={run:src=>eval(src),sample(){return S.clubs.slice(0,48).map(c=>`<div style="text-align:center;color:#999;font-size:10px">${crestSVG(c,{size:64})}<div style="width:70px;margin:auto">${kitSVG(c,'home')}</div><div style="width:50px;margin:auto">${kitSVG(c,'away')}</div>${esc(c.short)} ${crestStyle(c)}</div>`).join('')},finishWithTrophy(){if(!M||M.phase!=='live')return false;M.intro=null;runToEnd(M.E);M.pt=M.E.t;M.shown=M.E.events.length;M.repQ=null;M.forceCel=true;return true}};
