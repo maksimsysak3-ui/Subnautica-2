@@ -50,3 +50,20 @@ gets purged or flooded. Some witnesses only talk once the person they fear is go
 man if you hand her a convincing enough wrong case, and the science will catch your mistake years later.
 
 All persons and cases are fictional. The techniques, and the years they arrived, are real.
+
+---
+
+# Dugout Manager
+
+**Play:** https://raw.githack.com/maksimsysak3-ui/Subnautica-2/claude/nfl-gm-sim/dugout-manager.html
+
+An original football management sim in one file (`dugout-manager.html`, no build step). Pick one of twelve
+fictional clubs in the Crown Division and run it for as many seasons as you like.
+
+- **Clubs.** Every crest and kit is drawn in SVG from a small spec (shield shape, division, emblem, kit pattern, collar, sponsor). Home, away and third kits, with a back view showing name and number.
+- **Players.** Procedural faces (skin, hair, beard, eyes, brows) wearing their club's shirt, on holographic tilt cards in six tiers: bronze, silver, gold, elite, legend and wonderkid.
+- **Management.** Squad, formations with drag-free swapping and positional fit, mentality and pressing, transfers with AI clubs that accept, counter or break off talks, incoming offers, and a scouting network with an animated prospect reveal.
+- **Live 3D matches.** Three.js stadium with floodlights, crowd, LED boards and nets; players wear their real kits and look like their cards. Shots, saves and goals from the match engine play out on the pitch before the score changes. TV and tactical cameras, 1×/2×/4× speed, live mentality changes, commentary and stats.
+- **Seasons.** 22 matchdays, league table, top scorers, player ratings, development and ageing, prize money.
+
+Saves to the browser's local storage.
