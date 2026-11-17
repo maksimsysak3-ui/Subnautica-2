@@ -2,8 +2,8 @@
 function render(){
  if(!S){$('#bar').innerHTML='';$('#view').innerHTML=viewStart();return}
  renderBar();
- const fn={home:viewHome,squad:viewSquad,player:viewPlayer,tactics:viewTactics,transfers:viewTransfers,comps:viewComps,club:viewClub,match:viewMatch}[view]||viewHome;
- const html=fn(),side=['home','squad','comps','club','transfers'].includes(view)&&!(view==='home'&&sub==='news');
+ const fn={home:viewHome,squad:viewSquad,player:viewPlayer,tactics:viewTactics,transfers:viewTransfers,comps:viewComps,office:viewOffice,club:viewClub,match:viewMatch}[view]||viewHome;
+ const html=fn(),side=['home','squad','club'].includes(view)&&!(view==='home'&&sub==='news');
  $('#view').innerHTML=side?`<div class="layout"><div style="min-width:0">${html}</div>${newsSidebar()}</div>`:html;
  if(view==='transfers'&&sub==='search')renderSearch();
  if(view==='match')mountMatch();
@@ -36,14 +36,20 @@ document.addEventListener('click',e=>{
   case'player':closeModal();openPlayer(id);break;
   case'msg':openMsg(id);break;
   case'offer-yes':case'offer-no':{const m=S.inbox.find(x=>x.id===id),o=m&&m.action;if(!o||o.done)break;const p=S.players[o.pid];
-   if(a==='offer-yes'){const why=canSell(p);if(p.club!==S.user){toast('He is no longer at the club.');break}if(why){toast(why);break}moveP(p.id,o.club,o.fee);o.done='yes';news(`${p.fn} ${p.ln} joins ${clubOf(o.club).name} from ${clubOf(S.user).name} for ${money(o.fee)}.`,'transfer',[o.club,S.user]);toast(`${p.ln} sold for ${money(o.fee)}`)}else{o.done='no';toast('Offer rejected')}
+   if(a==='offer-yes'){const why=canSell(p);if(p.club!==S.user){toast('He is no longer at the club.');break}if(why){toast(why);break}moveP(p.id,o.club,o.fee);S.fin.sales+=o.fee;logDeal(p.id,S.user,o.club,o.fee);o.done='yes';news(`${p.fn} ${p.ln} joins ${clubOf(o.club).name} from ${clubOf(S.user).name} for ${money(o.fee)}.`,'transfer',[o.club,S.user]);toast(`${p.ln} sold for ${money(o.fee)}`)}else{o.done='no';toast('Offer rejected')}
    save();closeModal();render();break}
   case'sort':{const k=t.dataset.k,cur=ui.sort[k];ui.sort[k]=[v,cur[0]===v?-cur[1]:-1];if(view==='transfers'&&sub==='search')renderSearch();else render();break}
   case'group':ui.group=v;render();break;
-  case'bid':bidUI(id);break;
-  case'bid-send':sendBid(id);break;
+  case'negotiate':openNegotiation(id);break;
+  case'neg-bid':negBid();break;
+  case'neg-terms':negTerms();break;
+  case'neg-years':ui.neg.years=+v;renderNeg();break;
+  case'neg-accept-counter':ui.neg.fee=ui.neg.counter;ui.neg.counter=null;negBid();break;
+  case'pickComp':ui.lg=+v;ui.lgMd=null;render();break;
+  case'board-req':{const c=clubOf(S.user);S.boardReq=S.season;if(S.board>=62){const g=Math.round(c.budget*.2/1e5)*1e5+5e6;c.budget+=g;toast(`The board has added ${money(g)} to your transfer budget`)}else{S.board=Math.max(5,S.board-3);toast('The board turned down your request')}save();render();break}
+  case'split-apply':{const c=clubOf(S.user),w=+$('#sp-r').value,total=c.budget+c.wageBudget*WAGE_TO_FEE;c.wageBudget=w;c.budget=Math.max(0,Math.round((total-w*WAGE_TO_FEE)/1e5)*1e5);save();render();toast('Budgets updated');break}
   case'sell':sellUI(id);break;
-  case'sell-yes':{const s=ui.sell;if(!s)break;const p=S.players[s.pid];moveP(s.pid,s.buyer,s.fee);news(`${p.fn} ${p.ln} joins ${clubOf(s.buyer).name} from ${clubOf(S.user).name} for ${money(s.fee)}.`,'transfer',[s.buyer,S.user]);save();toast(`${p.ln} sold for ${money(s.fee)}`);ui.sell=null;go('squad');break}
+  case'sell-yes':{const s=ui.sell;if(!s)break;const p=S.players[s.pid];moveP(s.pid,s.buyer,s.fee);S.fin.sales+=s.fee;logDeal(s.pid,S.user,s.buyer,s.fee);news(`${p.fn} ${p.ln} joins ${clubOf(s.buyer).name} from ${clubOf(S.user).name} for ${money(s.fee)}.`,'transfer',[s.buyer,S.user]);save();toast(`${p.ln} sold for ${money(s.fee)}`);ui.sell=null;go('squad');break}
   case'shortlist':{const i=S.shortlist.indexOf(id);if(i>=0)S.shortlist.splice(i,1);else S.shortlist.push(id);save();render();break}
   case'slot':ui.tSel=+t.dataset.i;render();break;
   case'assign':assignToSlot(id);break;
@@ -73,9 +79,15 @@ document.addEventListener('change',e=>{
  else if(k==='form'){tac.form=v;tac.roles=defaultRoles(v);tac.xi=pickXI(S.user,v);tac.bench=pickBench(S.user,tac.xi);ui.tSel=9;save();render()}
  else if(k==='formIn'){tac.formIn=v;save();render()}
  else if(k==='formInLive'){tac.formIn=v;if(M&&M.E)setShape(M.E.T[M.us]);save()}
- else if(['trPos','trLeague','trMax','trAge','trMin'].includes(k)){ui[k]=k==='trPos'||k==='trLeague'?v:+v;renderSearch()}
+ else if(['trPos','trLeague','trMax','trAge','trMin','trNat'].includes(k)){ui[k]=['trPos','trLeague','trNat'].includes(k)?v:+v;renderSearch()}
+ else if(k==='trExp'){ui.trExp=e.target.checked;renderSearch()}
+ else if(k==='dealLeague'){ui.dealLeague=v;render()}
 });
-document.addEventListener('input',e=>{const k=e.target.dataset.input;if(k==='bid')$('#bid-out').textContent=money(+e.target.value);else if(k==='trq'){ui.trQ=e.target.value;renderSearch()}});
+document.addEventListener('input',e=>{const k=e.target.dataset.input,v=+e.target.value;
+ if(k==='negfee'){ui.neg.fee=v;$('#neg-fee-out').textContent=money(v)}
+ else if(k==='negwage'){ui.neg.wage=v;$('#neg-wage-out').textContent=money(v)}
+ else if(k==='split'){const c=clubOf(S.user),total=c.budget+c.wageBudget*WAGE_TO_FEE;$('#sp-w').textContent=money(v)+'/w';$('#sp-t').textContent=money(Math.max(0,total-v*WAGE_TO_FEE))}
+ else if(k==='trq'){ui.trQ=e.target.value;renderSearch()}});
 document.addEventListener('keydown',e=>{
  if(e.key==='Escape'&&!$('#modal').hidden)closeModal();
  if(e.key===' '&&view==='match'&&M&&M.phase==='live'&&!/INPUT|SELECT|BUTTON/.test(e.target.tagName)){e.preventDefault();M.paused=!M.paused;const b=$('#m-pause');if(b)b.textContent=M.paused?'Resume':'Pause'}

@@ -39,7 +39,7 @@ const NAMES={
  jp:{f:['Haruto','Ren','Takumi','Kaito','Daichi','Sota','Yuki','Riku'],l:['Tanaka','Sato','Watanabe','Nakamura','Ito','Kobayashi','Morita','Endo']},
  pl:{f:['Jakub','Kacper','Mateusz','Bartosz','Szymon','Piotr'],l:['Nowak','Kowalski','Wiśniewski','Zieliński','Wójcik','Kamiński']},
 };
-const KEY='dugout-career-v2',PER=14,MDAYS=26;
+const KEY='dugout-career-v3',PER=20,MDAYS=(PER-1)*2,DROP=3,WIN1=4,WIN2=[19,22];
 const COUNTRIES=[
  {code:'ENG',lang:'en',f:1.0,leagues:['Crown League','Crown League Two']},
  {code:'ESP',lang:'es',f:.98,leagues:['Liga Solar','Liga Solar Dos']},
@@ -49,7 +49,7 @@ const COUNTRIES=[
  {code:'NED',lang:'nl',f:.84,leagues:['Kroonklasse','Kroonklasse Twee']},
 ];
 const TOWN={
- en:[['Ash','Brack','Cal','Dun','Elm','Fen','Gal','Hol','Kings','Lang','Mar','North','Oak','Red','Salt','Thorn','West','Whit','Wynd','Har','Brom','Ched','Stan','Mill','Cold','Black','Stone','Ever','Bright','Fair'],['ford','field','mere','gate','bridge','wick','ton','by','ley','bury','minster','haven','stow','combe','port','well','dale','moor']],
+ en:[['Ash','Brack','Cal','Dun','Elm','Fen','Gal','Hol','Kings','Lang','Mar','North','Oak','Red','Salt','Thorn','West','Whit','Wynd','Har','Brom','Ched','Stan','Mill','Cold','Black','Stone','Ever','Bright','Fair','Sel','Ross','Hay','Wick','Ald','Bur','Pen','Tad','Wal','Cres'],['ford','field','mere','gate','bridge','wick','ton','by','ley','bury','minster','haven','stow','combe','port','well','dale','moor']],
  es:[['Villa','Monte','Río','Valle','Puerto','Costa','Sierra','Alto','Campo','Torre','Vega','Peña','Mira','Fuente','Cala'],['real','verde','blanca','nueva','alegre','mar','sol','dorada','luna','clara','flores','rosa','fría','alta']],
  de:[['Ober','Unter','Neu','Alt','Gross','Klein','Rot','Blau','Grün','Wald','Berg','Stein','Linden','Eich','Hohen','Tann'],['heim','berg','bach','dorf','hausen','feld','stadt','burg','tal','furt','au','brück','hagen']],
  it:[['Castel','Monte','Porto','Villa','Borgo','Rocca','Ponte','Fiume','Lago','Torre','Colle','Pietra','Valle'],['franco','nuovo','vecchio','bello','alto','verde','rosso','marino','chiaro','lungo','fiore','sole']],
@@ -118,7 +118,7 @@ const NUMS={GK:[1,13,31],CB:[5,4,6,15,24,26],LB:[3,12,33],RB:[2,22,25],DM:[16,8,
 function assignNum(club,pos){const used=new Set(S.clubs[club].squad.map(id=>S.players[id].num));for(const n of NUMS[pos])if(!used.has(n))return n;for(let n=2;n<99;n++)if(!used.has(n))return n;return 99}
 const TEMPLATE=['GK','GK','GK','CB','CB','CB','CB','LB','LB','RB','RB','DM','DM','CM','CM','CM','AM','AM','LW','LW','RW','RW','ST','ST','ST'];
 const repToOvr=rep=>18+rep*.7;
-const budgetOf=rep=>Math.round(1.5e6*Math.exp((rep-50)*.085)/1e5)*1e5;
+const budgetOf=rep=>Math.round(2.6e6*Math.exp((rep-50)*.088)/1e5)*1e5;
 
 /* club identity */
 function makeClubIdentity(rng,lang,used){

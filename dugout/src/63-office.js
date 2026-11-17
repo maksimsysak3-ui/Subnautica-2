@@ -1,0 +1,30 @@
+/* ================= office: budgets, finances, board ================= */
+const WAGE_TO_FEE=38; // £1 a week in wages trades for £38 of transfer budget (about one season)
+const boardWord=v=>v>=80?['Delighted','v6']:v>=62?['Satisfied','v5']:v>=45?['Patient','v4']:v>=28?['Concerned','v2']:['Losing patience','v1'];
+function viewOffice(){
+ const c=clubOf(S.user),wb=wageBill(S.user),f=S.fin,tb=table(c.league),pos=S.results[c.league].length?posIn(tb,S.user):null,tp=targetPos(S.user),[bw,bc]=boardWord(S.board);
+ const top=`<div class="kpi-row"><div class="kt"><small>Bank balance</small><b>${money(c.balance)}</b></div><div class="kt"><small>Transfer budget</small><b>${money(c.budget)}</b></div><div class="kt"><small>Wage budget</small><b>${money(c.wageBudget)}<em>/w</em></b></div><div class="kt"><small>Wage bill</small><b>${money(wb)}<em>/w</em></b></div><div class="kt"><small>Board</small><b class="${bc}">${bw}</b></div><div class="kt"><small>Objective</small><b>${expectation(S.user)}</b></div></div>`;
+ if(sub==='finances'){
+  const inc=[['Gate receipts',f.gate],['Broadcasting',f.tv],['Sponsorship',f.sponsor],['Prize money',f.prize],['Player sales',f.sales]],out=[['Wages',f.wages],['Transfer fees',f.buys]];
+  const ti=inc.reduce((a,x)=>a+x[1],0),to=out.reduce((a,x)=>a+x[1],0),mx=Math.max(ti,to,1);
+  const row=([l,v],col)=>`<div class="frow"><span>${l}</span><i><b style="width:${v/mx*100}%;background:${col}"></b></i><em>${money(v)}</em></div>`;
+  return top+`<div class="grid"><section class="panel c6"><div class="ph"><h3>Income this season</h3><b class="av v5">${money(ti)}</b></div><div class="pb">${inc.map(x=>row(x,'#5fbf8a')).join('')}</div></section>
+  <section class="panel c6"><div class="ph"><h3>Expenditure this season</h3><b class="av v2">${money(to)}</b></div><div class="pb">${out.map(x=>row(x,'#d9775f')).join('')}<div class="frow total"><span>Net</span><i></i><em class="${ti-to>=0?'v5':'v2'}">${ti-to>=0?'+':''}${money(ti-to)}</em></div></div></section>
+  <section class="panel c12"><div class="ph"><h3>Wage bill by player</h3></div><div class="tw"><table class="tbl"><thead><tr><th>Player</th><th>Pos</th><th class="r">Age</th><th>Ability</th><th class="r">Wage p/w</th><th class="r">Share</th><th class="r">Contract</th><th class="r">Value</th></tr></thead><tbody>${squadOf(S.user).sort((a,b)=>b.wage-a.wage).map(p=>`<tr class="click" data-act="player" data-id="${p.id}"><td><b>${pName(p)}</b></td><td>${posChip(p.pos)}</td><td class="r">${p.age}</td><td>${starHTML(stars(p.ovr))}</td><td class="r">${money(p.wage)}</td><td class="r">${(p.wage/wb*100).toFixed(1)}%</td><td class="r">${p.con} yr</td><td class="r">${money(p.val)}</td></tr>`).join('')}</tbody></table></div></section></div>`;
+ }
+ if(sub==='board'){
+  const req=S.boardReq===S.season;
+  return top+`<div class="grid"><section class="panel c6"><div class="ph"><h3>Board confidence</h3></div><div class="pb"><div class="kpi ${bc}">${bw}</div><div class="meter big"><i style="width:${S.board}%"></i></div><p class="muted" style="font-size:13px">${S.board>=62?'The board is happy with the direction of the club.':S.board>=45?'The board expects results to improve.':'Your job is at risk if results do not improve soon.'}</p>
+  <dl class="facts"><div><dt>Objective</dt><dd>${expectation(S.user)}</dd></div><div><dt>Target finish</dt><dd>${ordinal(tp)} or better</dd></div><div><dt>Current position</dt><dd>${pos?ordinal(pos):'–'}</dd></div><div><dt>Form</dt><dd>${pos?formHTML(tb.find(r=>r.id===S.user).form):'–'}</dd></div></dl></div></section>
+  <section class="panel c6"><div class="ph"><h3>Requests</h3></div><div class="pb"><p style="margin-top:0">Ask the board for extra transfer funds. They will only agree if they are satisfied with your work, and only once a season.</p><button class="btn pri" data-act="board-req" ${req?'disabled':''}>${req?'Already requested this season':'Request more transfer funds'}</button></div></section></div>`;
+ }
+ const total=c.budget+c.wageBudget*WAGE_TO_FEE,minW=Math.round(wb/1000)*1000,maxW=Math.round(Math.min(total/WAGE_TO_FEE,wb*1.8)/1000)*1000;
+ return top+`<div class="grid"><section class="panel c7"><div class="ph"><h3>Budget split</h3><small>Move money between transfers and wages</small></div><div class="pb">
+ <div class="split"><div><small>Transfer budget</small><b id="sp-t">${money(c.budget)}</b></div><div style="text-align:right"><small>Wage budget</small><b id="sp-w">${money(c.wageBudget)}/w</b></div></div>
+ <input type="range" id="sp-r" min="${minW}" max="${Math.max(maxW,minW+1000)}" step="1000" value="${c.wageBudget}" data-input="split" aria-label="Wage budget">
+ <p class="muted" style="font-size:13px">Every £1,000 a week of wages is worth £${WAGE_TO_FEE},000 of transfer budget. You cannot set the wage budget below your current wage bill.</p>
+ <div class="toolbar" style="margin:0"><button class="btn pri" data-act="split-apply">Apply split</button></div></div></section>
+ <section class="panel c5"><div class="ph"><h3>Spending power</h3></div><div class="pb"><div class="frow"><span>Wage room</span><i><b style="width:${clamp((c.wageBudget-wb)/c.wageBudget*100,0,100)}%"></b></i><em>${money(c.wageBudget-wb)}/w</em></div>
+ <div class="frow"><span>Budget vs league</span><i><b style="width:${clamp(c.budget/Math.max(...S.leagues[c.league].clubs.map(id=>clubOf(id).budget))*100,2,100)}%"></b></i><em>${ordinal(S.leagues[c.league].clubs.map(clubOf).sort((a,b)=>b.budget-a.budget).findIndex(x=>x.id===S.user)+1)}</em></div>
+ <div class="frow"><span>Squad value</span><i><b style="width:${clamp(squadOf(S.user).reduce((a,p)=>a+p.val,0)/Math.max(...S.leagues[c.league].clubs.map(id=>squadOf(id).reduce((a,p)=>a+p.val,0)))*100,2,100)}%"></b></i><em>${money(squadOf(S.user).reduce((a,p)=>a+p.val,0))}</em></div></div></section></div>`;
+}
