@@ -261,6 +261,7 @@ function endSeason(){
   }
  }
  {const uc=clubOf(S.user),prize=Math.round(budgetOf(uc.rep)*(1-(uPos-1)/PER)*.6);uc.balance+=prize;uc.budget+=Math.round(prize*.5);S.fin=newFin();S.fin.prize=prize}
+ if(S.owed){clubOf(S.user).budget-=Math.round(S.owed);S.fin.buys+=Math.round(S.owed);S.owed=0}
  S.season++;S.md=0;S.bidLog={};S.bids=[];
  for(const lg of S.leagues){S.fixtures[lg.id]=roundRobin(shuffled(lg.clubs));S.results[lg.id]=[]}
  S.clubs.forEach(c=>{c.tac.xi=c.tac.xi||[];if(c.id!==S.user)c.tac.xi=[]});ensureLineup(S.user);

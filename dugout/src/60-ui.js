@@ -27,7 +27,7 @@ const formHTML=f=>`<span class="form">${f.slice(-5).map(x=>`<i class="${x}">${x}
 const avg=p=>p.s.ap?(p.s.rs/p.s.ap):null;
 function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('on'),2800)}
 function openModal(html){$('#modal-body').innerHTML=html;$('#modal').hidden=false;$('#modal').scrollTop=0}
-function closeModal(){$('#modal').hidden=true;$('#modal-body').innerHTML=''}
+function closeModal(){$('#modal').hidden=true;$('#modal-body').innerHTML='';$('#modal .modal-box').classList.remove('wide')}
 function go(v,sb,extra){if(typeof leaveMatch==='function'&&view==='match'&&v!=='match')leaveMatch();view=v;sub=sb||(NAV.find(n=>n[0]===v)||[0,0,[['','']]])[2][0][0];Object.assign(ui,extra||{});render();window.scrollTo(0,0)}
 function openPlayer(pid){ui.back=[view,sub];go('player','',{pid})}
 
@@ -159,7 +159,7 @@ function viewTactics(){
  const arrows=slots.map((s,i)=>{if(i===0)return'';const rf=ROLE_FX[t.roles[i]]||{},b=inSl[map[i]];let lat=b[1],dep=b[2]+(rf.inD||0)*.9;if(rf.inward)lat+=lat<50?rf.inward*1.3:-rf.inward*1.3;if(rf.wide)lat+=lat<45?-rf.wide:lat>55?rf.wide:0;
   const[x1,y1]=xy(s[1],s[2]),[x2,y2]=xy(clamp(lat,4,96),clamp(dep,4,96));if(Math.hypot(x2-x1,y2-y1)<3)return'';return`<line x1="${x1*.68}" y1="${y1}" x2="${x2*.68}" y2="${y2}" stroke="#ffb43a" stroke-width=".55" stroke-dasharray="1.4 1" marker-end="url(#ah)" opacity=".85"/>`}).join('');
  const players=slots.map(([pos,lat,dep],i)=>{const p=S.players[t.xi[i]],[x,y]=xy(lat,dep),f=p?famil(p,pos):0,r=p?rateAt(p,pos):0;
-  return`<button class="slot ${sel===i?'sel':''} ${f>=.97?'fit-good':f>=.86?'fit-ok':'fit-bad'}" style="left:${x}%;top:${y}%" data-act="slot" data-i="${i}"><span class="kitm">${p?kitSVG(c,pos==='GK'?'third':'home',{back:true,name:p.ln,num:p.num}):''}</span><span class="sr">${p?at20(r):'–'}</span><span class="nm">${p?esc(p.ln):'Empty'}</span><span class="rl">${pos} · ${esc(roleName(pos,t.roles[i]))}</span></button>`}).join('');
+  return`<button class="slot ${sel===i?'sel':''} ${f>=.97?'fit-good':f>=.86?'fit-ok':'fit-bad'}" style="left:${x}%;top:${y}%" data-act="slot" data-i="${i}"><span class="kitm">${p?kitSVG(c,pos==='GK'?'third':'home',{back:true,name:p.ln,num:p.num}):''}</span><span class="nm">${p?esc(p.ln):'Empty'}${p?`<b>${at20(r)}</b>`:''}</span><span class="rl">${pos} · ${esc(roleName(pos,t.roles[i]))}</span></button>`}).join('');
  const sp=slots[sel],sPos=sp[0],cur=S.players[t.xi[sel]],roles=ROLES[sPos],roleDesc=(roles.find(r=>r[0]===t.roles[sel])||roles[0])[2];
  const inXI=new Set(t.xi),cands=squadOf(S.user).filter(p=>!p.inj&&!p.ban).sort((a,b)=>rateAt(b,sPos)-rateAt(a,sPos));
  const opt=(k,label,opts,val,group)=>`<div class="row"><small>${label}</small><div class="seg" role="group" aria-label="${label}">${opts.map((o,i)=>`<button data-act="ins" data-k="${k}" data-v="${i}" aria-pressed="${val===i}">${o}</button>`).join('')}</div></div>`;

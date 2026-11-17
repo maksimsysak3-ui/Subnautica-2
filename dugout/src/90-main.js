@@ -44,6 +44,7 @@ document.addEventListener('click',e=>{
   case'neg-bid':negBid();break;
   case'neg-terms':negTerms();break;
   case'neg-years':ui.neg.years=+v;renderNeg();break;
+  case'neg-role':ui.neg.role=v;renderNeg();break;
   case'neg-accept-counter':ui.neg.fee=ui.neg.counter;ui.neg.counter=null;negBid();break;
   case'pickComp':ui.lg=+v;ui.lgMd=null;render();break;
   case'board-req':{const c=clubOf(S.user);S.boardReq=S.season;if(S.board>=62){const g=Math.round(c.budget*.2/1e5)*1e5+5e6;c.budget+=g;toast(`The board has added ${money(g)} to your transfer budget`)}else{S.board=Math.max(5,S.board-3);toast('The board turned down your request')}save();render();break}
@@ -81,11 +82,12 @@ document.addEventListener('change',e=>{
  else if(k==='formInLive'){tac.formIn=v;if(M&&M.E)setShape(M.E.T[M.us]);save()}
  else if(['trPos','trLeague','trMax','trAge','trMin','trNat'].includes(k)){ui[k]=['trPos','trLeague','trNat'].includes(k)?v:+v;renderSearch()}
  else if(k==='trExp'){ui.trExp=e.target.checked;renderSearch()}
+ else if(k==='negInst'){ui.neg.inst=e.target.checked;renderNeg()}
+ else if(k==='negClause'){ui.neg.clause=e.target.checked;renderNeg()}
  else if(k==='dealLeague'){ui.dealLeague=v;render()}
 });
 document.addEventListener('input',e=>{const k=e.target.dataset.input,v=+e.target.value;
- if(k==='negfee'){ui.neg.fee=v;$('#neg-fee-out').textContent=money(v)}
- else if(k==='negwage'){ui.neg.wage=v;$('#neg-wage-out').textContent=money(v)}
+ if(k==='neg'){const key=e.target.dataset.k;ui.neg[key]=v;const o=document.getElementById(e.target.id+'-o');if(o)o.textContent=key==='sellOn'?v+'%':money(v);negLive()}
  else if(k==='split'){const c=clubOf(S.user),total=c.budget+c.wageBudget*WAGE_TO_FEE;$('#sp-w').textContent=money(v)+'/w';$('#sp-t').textContent=money(Math.max(0,total-v*WAGE_TO_FEE))}
  else if(k==='trq'){ui.trQ=e.target.value;renderSearch()}});
 document.addEventListener('keydown',e=>{

@@ -35,7 +35,9 @@ function viewTransfers(){
  const needs=squadNeeds(),top3=needs.slice(0,3),mx=Math.max(...needs.map(n=>n.v));
  const kids=Object.values(S.players).filter(p=>p.age<=20&&p.club!==S.user).sort((a,b)=>b.pot-a.pot).slice(0,6);
  const big=S.deals.filter(d=>d.season===S.season).slice().sort((a,b)=>b.fee-a.fee).slice(0,6);
- return top+`<div class="grid"><section class="panel c5"><div class="ph"><h3>Squad depth</h3><small>Best player per position, out of 20</small></div><div class="pb needs">${POS.map(pos=>{const n=needs.find(x=>x.pos===pos),v=at20(n.v),need=top3.includes(n);return`<div class="need ${need?'hot':''}"><span class="pos g-${GROUP[pos]}">${pos}</span><i><b style="width:${v/20*100}%"></b></i><em>${v}</em><small>${n.best?pName(n.best):'—'} · depth ${n.depth}</small></div>`}).join('')}</div></section>
+ const uc=clubOf(S.user),rec=S.deals.filter(d=>d.to===S.user).sort((a,b)=>b.fee-a.fee)[0],lgDeal=S.deals.filter(d=>d.season===S.season).sort((a,b)=>b.fee-a.fee)[0];
+ const banner=`<section class="tw-banner ${windowOpen()?'open':''}" style="--cc:${uc.colors[0]}"><div><div class="eyebrow">${S.md<WIN1?'Summer':'Winter'} transfer window</div><h2>${windowOpen()?`Open · closes in ${S.md<WIN1?WIN1-S.md:WIN2[1]-S.md} matchdays`:`Closed · reopens at matchday ${WIN2[0]+1}`}</h2><p>${windowOpen()?'Clubs across six countries are doing business. Identify your targets and get deals done before the deadline.':'Plan your targets now: shortlist players and be ready when the window opens.'}</p></div><div class="twb-stats"><div><small>Your record signing</small><b>${rec?esc(rec.name)+' · '+money(rec.fee):'—'}</b></div><div><small>Biggest deal this season</small><b>${lgDeal?esc(lgDeal.name)+' · '+money(lgDeal.fee):'—'}</b></div><div><small>Deals completed</small><b>${S.deals.filter(d=>d.season===S.season).length}</b></div></div></section>`;
+ return top+banner+`<div class="grid"><section class="panel c5"><div class="ph"><h3>Squad depth</h3><small>Best player per position, out of 20</small></div><div class="pb needs">${POS.map(pos=>{const n=needs.find(x=>x.pos===pos),v=at20(n.v),need=top3.includes(n);return`<div class="need ${need?'hot':''}"><span class="pos g-${GROUP[pos]}">${pos}</span><i><b style="width:${v/20*100}%"></b></i><em>${v}</em><small>${n.best?pName(n.best):'—'} · depth ${n.depth}</small></div>`}).join('')}</div></section>
  <section class="panel c7"><div class="ph"><h3>Biggest deals this season</h3><button class="btn" data-act="sub" data-v="deals">All deals</button></div><div class="list">${big.map(d=>`<button class="li" style="grid-template-columns:auto 1fr auto" data-act="player" data-id="${d.pid}">${crest(d.to,26)}<span><b>${esc(d.name)} <small style="display:inline">${d.pos}</small></b><small>${esc(clubOf(d.from).short)} → ${esc(clubOf(d.to).short)} · matchday ${d.md+1}</small></span><b class="av">${money(d.fee)}</b></button>`).join('')||'<p class="pb muted">No deals completed yet this season.</p>'}</div></section>
  ${top3.map(n=>{const t=targetsFor(n.pos,n.v);return`<section class="panel c12"><div class="ph"><h3>Recommended: ${POS_NAME[n.pos]}</h3><small>Current best: ${n.best?pName(n.best):'none'} (${at20(n.v)}/20)</small></div><div class="pb">${t.length?`<div class="tcards">${t.map(p=>targetCard(p,n.v)).join('')}</div>`:'<p class="muted" style="margin:0">No affordable upgrades found. Raise your budget in the Office or look at younger players.</p>'}</div></section>`}).join('')}
  <section class="panel c12"><div class="ph"><h3>Scouting: wonderkids</h3><small>Highest potential players aged 20 or under</small></div><div class="pb"><div class="tcards">${kids.map(p=>targetCard(p,null)).join('')}</div></div></section></div>`;
@@ -59,40 +61,102 @@ function renderSearch(){
  el.innerHTML=list.length?`<div class="ph"><h3>Results <small>${list.length} players${list.length>100?', showing 100':''}</small></h3></div><div class="tw"><table class="tbl"><thead><tr>${head}<th></th></tr></thead><tbody>${list.slice(0,100).map(p=>`<tr class="click" data-act="player" data-id="${p.id}"><td><div class="who">${flagSVG(p.nat)}<b>${esc(p.fn+' '+p.ln)}</b>${S.shortlist.includes(p.id)?'<span class="chip hot">Shortlist</span>':''}</div></td><td><div class="who">${crest(p.club,18)}<span>${esc(clubOf(p.club).short)}</span></div></td><td>${posChip(p.pos)}</td><td class="r">${p.age}</td><td>${starHTML(stars(p.ovr))}</td><td>${starHTML(stars(p.pot))}</td>${keys?keys.map(a=>{const v=at20(p.at[AIX[a]]);return`<td class="r"><b class="${v>=16?'v6':v>=13?'v5':v>=10?'v4':'v3'}">${v}</b></td>`}).join(''):`<td><small>${KEY_ATTRS[p.pos].map(a=>`${SHORT[a]} <b>${at20(p.at[AIX[a]])}</b>`).join(' · ')}</small></td>`}<td class="r">${money(p.val)}</td><td class="r hide-sm">${money(wageDemand(p))}</td><td class="r hide-sm">${p.con} yr</td><td><button class="btn" data-act="negotiate" data-id="${p.id}">Offer</button></td></tr>`).join('')}</tbody></table></div>`:'<p class="pb muted">No players match those filters.</p>';
 }
 
-/* ---------- negotiation ---------- */
+/* ---------- negotiation room ---------- */
+const ROLES_SQ=[['key','Key player',1.15],['first','First team',1],['rot','Rotation',.9],['back','Backup',.8]];
+function negValue(n,p){return n.fee+n.addons*.6+n.sellOn/100*p.val*.8}
+function negChance(n,p){return sig((negValue(n,p)/n.want-1)*13)}
+function chanceWord(c){return c>.85?['Very likely','v6']:c>.6?['Likely','v5']:c>.35?['Possible','v4']:c>.12?['Unlikely','v2']:['Very unlikely','v1']}
 function openNegotiation(pid){
- const p=S.players[pid];if(!p)return;if(p.club===S.user)return;
- ui.neg={pid,stage:'fee',fee:Math.round(p.val/5e4)*5e4,counter:null,wage:wageDemand(p),years:p.age>=30?2:4,msg:'',tries:0};renderNeg();
+ const p=S.players[pid];if(!p||p.club===S.user)return;
+ if(!windowOpen()){toast(`The transfer window is closed. It reopens at matchday ${WIN2[0]+1}.`);return}
+ const st=sellerStance(p),sel=clubOf(p.club),uc=clubOf(S.user);
+ if(sel.rep-uc.rep>16&&p.ovr>repToOvr(uc.rep)+7){toast(`${p.ln} is not interested in joining a club of your stature.`);return}
+ const want=p.val*st.mult*(.94+G.f()*.12),est=p.val*st.mult;
+ const sq=squadOf(S.user).sort((a,b)=>b.ovr-a.ovr),rank=sq.filter(x=>x.ovr>p.ovr).length;
+ ui.neg={pid,stage:'fee',want,est,fee:Math.round(p.val*.9/5e4)*5e4,addons:0,sellOn:0,inst:false,round:1,max:4,counter:null,
+  log:[{who:'us',t:`We would like to open talks for ${p.fn} ${p.ln}.`},{who:'them',t:st.keyP?`${p.ln} is one of our most important players. Any offer will need to be substantial.`:`We are prepared to listen to offers for ${p.ln}.`}],
+  wage:wageDemand(p),bonus:0,years:p.age>=30?2:4,role:rank<3?'key':rank<11?'first':'rot',clause:false,tries:0,expect:rank<3?'key':rank<11?'first':'rot'};
+ renderNeg();
 }
+function negHeader(n,p){
+ const uc=clubOf(S.user),sc=clubOf(p.club);
+ return`<div class="nr-head" style="--a:${uc.colors[0]};--b:${sc.colors[0]}"><div class="nr-club">${crest(uc.id,64)}<b>${esc(uc.short)}</b><small>Buying club</small></div>
+ <div class="nr-player">${kitSVG(sc,'home',{back:true,name:p.ln,num:p.num})}<div><div class="eyebrow">${n.stage==='fee'?'Club negotiation':n.stage==='terms'?'Personal terms':'Done deal'}</div><h2>${esc(p.fn)} <b>${esc(p.ln)}</b></h2><div class="nr-meta">${posChip(p.pos)} <span>${p.age} yrs</span> ${flagSVG(p.nat)} <span>${starHTML(stars(p.ovr))}</span></div></div></div>
+ <div class="nr-club">${crest(sc.id,64)}<b>${esc(sc.short)}</b><small>Selling club</small></div></div>
+ <div class="nr-steps">${[['fee','1. Agree fee'],['terms','2. Personal terms'],['done','3. Signed']].map(([k,l])=>`<span class="${n.stage===k?'on':['fee','terms','done'].indexOf(n.stage)>['fee','terms','done'].indexOf(k)?'ok':''}">${l}</span>`).join('')}</div>`;
+}
+function gauge(val,est,c){
+ const lo=est*.5,hi=est*1.5,pct=v=>clamp((v-lo)/(hi-lo)*100,0,100),[w,cl]=chanceWord(c);
+ return`<div class="gauge"><div class="g-bar"><span style="left:0;width:${pct(est*.8)}%" class="z1"></span><span style="left:${pct(est*.8)}%;width:${pct(est)-pct(est*.8)}%" class="z2"></span><span style="left:${pct(est)}%;width:${pct(est*1.15)-pct(est)}%" class="z3"></span><span style="left:${pct(est*1.15)}%;right:0" class="z4"></span><i style="left:${pct(val)}%"></i></div>
+ <div class="g-lbl"><span>Insulting</span><span>Below value</span><span>Fair</span><span>Premium</span></div>
+ <div class="g-read"><div><small>Package worth</small><b>${money(val)}</b></div><div><small>Their valuation (scouted)</small><b>~${money(est)}</b></div><div><small>Acceptance</small><b class="${cl}">${w} · ${Math.round(c*100)}%</b></div></div></div>`;
+}
+function negLog(n){return`<div class="nr-log">${n.log.map(m=>`<div class="msg-b ${m.who}"><small>${m.who==='us'?'Your director of football':m.who==='agent'?"Player's agent":clubOf(S.players[n.pid].club).short}</small><p>${esc(m.t)}</p></div>`).join('')}</div>`}
 function renderNeg(){
- const n=ui.neg,p=S.players[n.pid],c=clubOf(p.club),uc=clubOf(S.user),st=sellerStance(p),wd=wageDemand(p);
- const head=`<div class="neg-head">${kitSVG(c,'home',{back:true,name:p.ln,num:p.num})}<div><div class="eyebrow">Transfer negotiation · ${n.stage==='fee'?'Step 1 of 2: fee':'Step 2 of 2: personal terms'}</div><h2>${esc(p.fn)} <b>${esc(p.ln)}</b></h2><small>${posChip(p.pos)} ${p.age} years · ${crest(c.id,18)} ${esc(c.name)} · contract ${p.con} yr</small><div class="tc-row" style="margin-top:8px"><div><small>Ability</small>${starHTML(stars(p.ovr))}</div><div><small>Potential</small>${starHTML(stars(p.pot))}</div><div><small>Value</small><b>${money(p.val)}</b></div></div></div></div>`;
- let body;
+ const n=ui.neg,p=S.players[n.pid],uc=clubOf(S.user);let body;
  if(n.stage==='fee'){
-  const min=Math.round(p.val*.4/5e4)*5e4,max=Math.max(min+1e5,Math.round(Math.min(uc.budget,p.val*2.5)/5e4)*5e4);
-  body=`<div class="neg-grid"><div class="panel"><div class="pb"><div class="eyebrow" style="color:var(--muted)">Club's position</div><ul class="neg-notes"><li>${st.keyP?`One of ${esc(c.short)}'s three best players. Expect them to ask well above value.`:'Not a key player for them.'}</li><li>${p.con<=1?'His contract is nearly up, which lowers the price.':'He is under contract for '+p.con+' more years.'}</li><li>${c.squad.length<=21?'Their squad is thin, so they are reluctant to sell.':'They have enough cover in his position.'}</li><li>Your budget: <b>${money(uc.budget)}</b></li></ul></div></div>
-  <div class="panel"><div class="pb"><label for="neg-fee" class="neg-lbl">Transfer fee <output id="neg-fee-out">${money(n.fee)}</output></label><input type="range" id="neg-fee" min="${min}" max="${max}" step="50000" value="${clamp(n.fee,min,max)}" data-input="negfee">
-  ${n.counter?`<div class="neg-counter">${esc(c.short)} counter with <b>${money(n.counter)}</b>. <button class="btn" data-act="neg-accept-counter">Accept ${money(n.counter)}</button></div>`:''}
-  <p class="neg-msg" role="status">${esc(n.msg)}</p><div class="toolbar" style="margin:0"><button class="btn pri" data-act="neg-bid">Submit bid</button><button class="btn" data-act="close">Walk away</button></div></div></div></div>`;
+  const max=Math.max(Math.round(p.val*.6/5e4)*5e4+1e5,Math.round(Math.min(uc.budget*(n.inst?2:1),p.val*2.6)/5e4)*5e4),min=Math.round(p.val*.3/5e4)*5e4;
+  const c=negChance(n,p);
+  body=`<div class="nr-body"><div class="nr-col"><h3>Your offer</h3>
+  <label class="neg-lbl" for="nf">Up-front fee <output id="nf-o">${money(n.fee)}</output></label><input type="range" id="nf" min="${min}" max="${max}" step="50000" value="${clamp(n.fee,min,max)}" data-input="neg" data-k="fee">
+  <label class="neg-lbl" for="na">Add-ons (appearances, trophies) <output id="na-o">${money(n.addons)}</output></label><input type="range" id="na" min="0" max="${Math.round(p.val*.5/5e4)*5e4}" step="50000" value="${n.addons}" data-input="neg" data-k="addons">
+  <label class="neg-lbl" for="ns">Sell-on clause <output id="ns-o">${n.sellOn}%</output></label><input type="range" id="ns" min="0" max="25" step="5" value="${n.sellOn}" data-input="neg" data-k="sellOn">
+  <label class="nr-check"><input type="checkbox" id="ni" data-change="negInst" ${n.inst?'checked':''}> Pay in two instalments (half now, half next season)</label>
+  <div id="nr-sum">${feeSum(n,p)}</div></div>
+  <div class="nr-col"><div id="nr-gauge">${gauge(negValue(n,p),n.est,c)}</div>${n.counter?`<div class="neg-counter"><span>${esc(clubOf(p.club).short)} would accept <b>${money(n.counter)}</b> up front with your current add-ons.</span><button class="btn" data-act="neg-accept-counter">Accept counter</button></div>`:''}${negLog(n)}</div></div>
+  <div class="nr-foot"><button class="btn" data-act="close">Walk away</button><button class="btn pri lg" data-act="neg-bid" ${n.round>n.max?'disabled':''}>Submit offer</button></div>`;
+ }else if(n.stage==='terms'){
+  const need=termsNeed(n,p);
+  body=`<div class="nr-body"><div class="nr-col"><h3>Contract offer</h3>
+  <label class="neg-lbl" for="nw">Weekly wage <output id="nw-o">${money(n.wage)}</output></label><input type="range" id="nw" min="${Math.round(need*.55/500)*500}" max="${Math.round(need*1.7/500)*500}" step="500" value="${n.wage}" data-input="neg" data-k="wage">
+  <label class="neg-lbl" for="nb">Signing-on bonus <output id="nb-o">${money(n.bonus)}</output></label><input type="range" id="nb" min="0" max="${Math.round(p.wage*60/1e4)*1e4}" step="10000" value="${n.bonus}" data-input="neg" data-k="bonus">
+  <div class="neg-lbl">Contract length</div><div class="seg" role="group" aria-label="Contract length">${[1,2,3,4,5].map(y=>`<button data-act="neg-years" data-v="${y}" aria-pressed="${n.years===y}">${y} yr</button>`).join('')}</div>
+  <div class="neg-lbl" style="margin-top:12px">Squad role</div><div class="seg" role="group" aria-label="Squad role">${ROLES_SQ.map(([k,l])=>`<button data-act="neg-role" data-v="${k}" aria-pressed="${n.role===k}">${l}</button>`).join('')}</div>
+  <label class="nr-check"><input type="checkbox" data-change="negClause" ${n.clause?'checked':''}> Include a release clause</label>
+  <div id="nr-sum">${termsSum(n,p)}</div></div>
+  <div class="nr-col"><div id="nr-gauge">${termsRead(n,p)}</div>${negLog(n)}</div></div>
+  <div class="nr-foot"><button class="btn" data-act="close">Walk away</button><button class="btn pri lg" data-act="neg-terms">Offer contract</button></div>`;
  }else{
-  body=`<div class="neg-grid"><div class="panel"><div class="pb"><div class="eyebrow" style="color:var(--muted)">Agent's demands</div><ul class="neg-notes"><li>Fee agreed with ${esc(c.short)}: <b>${money(n.fee)}</b></li><li>Asking wage: <b>${money(wd)}</b> a week (currently earns ${money(p.wage)})</li><li>Longer deals cost a little less for older players; a one-year deal costs more.</li><li>Wage room: <b>${money(uc.wageBudget-wageBill(S.user))}</b> a week</li></ul></div></div>
-  <div class="panel"><div class="pb"><label for="neg-wage" class="neg-lbl">Weekly wage <output id="neg-wage-out">${money(n.wage)}</output></label><input type="range" id="neg-wage" min="${Math.round(wd*.6/100)*100}" max="${Math.round(wd*1.6/100)*100}" step="500" value="${n.wage}" data-input="negwage">
-  <div class="neg-lbl" style="margin-top:12px">Contract length</div><div class="seg" role="group" aria-label="Contract length">${[1,2,3,4,5].map(y=>`<button data-act="neg-years" data-v="${y}" aria-pressed="${n.years===y}">${y} yr</button>`).join('')}</div>
-  <p class="neg-msg" role="status">${esc(n.msg)}</p><div class="toolbar" style="margin:0"><button class="btn pri" data-act="neg-terms">Offer contract</button><button class="btn" data-act="close">Walk away</button></div></div></div></div>`;
+  body=`<div class="nr-done"><div class="eyebrow">Done deal</div><h2>${esc(p.fn)} ${esc(p.ln)} is a ${esc(uc.short)} player</h2>
+  <div class="nr-sum big"><div><small>Fee</small><b>${money(n.fee)}</b></div><div><small>Add-ons</small><b>${money(n.addons)}</b></div><div><small>Wage</small><b>${money(n.wage)}/w</b></div><div><small>Contract</small><b>${n.years} years</b></div><div><small>Shirt</small><b>No. ${p.num}</b></div></div>
+  <div class="nr-foot" style="justify-content:center"><button class="btn" data-act="close">Close</button><button class="btn pri lg" data-act="player" data-id="${p.id}">View player</button></div></div>`;
  }
- openModal(head+body);
+ openModal(`<div class="nroom">${negHeader(n,p)}${body}</div>`);$('#modal .modal-box').classList.add('wide');
 }
+function feeSum(n,p){const uc=clubOf(S.user),now=n.fee*(n.inst?.5:1);return`<div class="nr-sum"><div><small>Due now</small><b>${money(now)}</b></div><div><small>Budget after</small><b class="${uc.budget-now<0?'v1':''}">${money(uc.budget-now)}</b></div><div><small>Round</small><b>${Math.min(n.round,n.max)} of ${n.max}</b></div></div>`}
+function termsSum(n,p){const uc=clubOf(S.user);return`<div class="nr-sum"><div><small>Wage room</small><b>${money(uc.wageBudget-wageBill(S.user))}/w</b></div><div><small>Agent fee</small><b>${money(Math.round(n.fee*.05/1e4)*1e4)}</b></div><div><small>Total cost</small><b>${money(n.fee+n.bonus+n.wage*52*n.years)}</b></div></div>`}
+function termsRead(n,p){const need=termsNeed(n,p),c=sig((n.wage/need-1)*16+(n.clause?.3:0)),[w,cl]=chanceWord(c);return`<div class="gauge"><div class="g-read"><div><small>Agent wants</small><b>${money(need)}/w</b></div><div><small>Expects role</small><b>${ROLES_SQ.find(r=>r[0]===n.expect)[1]}</b></div><div><small>Agreement</small><b class="${cl}">${w} · ${Math.round(c*100)}%</b></div></div></div>`}
+function negLive(){const n=ui.neg,p=S.players[n.pid],g=$('#nr-gauge'),sm=$('#nr-sum');if(!g)return;
+ if(n.stage==='fee'){g.innerHTML=gauge(negValue(n,p),n.est,negChance(n,p));sm.innerHTML=feeSum(n,p)}else if(n.stage==='terms'){g.innerHTML=termsRead(n,p);sm.innerHTML=termsSum(n,p)}}
+function termsNeed(n,p){const role=ROLES_SQ.find(r=>r[0]===n.role),exp=ROLES_SQ.findIndex(r=>r[0]===n.expect),got=ROLES_SQ.findIndex(r=>r[0]===n.role);
+ return Math.round(wageDemand(p)*role[2]*(got>exp?1+(got-exp)*.18:1)*(n.years>=4&&p.age>=29?.93:n.years<=1?1.1:1)-n.bonus/(42*n.years))}
 function negBid(){
- const n=ui.neg,p=S.players[n.pid],v=bidVerdict(n.pid,n.fee);
- if(v.ok){n.stage='terms';n.msg=`${clubOf(p.club).short} accepted ${money(n.fee)}. Now agree personal terms.`;S.bids.unshift({pid:p.id,from:p.club,fee:n.fee,status:'Fee agreed',md:S.md});renderNeg();return}
- n.counter=v.counter||null;n.msg=v.msg;if(!v.counter)S.bids.unshift({pid:p.id,from:p.club,fee:n.fee,status:'Rejected',md:S.md});renderNeg();
+ const n=ui.neg,p=S.players[n.pid],uc=clubOf(S.user),sel=clubOf(p.club),now=n.fee*(n.inst?.5:1);
+ if(now>uc.budget){toast(`That is more than your transfer budget of ${money(uc.budget)}.`);return}
+ if(uc.squad.length>=34){toast('Your squad is full (34 players).');return}
+ const v=negValue(n,p),r=v/n.want;
+ n.log.push({who:'us',t:`We offer ${money(n.fee)}${n.addons?` plus ${money(n.addons)} in add-ons`:''}${n.sellOn?` and a ${n.sellOn}% sell-on clause`:''}${n.inst?', paid in two instalments':''}.`});
+ if(r>=1){n.log.push({who:'them',t:`We accept. You may speak to ${p.ln}'s representatives.`});n.stage='terms';n.counter=null;S.bids.unshift({pid:p.id,from:p.club,fee:n.fee,status:'Fee agreed',md:S.md});
+  n.log.push({who:'agent',t:`${p.ln} is interested. We are looking for around ${money(wageDemand(p))} a week and a ${ROLES_SQ.find(x=>x[0]===n.expect)[1].toLowerCase()} role.`});n.wage=termsNeed(n,p);renderNeg();return}
+ n.round++;
+ if(n.round>n.max){n.log.push({who:'them',t:`We are too far apart. ${sel.short} have ended talks.`});S.bids.unshift({pid:p.id,from:p.club,fee:n.fee,status:'Rejected',md:S.md});save();renderNeg();return}
+ if(r>=.8){n.counter=Math.max(n.fee+5e4,Math.round((n.want-n.addons*.6-n.sellOn/100*p.val*.8)/5e4)*5e4);n.log.push({who:'them',t:r>=.93?`We are close. Make it ${money(n.counter)} up front and we have a deal.`:`That is below our valuation. We would need ${money(n.counter)} up front.`})}
+ else{n.counter=null;n.log.push({who:'them',t:r<.6?'That offer is insulting. Come back with something serious.':`Not enough. ${p.ln} is worth considerably more to us.`});n.want*=1.02}
+ renderNeg();
 }
 function negTerms(){
- const n=ui.neg,p=S.players[n.pid],v=termsVerdict(p,n.wage,n.years);n.tries++;
- if(!v.ok){n.msg=v.msg+(n.tries>=3?' Talks have broken down.':'');if(n.tries>=3){const b=S.bids.find(x=>x.pid===p.id&&x.status==='Fee agreed');if(b)b.status='Terms refused';save();renderNeg();setTimeout(closeModal,1600);return}renderNeg();return}
- const from=p.club;moveP(p.id,S.user,n.fee);p.wage=n.wage;p.con=n.years;S.fin.buys+=n.fee;logDeal(p.id,from,S.user,n.fee);
- const b=S.bids.find(x=>x.pid===p.id&&x.status==='Fee agreed');if(b){b.status='Signed';b.wage=n.wage}
- mail('Director of Football',`${p.ln} signs from ${clubOf(from).short}`,`<p>${esc(p.fn+' '+p.ln)} has joined for <b>${money(n.fee)}</b> on ${money(n.wage)} a week until ${2026+S.season+n.years}. He will wear number ${p.num}.</p>`,null,'transfer');
- news(`${p.fn} ${p.ln} (${p.pos}, ${p.age}) joins ${clubOf(S.user).name} from ${clubOf(from).name} for ${money(n.fee)}.`,'transfer',[S.user,from],{title:`${clubOf(S.user).short} complete ${p.ln} signing`});
- save();closeModal();toast(`${p.fn} ${p.ln} signed for ${money(n.fee)}`);openPlayer(p.id);
+ const n=ui.neg,p=S.players[n.pid],uc=clubOf(S.user),need=termsNeed(n,p);n.tries++;
+ if(wageBill(S.user)+n.wage>uc.wageBudget){n.log.push({who:'us',t:'We cannot go that high: it breaks our wage budget.'});renderNeg();return}
+ n.log.push({who:'us',t:`We offer ${money(n.wage)} a week for ${n.years} years as a ${ROLES_SQ.find(r=>r[0]===n.role)[1].toLowerCase()}${n.bonus?`, with a ${money(n.bonus)} signing bonus`:''}${n.clause?' and a release clause':''}.`});
+ const c=sig((n.wage/need-1)*16+(n.clause?.3:0));
+ if(G.f()<c){
+  const from=p.club,now=n.fee*(n.inst?.5:1);moveP(p.id,S.user,0);uc.budget-=now+n.bonus;clubOf(from).budget+=n.fee;if(n.inst)S.owed=(S.owed||0)+n.fee/2;
+  p.wage=n.wage;p.con=n.years;S.fin.buys+=now+n.bonus;logDeal(p.id,from,S.user,n.fee);
+  const b=S.bids.find(x=>x.pid===p.id&&x.status==='Fee agreed');if(b){b.status='Signed';b.wage=n.wage}
+  mail('Director of Football',`${p.ln} signs from ${clubOf(from).short}`,`<p>${esc(p.fn+' '+p.ln)} has joined for <b>${money(n.fee)}</b>${n.addons?` plus ${money(n.addons)} in add-ons`:''} on ${money(n.wage)} a week until ${2026+S.season+n.years}. He will wear number ${p.num}.</p>`,null,'transfer');
+  news(`${p.fn} ${p.ln} (${p.pos}, ${p.age}) joins ${uc.name} from ${clubOf(from).name} for ${money(n.fee)}.`,'transfer',[S.user,from],{title:`${uc.short} complete ${p.ln} signing`});
+  n.log.push({who:'agent',t:'We have a deal. He is delighted to join.'});n.stage='done';save();renderNeg();return}
+ if(n.tries>=4){n.log.push({who:'agent',t:'We cannot reach an agreement. He will stay where he is.'});const b=S.bids.find(x=>x.pid===p.id&&x.status==='Fee agreed');if(b)b.status='Terms refused';save();renderNeg();setTimeout(closeModal,1800);return}
+ n.log.push({who:'agent',t:n.wage<need*.9?`That is well short. He wants at least ${money(Math.round(need/500)*500)} a week.`:n.role!==n.expect&&ROLES_SQ.findIndex(r=>r[0]===n.role)>ROLES_SQ.findIndex(r=>r[0]===n.expect)?'He expects a bigger role than that.':'Close. Improve the offer a little and we can sign.'});
+ renderNeg();
 }
