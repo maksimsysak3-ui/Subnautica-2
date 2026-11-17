@@ -81,6 +81,11 @@ document.addEventListener('click',e=>{
   case'acad-promote':{S.acad=S.acad.filter(x=>x!==id);const c=clubOf(S.user),p=S.players[id];c.squad.push(id);p.num=assignNum(S.user,p.pos);save();render();toast(`${p.ln} promoted to the first team`);break}
   case'acad-release':{const p=S.players[id];S.acad=S.acad.filter(x=>x!==id);delete S.players[id];save();render();toast(`${p.ln} released`);break}
   case'loan-out':loanOut(id);break;
+  case'press-pre':openPress('pre');break;
+  case'press-post':openPress('post');break;
+  case'press-a':answerPress(+v);break;
+  case'press-skip':if(ui.press&&M)M['press_'+ui.press.kind]=true;ui.press=null;closeModal();render();toast('Your assistant handled the media');break;
+  case'press-done':closeModal();render();break;
   case'goto':{const[g,sb]=v.split('/');closeModal();go(g,sb);break}
   case'mailf':ui.mailF=v;ui.msg=null;render();break;
   case'mail-read-all':S.inbox.forEach(m=>m.read=true);save();render();renderBar();break;

@@ -9,6 +9,8 @@ function kickOff(){
  const[h,a]=M.fx;prepAI(h,a);prepAI(a,h);ensureLineup(S.user);
  const team=c=>({club:c,tac:clubOf(c).tac,bench:clubOf(c).tac.bench.slice(),ai:c!==S.user});
  M.E=createMatch({seed:(S.seed^(S.season*1000+S.md*17+h*3))>>>0,getP:id=>S.players[id],teams:[team(h),team(a)],weather:M.wx});
+ // squad morale nudges decision-making and composure on the day
+ for(const s of[0,1]){const xi=clubOf(M.E.T[s].club).tac.xi.map(id=>S.players[id]).filter(Boolean),am=xi.length?xi.reduce((a,p)=>a+(p.mor??70),0)/xi.length:70;applyTalk(M.E,s,clamp((am-70)/1000,-.03,.03))}
  M.us=h===S.user?0:1;M.phase='live';M.pt=0;M.rate=1;M.intro={ct:0};M.wins=[[0,9]];SND.init();SND.setCrowd(.5);
  if(M.preTalk){const d=talkEffect(M.preTalk,0,false);applyTalk(M.E,M.us,d);setTimeout(()=>toast(talkWord(d)),400)}
 }
@@ -91,7 +93,7 @@ function viewMatch(){
   return bar+`<div class="grid">${sheet(h)}<section class="panel c4"><div class="ph"><h3>Match preview</h3></div><div class="pb">${['Attack','Midfield','Defence'].map((l,i)=>{const x=[sH.att,sH.mid,sH.def][i],y=[sA.att,sA.mid,sA.def][i];return`<div class="srow" style="padding:6px 0"><span>${at20(x)}</span><div>${l}</div><span>${at20(y)}</span><span class="bar"><i style="width:${x/(x+y)*100}%"></i><i style="width:${y/(x+y)*100}%"></i></span></div>`}).join('')}
   <p class="muted" style="font-size:13px">${esc(M.tie?M.tie.label:'')}<br>${fmtDate(M.tie?M.tie.date:mdDate(S.md))} · ${esc(H.stadium)}</p><div class="forecast">${wxIcon(M.wx.type)}<div><b>${WX[M.wx.type].n}, ${M.wx.temp}°C</b><small>${kickLabel(M.wx.kick)} kick-off${daylight(M.wx,0)<.5?' under the floodlights':daylight(M.wx,6000)<.5?' · finishes under the lights':''} · wind ${M.wx.wSpd} km/h</small><small>${wxAdvice(M.wx.type)}</small></div></div>
   <div class="eyebrow" style="color:var(--muted);margin-top:12px">Team talk</div><div class="seg" role="group" aria-label="Team talk" style="display:flex;margin-top:6px">${TALKS.map(([k,l])=>`<button style="flex:1" data-act="pretalk" data-v="${k}" aria-pressed="${M.preTalk===k}">${l}</button>`).join('')}</div>
-  <div style="display:grid;gap:8px;margin-top:12px"><button class="btn pri lg" data-act="kickoff">Kick off ${ARROW}</button><button class="btn" data-act="nav" data-v="tactics">Edit tactics</button><button class="btn" data-act="instant">Instant result</button></div></div></section>${sheet(a)}</div>`;
+  <div style="display:grid;gap:8px;margin-top:12px"><button class="btn pri lg" data-act="kickoff">Kick off ${ARROW}</button><button class="btn" data-act="nav" data-v="tactics">Edit tactics</button>${M.press_pre?'':'<button class="btn" data-act="press-pre">Press conference</button>'}<button class="btn" data-act="instant">Instant result</button></div></div></section>${sheet(a)}</div>`;
  }
  if(M.phase==='done')return bar+postHTML();
  M.shownFeed=true;
@@ -148,7 +150,7 @@ function postHTML(){
  const so=M.tie&&M.tie.ko&&gf===ga?penaltiesFor(M):null,wonP=so&&(so.pens[us]>so.pens[1-us]);
  return`<div class="grid"><section class="panel c4"><div class="ph"><h3>${so?(wonP?'Through on penalties':'Out on penalties'):gf>ga?'Victory':gf<ga?'Defeat':'Draw'}</h3>${M.tie&&M.tie.comp!=='lg'?`<small>${esc(M.tie.label)}</small>`:''}</div>${so?shootoutHTML():''}<div class="pb"><div style="display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted)"><div>${goals(0)}</div><div style="text-align:right">${goals(1)}</div></div></div><div>${statsHTML()}</div>
  <div class="pb"><div class="eyebrow">Player of the match</div><p style="margin:6px 0 0;font:700 20px var(--fd)">${esc(S.players[motm.pid].fn+' '+motm.name)} <span class="rt" style="background:${rtColor(motm.rating)}">${motm.rating.toFixed(1)}</span></p><small>${esc(clubOf(E.T[motm.s].club).name)}</small>
- <button class="btn pri lg" style="width:100%;margin-top:14px" data-act="match-finish">Continue ${ARROW}</button></div></section>
+ ${M.press_post?'':'<button class="btn lg" style="width:100%;margin-top:14px" data-act="press-post">Press conference</button>'}<button class="btn pri lg" style="width:100%;margin-top:8px" data-act="match-finish">Continue ${ARROW}</button></div></section>
  ${[0,1].map(s=>`<section class="panel c4"><div class="ph"><h3>${esc(clubOf(E.T[s].club).short)} ratings</h3></div><div class="tw"><table class="tbl"><tbody>${rt(s)}</tbody></table></div></section>`).join('')}<section class="panel c12 an-panel">${analysisHTML(E,false)}</section></div>`;
 }
 

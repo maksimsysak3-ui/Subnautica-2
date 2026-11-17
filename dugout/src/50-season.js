@@ -144,7 +144,8 @@ function processMatchday(userRes){
  const uc=clubOf(S.user),mine=S.results[uc.league].find(r=>r.md===md&&(r.h===S.user||r.a===S.user));
  if(mine){const home=mine.h===S.user,gf=home?mine.hg:mine.ag,ga=home?mine.ag:mine.hg,d=gf>ga?6:gf<ga?-6:0;
   for(const p of squadOf(S.user))p.mor=clamp(p.mor+d+G.i(-2,2),25,98);
-  if(home){const g=Math.round(uc.cap*.86*34);uc.balance+=g;S.fin.gate+=g}
+  S.fans=clamp((S.fans??62)+(gf>ga?2:gf<ga?-2.5:0),5,100);
+ if(home){const g=Math.round(uc.cap*.86*34*(.85+(S.fans??62)*.003));uc.balance+=g;S.fin.gate+=g}
   const tb=table(uc.league),pos=posIn(tb,S.user),tp=targetPos(S.user);S.board=clamp(S.board+(gf>ga?2.2:gf<ga?-2.6:.2)+(pos<=tp?.5:-.6),5,100);}
  {const tv=Math.round(budgetOf(uc.rep)*.035),sp=Math.round(budgetOf(uc.rep)*.012),w=Math.round(wageBill(S.user)*1.05);uc.balance+=tv+sp-w;S.fin.tv+=tv;S.fin.sponsor+=sp;S.fin.wages+=w}
  if(mine){const home=mine.h===S.user,gf=home?mine.hg:mine.ag,ga=home?mine.ag:mine.hg;S.mgr[gf>ga?'w':gf<ga?'l':'d']++}

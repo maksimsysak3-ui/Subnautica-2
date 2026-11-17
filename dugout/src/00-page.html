@@ -878,6 +878,17 @@ body.ingame main{max-width:none;width:100%;padding:0 max(22px,env(safe-area-inse
 .sbv-tab{flex-direction:row}.sbv-tab .sb-t{background:#141414}.sbv-tab b{background:var(--s1);color:#fff}.sbv-tab i{background:var(--s1);color:var(--s2);margin-left:0;border-radius:0 0 8px 0;align-self:flex-start;height:24px;line-height:24px;transform:translateY(30px);position:absolute;left:0}
 .sbv-cup{border:1px solid var(--s2)}.sbv-cup .sb-t{background:color-mix(in srgb,var(--s1) 70%,#000)}.sbv-cup b{background:linear-gradient(180deg,#f6dd8a,#c9a227);color:#2a1d00}.sbv-cup i{background:#0e0e10;color:#e8c25a}
 .sbv-star{border:1px solid rgba(223,229,240,.5);box-shadow:0 0 24px -6px rgba(125,143,191,.6)!important}.sbv-star .sb-t{background:var(--s1)}.sbv-star b{background:linear-gradient(180deg,#f2f5fb,#b9c3d8);color:var(--s1)}.sbv-star i{background:#0b1430;color:#dfe5f0}
+
+/* press conferences */
+.press-h{display:flex;align-items:center;gap:12px;margin-bottom:14px}.press-h small{color:var(--dim)}
+.press-mic{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:rgba(255,180,58,.12);color:var(--accent)}.press-mic svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.press-q{margin:0 0 16px;padding:14px 16px;border-left:3px solid var(--accent);background:rgba(255,255,255,.03);font:600 clamp(18px,2vw,22px)/1.35 var(--fb)}
+.press-opts{display:flex;flex-direction:column;gap:8px}
+.press-opt{display:grid;grid-template-columns:110px 1fr;gap:12px;align-items:center;text-align:left;padding:12px 14px;border:1px solid var(--line2);border-radius:4px;background:var(--bg2);transition:border-color .15s,background .15s}
+.press-opt:hover{border-color:var(--accent);background:rgba(255,180,58,.06)}.press-opt em{font-style:normal;font:700 11px var(--fb);letter-spacing:.08em;text-transform:uppercase;color:var(--accent2)}.press-opt span{font-size:14px;color:#e6e4dd}
+.press-f{display:flex;justify-content:space-between;align-items:center;margin-top:16px}.press-dots{display:flex;gap:6px}.press-dots i{width:8px;height:8px;border-radius:50%;background:#2c2c30}.press-dots i.on{background:var(--accent)}.press-dots i.done{background:#8a6a2a}
+.press-fx{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}.press-fx b{font:700 16px var(--fd)}
+@media (max-width:600px){.press-opt{grid-template-columns:1fr;gap:4px}}
 </style>
 
 <aside id="bar" hidden></aside>
