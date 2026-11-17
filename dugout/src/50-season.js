@@ -102,7 +102,7 @@ function quickSim(h,a,md,lid){
  const ratingsOut={};
  const credit=(c,n,gf,ga)=>{const xi=c.tac.xi.filter(x=>x!=null),slots=FORMATIONS[c.tac.form];
   const r={};xi.forEach(id=>r[id]=6.4+(gf>ga?.35:gf<ga?-.3:0)+G.n(0,.35));
-  for(let k=0;k<n;k++){const sc=pickW(xi,id=>{const p=S.players[id],pos=slots[c.tac.xi.indexOf(id)][0];return(ATT_W[pos]||.04)*Math.pow(p.at[AIX.fin]/60,2)});S.players[sc].s.g++;r[sc]+=1;
+  for(let k=0;k<n;k++){const sc=pickW(xi,id=>{const p=S.players[id],pos=slots[c.tac.xi.indexOf(id)][0];return(ATT_W[pos]||.04)*Math.pow(p.at[AIX.fin]/60,1.2)});S.players[sc].s.g++;r[sc]+=1;
    if(G.f()<.72){const as=pickW(xi.filter(x=>x!==sc),id=>{const p=S.players[id],pos=slots[c.tac.xi.indexOf(id)][0];return((MID_W[pos]||0)+(ATT_W[pos]||0)*.6+.08)*Math.pow(p.at[AIX.pas]/60,2)});S.players[as].s.a++;r[as]+=.6}}
   slots.forEach(([pos],i)=>{const id=c.tac.xi[i];if(id!=null&&['GK','CB','LB','RB'].includes(pos))r[id]+=ga===0?.45:-ga*.15});
   for(const id of xi){const p=S.players[id];p.s.ap++;p.s.rs+=clamp(r[id],4,10);p.cond=clamp(p.cond-G.i(14,26),30,100);if(G.f()<.012)p.inj=G.i(1,4);ratingsOut[id]=r[id]}

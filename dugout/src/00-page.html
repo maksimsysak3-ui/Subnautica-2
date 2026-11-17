@@ -889,6 +889,8 @@ body.ingame main{max-width:none;width:100%;padding:0 max(22px,env(safe-area-inse
 .press-f{display:flex;justify-content:space-between;align-items:center;margin-top:16px}.press-dots{display:flex;gap:6px}.press-dots i{width:8px;height:8px;border-radius:50%;background:#2c2c30}.press-dots i.on{background:var(--accent)}.press-dots i.done{background:#8a6a2a}
 .press-fx{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}.press-fx b{font:700 16px var(--fd)}
 @media (max-width:600px){.press-opt{grid-template-columns:1fr;gap:4px}}
+.stage canvas.mini{position:absolute;right:14px;bottom:14px;width:210px;height:136px;border-radius:3px;box-shadow:0 8px 20px -8px rgba(0,0,0,.8);pointer-events:none;z-index:2}
+@media (max-width:700px){.stage canvas.mini{width:120px;height:78px;right:8px;bottom:8px}}
 </style>
 
 <aside id="bar" hidden></aside>
