@@ -28,6 +28,13 @@ const SHAPES={
  rounded:'M10,16 Q10,8 18,8 H82 Q90,8 90,16 V58 C90,86 70,103 50,113 C30,103 10,86 10,58 Z',
  pointed:'M50,5 L91,17 V56 C91,84 72,102 50,114 C28,102 9,84 9,56 V17 Z',
  hex:'M50,5 L92,28 V88 L50,114 L8,88 V28 Z',
+ castle:'M10,24 H19 V11 H31 V24 H43 V11 H57 V24 H69 V11 H81 V24 H90 V60 C90,88 70,104 50,114 C30,104 10,88 10,60 Z',
+ oval:'M50,6 C79,6 92,30 92,60 C92,92 74,114 50,114 C26,114 8,92 8,60 C8,30 21,6 50,6 Z',
+ diamond:'M50,4 L94,58 L50,116 L6,58 Z',
+ badge:'M23,8 H77 Q92,8 92,23 V82 Q92,103 50,114 Q8,103 8,82 V23 Q8,8 23,8 Z',
+ scallop:'M8,22 Q29,4 50,20 Q71,4 92,22 V60 C92,88 72,104 50,114 C28,104 8,88 8,60 Z',
+ tall:'M17,5 H83 V66 C83,92 66,107 50,115 C34,107 17,92 17,66 Z',
+ pennant:'M10,8 H90 V78 L50,114 L10,78 Z',
 };
 const EMB={
  star:{f:'M'+starPts(20,21.5,19,7.8).replace(/ /g,' L')+' Z'},
@@ -41,6 +48,13 @@ const EMB={
  bird:{f:'M2,13 C10,12 16,16 20,22 C23,14 30,8 38,6 C33,12 31,18 31,24 C27,29 21,31 15,33 L5,38 L10,30 C6,25 4,19 2,13 Z'},
  hammer:{f:'M6,6 H27 Q32,6 32,11 V14 Q32,17 29,17 H6 Z M16.5,17 H21.5 V38 H16.5 Z'},
  flame:{f:'M20,2 C24,10 32,14 32,24 C32,32 26,38 20,38 C14,38 8,32 8,24 C8,18 12,14 14,10 C15,16 18,18 19,18 C17,12 18,6 20,2 Z'},
+ mountain:{f:'M2,36 L15,12 L21,22 L27,14 L38,36 Z M15,12 L18,18 L12,18 Z'},
+ ship:{f:'M5,26 H35 L30,34 H10 Z M19,4 V25 H21 V4 Z M21,6 L33,22 H21 Z M19,9 L9,22 H19 Z'},
+ sun:{s:'M20,13 A7,7 0 1,0 20.01,13 M20,2 V7 M20,33 V38 M2,20 H7 M33,20 H38 M7.3,7.3 L10.8,10.8 M29.2,29.2 L32.7,32.7 M7.3,32.7 L10.8,29.2 M29.2,10.8 L32.7,7.3'},
+ swords:{s:'M7,5 L33,33 M33,5 L7,33 M5,12 L12,5 M28,5 L35,12 M7,29 L11,33 M29,33 L33,29'},
+ wheel:{s:'M20,4 A16,16 0 1,0 20.01,4 M20,13 A7,7 0 1,0 20.01,13 M20,4 V13 M20,27 V36 M4,20 H13 M27,20 H36 M8.7,8.7 L15,15 M25,25 L31.3,31.3 M8.7,31.3 L15,25 M25,15 L31.3,8.7'},
+ rose:{f:'M20,6 C25,6 30,10 29,15 C34,15 36,21 32,24 C35,28 31,34 26,32 C25,37 15,37 14,32 C9,34 5,28 8,24 C4,21 6,15 11,15 C10,10 15,6 20,6 Z M20,15 A5,5 0 1,0 20.01,15'},
+ horseshoe:{s:'M9,36 V18 A11,11 0 0,1 31,18 V36 M6,36 H12 M28,36 H34'},
 };
 function emblemSVG(n,cx,cy,size,col){
  const sc=size/40,o=(dx,dy)=>`transform="translate(${(cx-size/2+dx).toFixed(2)} ${(cy-size/2+dy).toFixed(2)}) scale(${sc.toFixed(3)})"`;
@@ -53,6 +67,15 @@ function emblemSVG(n,cx,cy,size,col){
 }
 function divisionSVG(div,col,c1,c){
  switch(div){
+  case'fess':return`<rect x="0" y="0" width="100" height="56" fill="${col}"/>`;
+  case'saltire':return`<path d="M0,0 L100,120 M100,0 L0,120" stroke="${col}" stroke-width="16"/>`;
+  case'cross':return`<rect x="41" y="0" width="18" height="120" fill="${col}"/><rect x="0" y="44" width="100" height="18" fill="${col}"/>`;
+  case'pile':return`<polygon points="18,0 82,0 50,96" fill="${col}"/>`;
+  case'hoops':{let s='';for(let y=18;y<120;y+=22)s+=`<rect x="0" y="${y}" width="100" height="11" fill="${col}"/>`;return s}
+  case'chequy':{let s='';for(let y=0;y<120;y+=15)for(let x=(y/15)%2?15:0;x<100;x+=30)s+=`<rect x="${x}" y="${y}" width="15" height="15" fill="${col}"/>`;return s}
+  case'wavy':return`<path d="M0,64 Q12.5,54 25,64 T50,64 T75,64 T100,64 V120 H0 Z" fill="${col}"/><path d="M0,84 Q12.5,74 25,84 T50,84 T75,84 T100,84" fill="none" stroke="${c1}" stroke-width="5"/>`;
+  case'sun':{let s='';for(let k=0;k<12;k+=2){const a=k/12*Math.PI*2,b=(k+1)/12*Math.PI*2;s+=`<polygon points="50,56 ${50+Math.cos(a)*90},${56+Math.sin(a)*90} ${50+Math.cos(b)*90},${56+Math.sin(b)*90}" fill="${col}"/>`}return s}
+  case'bordure':return`<path d="M0,0 H100 V120 H0 Z M16,16 V76 Q16,98 50,106 Q84,98 84,76 V16 Z" fill="${col}" fill-rule="evenodd"/>`;
   case'pale':return`<rect x="50" y="0" width="50" height="120" fill="${col}"/>`;
   case'quarters':return`<rect x="50" y="0" width="50" height="60" fill="${col}"/><rect x="0" y="60" width="50" height="60" fill="${col}"/>`;
   case'bend':return`<polygon points="-10,28 22,-4 112,96 80,128" fill="${col}"/>`;
@@ -82,8 +105,9 @@ function crestSVG(c,o={}){
  s+=`<g clip-path="url(#${id}k)">${round?`<rect width="100" height="120" fill="url(#${id}f)"/>`:''}${divisionSVG(div,c2,c1,c)}</g>`;
  if(!round)s+=`<path d="${inner}" fill="none" stroke="${c2}" stroke-opacity=".5" stroke-width="1.2" transform="translate(50 60) scale(.78) translate(-50 -60)"/>`;else s+=`<circle cx="50" cy="60" r="32.5" fill="none" stroke="${c2}" stroke-opacity=".45" stroke-width="1"/>`;
  let ey=round?60:div==='chief'?59:52,es=round?42:div==='chief'?30:36;
- if(['pale','quarters','bend','stripes','chevron'].includes(div)){s+=`<circle cx="50" cy="${ey}" r="${(es*.6).toFixed(1)}" fill="${c1}" stroke="${c2}" stroke-width="2.4"/>`;es*=.76}
- s+=emblemSVG(emb,50,ey,es,em);
+ if(['pale','quarters','bend','stripes','chevron','fess','saltire','cross','pile','hoops','chequy','wavy','sun'].includes(div)){s+=`<circle cx="50" cy="${ey}" r="${(es*.6).toFixed(1)}" fill="${c1}" stroke="${c2}" stroke-width="2.4"/>`;es*=.76}
+ if(emb==='mono'){const t=(c.abbr||c.short.slice(0,2)).slice(0,emb.length>2&&(c.short.length>8)?2:3).toUpperCase();s+=`<text x="50" y="${(ey+es*.2).toFixed(1)}" text-anchor="middle" ${FONT} font-weight="800" font-size="${(es*(t.length>2?.62:.8)).toFixed(1)}" letter-spacing="-.5" fill="${em}">${esc(t)}</text>`}
+ else s+=emblemSVG(emb,50,ey,es,em);
  if(!round){
   const bc=contrast(c3,c1)>1.6?c3:c2,bt=ink(bc),dk=mix(bc,'#000',.32),nm=c.short.toUpperCase(),fs=Math.min(10.5,128/nm.length);
   s+=`<path d="M5,92 L17,90 L17,104 L5,106 L9.5,98.5 Z" fill="${dk}"/><path d="M95,92 L83,90 L83,104 L95,106 L90.5,98.5 Z" fill="${dk}"/>`;
@@ -91,6 +115,10 @@ function crestSVG(c,o={}){
   s+=`<text ${FONT} font-weight="800" font-size="${fs.toFixed(1)}" letter-spacing=".8" fill="${bt}" dy="${(fs*.36).toFixed(1)}"><textPath href="#${id}r" startOffset="50%" text-anchor="middle">${esc(nm)}</textPath></text>`;
   s+=`<path d="${inner}" fill="url(#${id}g)" ${sc} pointer-events="none"/>`;
  }else s+=`<circle cx="50" cy="60" r="44.5" fill="url(#${id}g)"/>`;
+ const orn=c.crest[3];
+ if(orn&&!round){const sc2=contrast(c3,'#1a1a1a')>3?c3:'#e8c25a';
+  if(orn==='stars1'||orn==='stars2'||orn==='stars3'){const n=+orn.slice(-1),xs=n===1?[50]:n===2?[42,58]:[36,50,64];s=s.replace('</defs>','</defs>')+xs.map(x=>`<polygon points="${starPts(x,4.5,4.2,1.7)}" fill="${sc2}" stroke="#000" stroke-opacity=".35" stroke-width=".6"/>`).join('')}
+  if(orn==='laurel'){const leaf=(x,y,r)=>`<ellipse cx="${x}" cy="${y}" rx="2.2" ry="5" transform="rotate(${r} ${x} ${y})" fill="#e8c25a" opacity=".9"/>`;let l='';for(let k=0;k<5;k++){const y=34+k*12;l+=leaf(6+k*1.6,y,-25+k*8)+leaf(94-k*1.6,y,25-k*8)}s+=l}}
  return s+'</svg>';
 }
 
@@ -98,6 +126,14 @@ function crestSVG(c,o={}){
 function patternSVG(pat,alt,x,y,w,h,u,gid){
  let s='';
  switch(pat){
+  case'band':s=`<rect x="${x}" y="${y+h*.3}" width="${w}" height="${h*.16}" fill="${alt}"/>`;break;
+  case'centre':s=`<rect x="${x+w/2-u*.9}" y="${y}" width="${u*1.8}" height="${h}" fill="${alt}"/>`;break;
+  case'panels':s=`<rect x="${x}" y="${y}" width="${w*.24}" height="${h}" fill="${alt}"/><rect x="${x+w*.76}" y="${y}" width="${w*.24}" height="${h}" fill="${alt}"/>`;break;
+  case'yoke':s=`<path d="M${x},${y} H${x+w} V${y+h*.24} Q${x+w/2},${y+h*.34} ${x},${y+h*.24} Z" fill="${alt}"/>`;break;
+  case'checks':for(let yy=y;yy<y+h;yy+=u)for(let xx=x+(((yy-y)/u)%2?u:0);xx<x+w;xx+=2*u)s+=`<rect x="${xx.toFixed(1)}" y="${yy.toFixed(1)}" width="${u}" height="${u}" fill="${alt}"/>`;break;
+  case'dstripes':for(let k=-h;k<w;k+=u*2.2)s+=`<polygon points="${x+k},${y+h} ${x+k+u},${y+h} ${x+k+u+h*.7},${y} ${x+k+h*.7},${y}" fill="${alt}"/>`;break;
+  case'fade':s=`<rect x="${x}" y="${y+h*.45}" width="${w}" height="${h*.55}" fill="${alt}" opacity=".85"/>`+Array.from({length:6},(_,k)=>`<rect x="${x}" y="${(y+h*.45-k*h*.05).toFixed(1)}" width="${w}" height="${(h*.025).toFixed(1)}" fill="${alt}" opacity="${(.7-k*.1).toFixed(2)}"/>`).join('');break;
+  case'hoopsthin':for(let i=y+u*.6;i<y+h;i+=u*1.2)s+=`<rect x="${x}" y="${i.toFixed(1)}" width="${w}" height="${(u*.35).toFixed(1)}" fill="${alt}"/>`;break;
   case'stripes':{let st=x+w/2-u/2;while(st-2*u>x-u)st-=2*u;for(let i=st;i<x+w;i+=2*u)s+=`<rect x="${i.toFixed(1)}" y="${y}" width="${u}" height="${h}" fill="${alt}"/>`;break}
   case'pinstripe':{const g=u*.62;let st=x+w/2;while(st-g>x)st-=g;for(let i=st;i<x+w;i+=g)s+=`<rect x="${(i-.6).toFixed(1)}" y="${y}" width="1.3" height="${h}" fill="${alt}" opacity=".75"/>`;break}
   case'hoops':for(let i=y+u*.9;i<y+h;i+=u*1.8)s+=`<rect x="${x}" y="${i.toFixed(1)}" width="${w}" height="${(u*.9).toFixed(1)}" fill="${alt}"/>`;break;

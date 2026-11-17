@@ -65,11 +65,11 @@ const CLUB_FORMS={
  nl:['{t} FC','SC {t}','VV {t}','FC {t}','SV {t}','Rapid {t}'],
 };
 const STADIUMS={en:['{t} Park','{t} Road','{t} Lane','The {t} Arena','{t} Ground'],es:['Estadio de {t}','Estadio {t}','Campo de {t}'],de:['{t} Arena','Stadion {t}','Waldstadion {t}'],it:['Stadio {t}','Stadio Comunale {t}'],fr:['Stade de {t}','Stade {t}'],nl:['{t} Stadion','Sportpark {t}']};
-const PALETTES=[['#c0182b','#ffffff','#121826'],['#1f4fd1','#ffffff','#f2c230'],['#141414','#f4c20d','#ffffff'],['#17703b','#ffffff','#d4a017'],['#5b2bbf','#f6b93b','#ffffff'],['#f47a1f','#10192e','#ffffff'],['#4cb8f0','#0b2545','#ffffff'],['#7d1f2c','#7fb6f0','#ffffff'],['#1d3787','#e8424a','#ffffff'],['#0f7a72','#f9df8b','#ffffff'],['#3a4354','#e6e9ef','#e2443a'],['#ffffff','#111827','#c0182b'],['#ffffff','#1d3787','#e8424a'],['#d42a2a','#111111','#f4c20d'],['#0b3d91','#f4c20d','#ffffff'],['#006b3f','#ffffff','#111111'],['#e30613','#ffffff','#003c82'],['#ffd200','#1a5d1a','#ffffff'],['#8b0000','#f4c20d','#ffffff'],['#2c1a4d','#b4e1ff','#ffffff'],['#ff6b00','#ffffff','#111111'],['#00a3e0','#ffffff','#e30613'],['#ffffff','#0b8a3e','#111111'],['#1b1b1b','#e30613','#ffffff']];
+const PALETTES=[['#8fc6ef','#ffffff','#0d2a52'],['#6a1b2e','#8fc6ef','#ffffff'],['#111111','#ffffff','#d4a017'],['#ff7a00','#111111','#ffffff'],['#0e5c55','#ff7f6e','#ffffff'],['#2b2d7a','#ff4fa3','#ffffff'],['#c9a227','#111111','#ffffff'],['#e5e5e5','#7a1f1f','#1b1b1b'],['#3d7a2e','#f2e9c9','#7a4b1f'],['#a0153e','#f2c230','#111111'],['#5f8dd3','#ffffff','#e4572e'],['#2a2a2a','#36c5f0','#ffffff'],['#c0182b','#ffffff','#121826'],['#1f4fd1','#ffffff','#f2c230'],['#141414','#f4c20d','#ffffff'],['#17703b','#ffffff','#d4a017'],['#5b2bbf','#f6b93b','#ffffff'],['#f47a1f','#10192e','#ffffff'],['#4cb8f0','#0b2545','#ffffff'],['#7d1f2c','#7fb6f0','#ffffff'],['#1d3787','#e8424a','#ffffff'],['#0f7a72','#f9df8b','#ffffff'],['#3a4354','#e6e9ef','#e2443a'],['#ffffff','#111827','#c0182b'],['#ffffff','#1d3787','#e8424a'],['#d42a2a','#111111','#f4c20d'],['#0b3d91','#f4c20d','#ffffff'],['#006b3f','#ffffff','#111111'],['#e30613','#ffffff','#003c82'],['#ffd200','#1a5d1a','#ffffff'],['#8b0000','#f4c20d','#ffffff'],['#2c1a4d','#b4e1ff','#ffffff'],['#ff6b00','#ffffff','#111111'],['#00a3e0','#ffffff','#e30613'],['#ffffff','#0b8a3e','#111111'],['#1b1b1b','#e30613','#ffffff']];
 const SPONSOR_A=['NOVA','KESTREL','VOLTA','MERIDIAN','HALCYON','GRANITE','TIDEWATER','NORTHWIND','SOLACE','BRIGHTLINE','OAKMONT','FORGE','APEX','LUMEN','ORBIT','CRESTA','VANTA','PULSE','ZENITH','HELIX','ATLAS','QUILL','EMBER','SUMMIT'];
 const SPONSOR_B=['',' AIR',' BANK',' TELECOM',' ENERGY',' MOTORS',' LABS',' FOODS',' MOBILE',' TRAVEL'];
-const SHAPE_KEYS=['heater','rounded','pointed','hex','round'],DIVS=['plain','plain','pale','bend','stripes','chevron','quarters','chief'],EMBS=Object.keys(EMB).concat(['ball']);
-const KIT_PATS=['plain','plain','plain','plain','stripes','hoops','halves','sash','pinstripe','chevron','quarters','gradient'];
+const SHAPE_KEYS=['heater','rounded','pointed','hex','round','round','castle','oval','diamond','badge','badge','scallop','tall','pennant'],DIVS=['plain','plain','pale','bend','stripes','chevron','quarters','chief','fess','saltire','cross','pile','hoops','chequy','wavy','sun','bordure'],EMBS=Object.keys(EMB).concat(['ball','mono','mono']),ORNS=['','','','','stars1','stars2','stars3','laurel'];
+const KIT_PATS=['plain','plain','plain','stripes','stripes','hoops','halves','sash','pinstripe','chevron','quarters','gradient','band','centre','panels','yoke','checks','dstripes','fade','hoopsthin'];
 
 /* attributes */
 const ATTRS=['pas','cro','dri','fir','fin','lon','hea','tck','mar','vis','dec','pos','cmp','wor','agg','pac','acc','sta','str','agi','jmp','ref','han','div','dst','one'];
@@ -131,9 +131,9 @@ function makeClubIdentity(rng,lang,used){
  const colors=rng.pick(PALETTES).slice();if(rng.chance(.25))[colors[1],colors[2]]=[colors[2],colors[1]];
  const letters=town.replace(/[^A-Za-zÀ-ÿ]/g,'').toUpperCase();
  const kp=()=>rng.pick(KIT_PATS);
- return{name,short:town,abbr:letters.slice(0,3),colors,crest:[rng.pick(SHAPE_KEYS),rng.pick(DIVS),rng.pick(EMBS)],
+ return{name,short:town,abbr:letters.slice(0,3),colors,crest:[rng.pick(SHAPE_KEYS),rng.pick(DIVS),rng.pick(EMBS),rng.pick(ORNS)],
   stadium:fill(rng.pick(STADIUMS[lang]),{t:town}),est:rng.i(1868,1925),sponsor:rng.pick(SPONSOR_A)+rng.pick(SPONSOR_B),
-  kits:{home:{base:colors[0],alt:colors[1],trim:colors[2],pattern:kp(),collar:rng.pick(['crew','v','polo'])},
+  kits:{home:{base:colors[0],alt:colors[1],trim:colors[2],pattern:kp(),collar:rng.pick(['crew','v','polo']),shorts:rng.pick([colors[0],colors[1],colors[1],colors[2],'#ffffff','#111318']),socks:rng.pick([colors[0],colors[0],colors[1],colors[2]])},
         away:{base:colors[1],alt:colors[0],trim:colors[0],pattern:kp(),collar:rng.pick(['crew','v'])},
         third:{base:rng.pick(['#151b2b','#2a2f3a','#0f3b2e','#3b0f2a']),alt:colors[0],trim:colors[2]==='#ffffff'?colors[0]:colors[2],pattern:kp(),collar:'polo'}}};
 }

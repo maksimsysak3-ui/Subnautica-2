@@ -99,7 +99,7 @@ function viewMatch(){
  return bar+`<div class="mstage">
  <div class="stage" id="stage"><canvas id="m-canvas" aria-label="Match view"></canvas>
   <div class="stage-msg" id="stage-msg" hidden></div>
-  <div class="ov-sbug" id="m-sbug">${sbugHTML()}</div>
+  <div class="ov-sbug sbv-${sbTheme().v}" style="--s1:${sbTheme().c1};--s2:${sbTheme().c2}" id="m-sbug">${sbugHTML()}</div>
   <div class="ov-tl" id="m-tl"><b id="m-tlc"></b><small>Fast forward</small><span id="m-tlt"></span></div>
   <div class="ov-l3" id="m-l3">${l3HTML()}</div>
   <div class="ov-lu" id="m-lu">${lineupCards()}</div>
@@ -122,7 +122,11 @@ function viewMatch(){
  <section class="panel an-panel" id="m-an" style="margin-top:12px">${analysisHTML(M.E,true)}</section>`;
 }
 const shortOf=s=>esc(clubOf(M.E.T[s].club).abbr||clubOf(M.E.T[s].club).short.slice(0,3).toUpperCase());
-function sbugHTML(){if(!M.E)return'';const[hk,ak]=kitColors(M.E);return`<span class="sb-t" style="--k:${hk.base}">${shortOf(0)}</span><b id="m-sbs">${M.score[0]}–${M.score[1]}</b><span class="sb-t" style="--k:${ak.base}">${shortOf(1)}</span><i id="m-sbc">${clockAt(M.E,M.pt)}</i>`}
+// Each competition has its own broadcast scoreboard: shape, colours, logo and clock styling.
+const SB_VARIANT={ENG:'crown',ESP:'slant',GER:'block',ITA:'pill',FRA:'line',NED:'tab'};
+function sbTheme(){const t=M.tie;if(!t||t.comp==='lg'){const lid=clubOf(M.fx[0]).league,st=compStyle(lid);return{v:SB_VARIANT[S.leagues[lid].nation]||'crown',c1:st.c1,c2:st.c2,logo:leagueLogo(lid,24)}}
+ const st=cupStyle(t.comp);return{v:t.comp==='cont'?'star':'cup',c1:st.c1,c2:st.c2,logo:cupLogo(t.comp,24)}}
+function sbugHTML(){if(!M.E)return'';const[hk,ak]=kitColors(M.E),th=sbTheme();return`<span class="sb-logo">${th.logo}</span><span class="sb-t" style="--k:${hk.base}">${shortOf(0)}</span><b id="m-sbs">${M.score[0]}–${M.score[1]}</b><span class="sb-t" style="--k:${ak.base}">${shortOf(1)}</span><i id="m-sbc">${clockAt(M.E,M.pt)}</i>`}
 function l3HTML(){const[h,a]=M.fx,H=clubOf(h),lg=S.leagues[H.league];
  return`<div class="l3-in"><small>${esc(M.tie?M.tie.label:lg.name)}</small><div class="l3-teams">${crest(h,34)}<b>${esc(H.name)}</b><i>v</i><b>${esc(clubOf(a).name)}</b>${crest(a,34)}</div><span>${esc(H.stadium)} · ${kickLabel(M.wx.kick)} · ${WX[M.wx.type].n}, ${M.wx.temp}°C</span></div>`}
 function lineupCards(){if(!M.E)return'';const ks=kitColors(M.E);
@@ -282,7 +286,7 @@ function create2D(cv,E){
   ctx.save();ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();ctx.ellipse(x+r*.25,y+r*.35,r*1.05,r*.8,0,0,7);ctx.fill();
   ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.save();ctx.clip();ctx.fillStyle=kit.base;ctx.fillRect(x-r,y-r,2*r,2*r);ctx.fillStyle=kit.alt;
   switch(kit.pattern){case'stripes':for(let k=-2;k<=2;k+=2)ctx.fillRect(x+k*r*.4-r*.2,y-r,r*.4,2*r);break;case'pinstripe':for(let k=-3;k<=3;k++)ctx.fillRect(x+k*r*.32,y-r,r*.08,2*r);break;case'hoops':for(let k=-2;k<=2;k+=2)ctx.fillRect(x-r,y+k*r*.4-r*.2,2*r,r*.4);break;
-   case'halves':ctx.fillRect(x,y-r,r,2*r);break;case'quarters':ctx.fillRect(x,y-r,r,r);ctx.fillRect(x-r,y,r,r);break;case'sash':ctx.beginPath();ctx.moveTo(x-r,y+r*.2);ctx.lineTo(x+r*.2,y-r);ctx.lineTo(x+r*.7,y-r);ctx.lineTo(x-r,y+r*.75);ctx.fill();break;case'chevron':ctx.fillRect(x-r,y-r*.15,2*r,r*.3);break}
+   case'halves':ctx.fillRect(x,y-r,r,2*r);break;case'quarters':ctx.fillRect(x,y-r,r,r);ctx.fillRect(x-r,y,r,r);break;case'sash':ctx.beginPath();ctx.moveTo(x-r,y+r*.2);ctx.lineTo(x+r*.2,y-r);ctx.lineTo(x+r*.7,y-r);ctx.lineTo(x-r,y+r*.75);ctx.fill();break;case'chevron':case'band':ctx.fillRect(x-r,y-r*.15,2*r,r*.3);break;case'centre':ctx.fillRect(x-r*.22,y-r,r*.44,2*r);break;case'panels':ctx.fillRect(x-r,y-r,r*.5,2*r);ctx.fillRect(x+r*.5,y-r,r*.5,2*r);break;case'yoke':ctx.fillRect(x-r,y-r,2*r,r*.7);break;case'checks':for(let a=-1;a<1;a+=.5)for(let b=-1;b<1;b+=.5)if(((a+b)*2)%2===0)ctx.fillRect(x+a*r,y+b*r,r*.5,r*.5);break;case'dstripes':for(let k=-2;k<=2;k++){ctx.beginPath();ctx.moveTo(x+k*r*.6-r,y+r);ctx.lineTo(x+k*r*.6-r+r*.3,y+r);ctx.lineTo(x+k*r*.6+r*.3,y-r);ctx.lineTo(x+k*r*.6,y-r);ctx.fill()}break;case'hoopsthin':for(let k=-3;k<=3;k++)ctx.fillRect(x-r,y+k*r*.3,2*r,r*.12);break;case'fade':ctx.fillRect(x-r,y,2*r,r);break}
   const gl=ctx.createLinearGradient(x,y-r,x,y+r);gl.addColorStop(0,'rgba(255,255,255,.22)');gl.addColorStop(.5,'rgba(255,255,255,0)');gl.addColorStop(1,'rgba(0,0,0,.25)');ctx.fillStyle=gl;ctx.fillRect(x-r,y-r,2*r,2*r);ctx.restore();
   ctx.lineWidth=Math.max(1.5,r*.18);ctx.strokeStyle=carrier?'#fff':contrast(kit.trim,kit.base)>1.6?kit.trim:mix(kit.base,'#000000',.5);ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.stroke();
   if(face!=null){ctx.fillStyle=carrier?'#fff':'rgba(255,255,255,.85)';ctx.beginPath();const a=face,tx=x+Math.cos(a)*(r+r*.55),ty=y+Math.sin(a)*(r+r*.55);ctx.moveTo(tx,ty);ctx.lineTo(x+Math.cos(a+.45)*(r+1),y+Math.sin(a+.45)*(r+1));ctx.lineTo(x+Math.cos(a-.45)*(r+1),y+Math.sin(a-.45)*(r+1));ctx.fill()}
