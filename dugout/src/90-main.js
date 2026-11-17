@@ -73,6 +73,14 @@ document.addEventListener('click',e=>{
   case'ren-offer':renewOffer();break;
   case'tlist':{const p=S.players[id];p.tl=!p.tl;save();render();toast(p.tl?`${p.ln} has been transfer listed`:`${p.ln} removed from the transfer list`);break}
   case'tfocus':{const p=S.players[id];p.tf=v==='none'?null:v;save();render();break}
+  case'sc-pos':ui.sc.pos=v;render();break;
+  case'sc-start':S.scout=Object.assign({},ui.sc);save();render();toast('Scouts are on the road');break;
+  case'sc-stop':S.scout=null;save();render();break;
+  case'scout-p':(S.scoutQ=S.scoutQ||[]).includes(id)||S.scoutQ.push(id);save();render();toast('A scout will report after the next match');break;
+  case'acad-up':{ensureAcademy();const k=v,cost=ACAD_COST[S.academy[k]],c=clubOf(S.user);if(c.budget<cost)break;c.budget-=cost;S.academy[k]++;save();render();toast('Academy upgraded');break}
+  case'acad-promote':{S.acad=S.acad.filter(x=>x!==id);const c=clubOf(S.user),p=S.players[id];c.squad.push(id);p.num=assignNum(S.user,p.pos);save();render();toast(`${p.ln} promoted to the first team`);break}
+  case'acad-release':{const p=S.players[id];S.acad=S.acad.filter(x=>x!==id);delete S.players[id];save();render();toast(`${p.ln} released`);break}
+  case'loan-out':loanOut(id);break;
   case'goto':{const[g,sb]=v.split('/');closeModal();go(g,sb);break}
   case'mailf':ui.mailF=v;ui.msg=null;render();break;
   case'mail-read-all':S.inbox.forEach(m=>m.read=true);save();render();renderBar();break;
@@ -139,6 +147,8 @@ document.addEventListener('input',e=>{const k=e.target.dataset.input,v=+e.target
  else if(k==='split'){const c=clubOf(S.user),total=c.budget+c.wageBudget*WAGE_TO_FEE;$('#sp-w').textContent=money(v)+'/w';$('#sp-t').textContent=money(Math.max(0,total-v*WAGE_TO_FEE))}
  else if(k==='trq'){ui.trQ=e.target.value;renderSearch()}
  else if(k==='an-pid'){ui.anPid=v;refreshAn()}
+ else if(k==='sc-region'){ui.sc.region=e.target.value}
+ else if(k==='sc-age'){ui.sc.age=v;const l=e.target.closest('.neg-f');if(l)l.querySelector('b').textContent=v}
  else if(k==='ren-w'){ui.ren.wage=v;const o=document.getElementById('rw-o');if(o)o.textContent=money(v)}});
 document.addEventListener('keydown',e=>{
  if(e.key==='Escape'&&!$('#modal').hidden)closeModal();

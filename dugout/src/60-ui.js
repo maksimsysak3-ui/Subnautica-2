@@ -3,7 +3,7 @@ let view='home',sub='overview',W=null;
 const ui={trNat:'all',trExp:false,dealLeague:'all',sort:{squad:['ovr',-1],search:['ovr',-1]},group:'all',tSel:null,tSwap:null,trPos:'all',trLeague:'all',trMax:0,trAge:40,trMin:0,trQ:'',lg:null,lgMd:null,kitBack:false,pickNation:'ENG',pickLeague:null,pickClub:null,pid:null,back:null};
 const ARROW='<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 const LOGO=`<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="1" y="1" width="38" height="38" rx="10" fill="#ffb43a"/><path d="M11 10 H19 A10 10 0 0 1 19 30 H11 Z" fill="none" stroke="#2b1900" stroke-width="3.4" stroke-linejoin="round"/><path d="M15 20 H24 M21 16.5 L24.5 20 L21 23.5" fill="none" stroke="#2b1900" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-const NAV=[['home','Home',[['overview','Overview'],['inbox','Inbox'],['calendar','Calendar'],['news','News']]],['squad','Squad',[['players','Players'],['stats','Statistics'],['training','Training']]],['tactics','Tactics',[['tactics','Tactics']]],['transfers','Transfers',[['hub','Transfer hub'],['search','Player search'],['shortlist','Shortlist'],['bids','My bids'],['deals','Deals']]],['comps','Competitions',[['overview','Overview'],['table','Table'],['fixtures','Fixtures'],['stats','Stats'],['clubs','Clubs'],['history','History']]],['office','Office',[['budget','Budgets'],['finances','Finances'],['board','Board']]],['club','Club',[['overview','Overview'],['honours','Honours'],['history','History'],['records','Records']]]];
+const NAV=[['home','Home',[['overview','Overview'],['inbox','Inbox'],['calendar','Calendar'],['news','News']]],['squad','Squad',[['players','Players'],['stats','Statistics'],['training','Training'],['development','Development'],['academy','Academy']]],['tactics','Tactics',[['tactics','Tactics']]],['transfers','Transfers',[['hub','Transfer hub'],['search','Player search'],['scouting','Scouting'],['shortlist','Shortlist'],['bids','My bids'],['deals','Deals']]],['comps','Competitions',[['overview','Overview'],['table','Table'],['fixtures','Fixtures'],['stats','Stats'],['clubs','Clubs'],['history','History']]],['office','Office',[['budget','Budgets'],['finances','Finances'],['board','Board']]],['club','Club',[['overview','Overview'],['honours','Honours'],['history','History'],['records','Records']]]];
 const NAV_ICON={home:'<path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"/>',squad:'<path d="M8 3 4 6 2 11l4 1v9h12v-9l4-1-2-5-4-3q-4 3-8 0z"/>',tactics:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="14" r="1.5"/><path d="M10.5 11.5q3-4 6.5-2M15 15l3 3M18 15l-3 3"/>',transfers:'<path d="M4 8h15l-4-4M20 16H5l4 4"/>',comps:'<path d="M7 4h10v5a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 5M17 6h3a3 3 0 0 1-3 5M12 14v4M8 20h8"/>',office:'<rect x="3" y="7" width="18" height="13" rx="1"/><path d="M9 7V4h6v3M3 12h18"/>',club:'<path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z"/>'};
 function storyArt(n,big){
  if(n.score){const[h,a,hg,ag]=n.score,ch=clubOf(h),ca=clubOf(a);return`<div class="story-art" style="background:linear-gradient(115deg,${ch.colors[0]} 0 48%,${ca.colors[0]} 52% 100%)">${crest(h,big?62:30)}<span class="sc">${hg}–${ag}</span>${crest(a,big?62:30)}</div>`}
@@ -33,8 +33,8 @@ function openPlayer(pid){ui.back=[view,sub];if(ui.pid!==pid)ui.pTab='overview';g
 
 /* ---------- bar ---------- */
 function nextLabel(){if(S.md>=MDAYS)return'Season review';if(typeof M!=='undefined'&&M&&M.phase==='live')return'Resume match';if(typeof M!=='undefined'&&M&&M.phase==='done')return'Match report';return'Continue'}
-const PAGE={home:{overview:'Club Overview',inbox:'Inbox',news:'News',calendar:'Calendar'},squad:{players:'Squad',stats:'Squad Statistics',training:'Training'},tactics:{tactics:'Tactics'},
- transfers:{hub:'Transfer Centre',search:'Player Search',shortlist:'Shortlist',bids:'Transfer Activity',deals:'Deals Ledger'},comps:{overview:'Competition Overview',table:'Standings',fixtures:'Fixtures & Results',stats:'Player Statistics',clubs:'Clubs',history:'Roll of Honour'},
+const PAGE={home:{overview:'Club Overview',inbox:'Inbox',news:'News',calendar:'Calendar'},squad:{players:'Squad',stats:'Squad Statistics',training:'Training',development:'Development Centre',academy:'Youth Academy'},tactics:{tactics:'Tactics'},
+ transfers:{hub:'Transfer Centre',search:'Player Search',scouting:'Scouting Centre',shortlist:'Shortlist',bids:'Transfer Activity',deals:'Deals Ledger'},comps:{overview:'Competition Overview',table:'Standings',fixtures:'Fixtures & Results',stats:'Player Statistics',clubs:'Clubs',history:'Roll of Honour'},
  office:{budget:'Budgets',finances:'Finances',board:'Board Room'},club:{overview:'Club Info',honours:'Manager Profile',history:'Club History',records:'Records'},player:{'':'Player Profile'},match:{'':'Match Day'}};
 function renderBar(){
  const c=clubOf(S.user),nt=nextUserTie(),unread=S.inbox.filter(m=>!m.read).length;
@@ -116,6 +116,8 @@ function sortable(key,cols,list){const[sk,dir]=ui.sort[key];const col=cols.find(
 /* ---------- squad ---------- */
 function viewSquad(){
  if(sub==='training')return viewTraining();
+ if(sub==='development')return viewDevelopment();
+ if(sub==='academy')return viewAcademy();
  const c=clubOf(S.user),inXI=new Set(c.tac.xi),inB=new Set(c.tac.bench),grp=p=>ui.group==='all'||GROUP[p.pos]===ui.group;
  const list=squadOf(S.user).filter(grp);
  const head=`<div class="toolbar"><div class="seg" role="group" aria-label="Position group">${['all','GK','DEF','MID','ATT'].map(g=>`<button data-act="group" data-v="${g}" aria-pressed="${ui.group===g}">${g==='all'?'All':g}</button>`).join('')}</div><span class="grow"></span><small>${c.squad.length} players · wage bill ${money(wageBill(S.user))} p/w</small></div>`;

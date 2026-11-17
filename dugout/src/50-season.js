@@ -54,6 +54,7 @@ function startCareer(cid){
  mail('Board of Directors',`Welcome to ${c.name}`,`<p>Welcome to ${esc(c.stadium)}. The board has made <b>${money(c.budget)}</b> available for transfers and a wage budget of <b>${money(c.wageBudget)}</b> per week.</p><p>Our objective this season: <b>${expectation(cid)}</b>.</p><p>The transfer window is open until matchday ${WIN1}.</p><p>Welcome aboard, and good luck.</p>`,null,'board',{att:{t:'stadium',cid},links:[['Club overview','nav','club'],['Office','nav','office']]});
  const best=squadOf(cid).sort((a,b)=>b.ovr-a.ovr)[0];
  mail('Assistant Manager','Squad assessment',`<p>${esc(best.fn+' '+best.ln)} is our standout player. I have set us up in a ${c.tac.form}. Review the shape, roles and instructions on the Tactics screen before the opener.</p><p>Here are the three players I think we build around.</p>`,null,'staff',{att:{t:'squad'},links:[['Open tactics','nav','tactics'],['View squad','nav','squad']]});
+ if(typeof academyIntake==='function'&&!(S.acad||[]).length)academyIntake();
  news(`The board hopes the new appointment can deliver: ${expectation(cid).toLowerCase()}.`,'club',[cid],{title:`${c.short} name new manager`});
  save();
 }
@@ -135,7 +136,7 @@ function processMatchday(userRes){
   if(p.inj){p.inj--;if(p.inj<=0)delete p.inj}
   if(p.ban){p.ban--;if(p.ban<=0)delete p.ban}
   const mine=p.club===S.user,tr=S.train,ti=[.6,1,1.45][tr.int];
-  if(p.age<=23&&p.ovr<p.pot&&G.f()<.055*(mine?ti*(tr.focus==='youth'?1.5:1):1)){if(mine)trainBump(p);else bump(p,1);if(mine){p.dev=(p.dev||0)+1;if(p.ovr>=p.lastNote+2||!p.lastNote){p.lastNote=p.ovr;S.devNews=(S.devNews||[]).concat(p.id)}}}
+  if(p.age<=23&&p.ovr<p.pot&&G.f()<.055*(mine?ti*(tr.focus==='youth'?1.5:1):1)*(p.loan?1.5:1)*(S.acad&&S.acad.includes(p.id)?.6+S.academy.fac*.2:1)){if(mine)trainBump(p);else bump(p,1);if(mine){p.dev=(p.dev||0)+1;if(p.ovr>=p.lastNote+2||!p.lastNote){p.lastNote=p.ovr;S.devNews=(S.devNews||[]).concat(p.id)}}}
   else if(p.age>=31&&G.f()<.03*(mine&&tr.focus==='fitness'?.6:1))bump(p,-1);
   if(mine){if(tr.focus==='fitness')p.cond=Math.min(100,p.cond+6);if(tr.int===2){p.cond=Math.max(40,p.cond-5);if(G.f()<.004)p.inj=G.i(1,3)}if(tr.int===0)p.cond=Math.min(100,p.cond+5)}
   p.val=valueOf(p);if(md%4===0){(p.vh=p.vh||[]).push(Math.round(p.val/1e4));if(p.vh.length>10)p.vh.shift();if(mine){(p.oh=p.oh||[]).push(p.ovr);if(p.oh.length>30)p.oh.shift()}}
@@ -154,6 +155,7 @@ function processMatchday(userRes){
  aiManagers();
  if(windowOpen()&&G.f()<(squadOf(S.user).some(p=>p.tl)?.6:.3))incomingOffer();
  if(typeof squadMood==='function')squadMood();
+ if(typeof scoutTick==='function')scoutTick();
  S.md++;if(S.cal)S.ci++;
  if(S.md===WIN2[0])mail('Director of Football','January window opens',`<p>The winter transfer window is open until matchday ${WIN2[1]}. Our current position and budget are below.</p>`,null,'transfer',{att:{t:'budget'},links:[['Transfer hub','nav','transfers']]});
  if(S.md===WIN1)mail('Director of Football','Transfer window closed',`<p>The summer window has closed. It reopens at matchday ${WIN2[0]+1}.</p>`,null,'transfer',{att:{t:'budget'}});
@@ -250,6 +252,7 @@ function canSell(p){const sq=squadOf(S.user);if(sq.length<=18)return'You need at
 /* ---------- season end ---------- */
 function endSeason(){
  seasonHistory();
+ if(typeof returnLoans==='function')returnLoans();
  if(typeof contractExits==='function')contractExits();
  const contNext=contQualifiers(true),report=[],uc0=clubOf(S.user),uLeague=S.leagues[uc0.league].name,uPos=posIn(table(uc0.league),S.user);
  COUNTRIES.forEach(co=>{
@@ -285,7 +288,7 @@ function endSeason(){
  {const uc=clubOf(S.user),prize=Math.round(budgetOf(uc.rep)*(1-(uPos-1)/PER)*.6);uc.balance+=prize;uc.budget+=Math.round(prize*.5);S.fin=newFin();S.fin.prize=prize}
  if(S.owed){clubOf(S.user).budget-=Math.round(S.owed);S.fin.buys+=Math.round(S.owed);S.owed=0}
  S.season++;S.md=0;S.bidLog={};S.bids=[];
- S.youth=youthIntake(S.user,G.i(3,5)).map(p=>p.id);for(const c of S.clubs)if(c.id!==S.user&&c.squad.length<30)youthIntake(c.id,G.i(1,2));
+ S.youth=typeof academyIntake==='function'?academyIntake():youthIntake(S.user,G.i(3,5)).map(p=>p.id);for(const c of S.clubs)if(c.id!==S.user&&c.squad.length<30)youthIntake(c.id,G.i(1,2));
  S.offers=S.lastSeason&&S.mgr.rep>clubOf(S.user).rep+4?jobOffers(2,clubOf(S.user).rep+3,Math.min(96,S.mgr.rep+8)).map(c=>c.id):[];
  for(const p of Object.values(S.players)){p.dev=0;p.ovr0=p.ovr;p.val0=p.val}
  for(const lg of S.leagues){S.fixtures[lg.id]=roundRobin(shuffled(lg.clubs));S.results[lg.id]=[]}
@@ -305,7 +308,7 @@ function jobOffers(n,minRep,maxRep){return shuffled(S.clubs.filter(c=>c.id!==S.u
 function takeJob(cid,reason){const old=S.user;S.mgr.clubs.push({club:old,season:seasonLabel(),reason});S.user=cid;S.board=60;S.sacked=false;S.fin=newFin();S.shortlist=[];S.bids=[];
  const c=clubOf(cid);ensureLineup(cid);mail('Board of Directors',`Welcome to ${c.name}`,`<p>We are delighted to appoint you. Your objective: <b>${expectation(cid)}</b>. Transfer budget: <b>${money(c.budget)}</b>.</p>`,null,'board',{att:{t:'stadium',cid},links:[['Club overview','nav','club']]});
  news(`${c.name} have appointed a new manager.`,'club',[cid],{title:`${c.short} name new manager`});save()}
-function youthIntake(cid,n){const c=clubOf(cid),co=COUNTRIES.find(x=>x.code===c.nation),rng=R((Math.random()*2e9)|0),out=[];
- for(let k=0;k<n;k++){const pos=rng.pick(['GK','CB','CB','LB','RB','DM','CM','CM','AM','LW','RW','ST','ST']),roll=rng.f(),pot=clamp(Math.round(repToOvr(c.rep)+(roll<.08?rng.i(12,20):roll<.35?rng.i(4,11):rng.i(-8,3))),45,roll<.015?95:89);
+function youthIntake(cid,n,fac){const c=clubOf(cid),co=COUNTRIES.find(x=>x.code===c.nation),rng=R((Math.random()*2e9)|0),out=[];
+ for(let k=0;k<n;k++){const pos=rng.pick(['GK','CB','CB','LB','RB','DM','CM','CM','AM','LW','RW','ST','ST']),roll=rng.f(),pot=clamp(Math.round(repToOvr(c.rep)+(roll<.08?rng.i(12,20):roll<.35?rng.i(4,11):rng.i(-8,3))+((fac||2)-2)*2),45,(roll<.015?95:89)+Math.max(0,(fac||2)-3));
   const y=genPlayer(rng,pos,clamp(pot-rng.i(16,26),35,70),cid,rng.chance(.75)?co.code:rng.pick(NAT_BAG),{age:rng.i(16,17),pot});y.con=3;y.wage=Math.max(500,Math.round(y.wage*.5/100)*100);y.id=S.npid++;S.players[y.id]=y;c.squad.push(y.id);y.num=assignNum(cid,pos);y.youth=S.season;out.push(y)}
  return out}

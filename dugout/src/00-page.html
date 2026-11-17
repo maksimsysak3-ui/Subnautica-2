@@ -854,6 +854,19 @@ body.ingame main{max-width:none;width:100%;padding:0 max(22px,env(safe-area-inse
 .neg-f{margin:0 0 14px}.neg-f label{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:6px}.neg-f label b{color:#fff;font:700 16px var(--fd)}.neg-f input[type=range]{width:100%}
 .ren-msg{padding:10px 12px;border-left:3px solid var(--accent);background:rgba(255,180,58,.07);font-size:13.5px}
 @media (max-width:900px){.pp2-hero{grid-template-columns:84px minmax(0,1fr);padding:14px 14px 0}.pp2-kit .kit{width:80px}.pp2-rate{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:space-between;text-align:left}}
+
+/* scouting, academy, development */
+.grade{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:4px;font:800 13px var(--fd)}.gA{background:#38d184;color:#032}.gB{background:#9fd36b;color:#132}.gC{background:#e6c35a;color:#320}.gD{background:#7a7a80;color:#111}
+.unc{opacity:.75;font-size:13px!important;letter-spacing:-.02em}.unc-stars{font:700 14px var(--fd);color:#e8c25a}.unc-stars i{font-style:normal;margin-left:2px}
+.btnchip{cursor:pointer;border-style:dashed}.btnchip:hover{border-color:var(--accent);color:#fff}
+.acad-top{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.acad-lvl{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:14px;align-items:center;padding:12px;border:1px solid var(--line2);border-radius:4px;background:var(--bg2)}.acad-lvl b{display:block;font-size:14px}.acad-lvl small{color:var(--muted);font-size:12px}
+.acad-bars{display:flex;gap:3px}.acad-bars i{width:14px;height:18px;border-radius:2px;background:#26262a}.acad-bars i.on{background:var(--accent)}
+.acad-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;padding:12px}
+.acad-card{padding:12px;border:1px solid var(--line2);border-radius:4px;background:linear-gradient(180deg,#19191c,#141416);display:flex;flex-direction:column;gap:8px}
+.acad-h{display:flex;align-items:center;gap:8px}.acad-h b{flex:1;font-size:14px}.acad-h small{display:flex;align-items:center;gap:5px;color:var(--muted)}
+.acad-r{display:flex;justify-content:space-between}.acad-r small{display:block;font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
+@media (max-width:900px){.acad-top{grid-template-columns:1fr}.acad-lvl{grid-template-columns:1fr}}
 </style>
 
 <aside id="bar" hidden></aside>

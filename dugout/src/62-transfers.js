@@ -25,6 +25,7 @@ function transfersTop(){
 }
 function viewTransfers(){
  const top=transfersTop();
+ if(sub==='scouting')return top+viewScouting();
  if(sub==='search')return top+searchFilters()+`<div class="panel" id="tr-list"></div>`;
  if(sub==='shortlist'){const list=S.shortlist.map(id=>S.players[id]).filter(Boolean);return top+(list.length?`<div class="tcards">${list.map(p=>targetCard(p,squadOf(S.user).filter(x=>x.pos===p.pos).reduce((m,x)=>Math.max(m,rateAt(x,p.pos)),0))).join('')}</div>`:'<div class="panel"><p class="pb muted">Your shortlist is empty. Add players from the hub, search or their profile.</p></div>')}
  if(sub==='bids')return top+`<div class="panel"><div class="ph"><h3>Negotiations this season</h3></div>${S.bids.length?`<div class="tw"><table class="tbl"><thead><tr><th>Player</th><th>Club</th><th class="r">Offer</th><th class="r">Wage</th><th>Status</th><th>MD</th></tr></thead><tbody>${S.bids.map(b=>{const p=S.players[b.pid];return p?`<tr class="click" data-act="player" data-id="${p.id}"><td><b>${pName(p)}</b> ${posChip(p.pos)}</td><td><div class="who">${crest(b.from,18)}${esc(clubOf(b.from).short)}</div></td><td class="r">${money(b.fee)}</td><td class="r">${b.wage?money(b.wage):'–'}</td><td><span class="chip ${b.status==='Signed'?'ok':b.status==='Rejected'||b.status==='Terms refused'?'bad':''}">${b.status}</span></td><td>${b.md+1}</td></tr>`:''}).join('')}</tbody></table></div>`:'<p class="pb muted">No bids made yet this season.</p>'}</div>`;

@@ -854,6 +854,19 @@ body.ingame main{max-width:none;width:100%;padding:0 max(22px,env(safe-area-inse
 .neg-f{margin:0 0 14px}.neg-f label{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:6px}.neg-f label b{color:#fff;font:700 16px var(--fd)}.neg-f input[type=range]{width:100%}
 .ren-msg{padding:10px 12px;border-left:3px solid var(--accent);background:rgba(255,180,58,.07);font-size:13.5px}
 @media (max-width:900px){.pp2-hero{grid-template-columns:84px minmax(0,1fr);padding:14px 14px 0}.pp2-kit .kit{width:80px}.pp2-rate{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:space-between;text-align:left}}
+
+/* scouting, academy, development */
+.grade{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:4px;font:800 13px var(--fd)}.gA{background:#38d184;color:#032}.gB{background:#9fd36b;color:#132}.gC{background:#e6c35a;color:#320}.gD{background:#7a7a80;color:#111}
+.unc{opacity:.75;font-size:13px!important;letter-spacing:-.02em}.unc-stars{font:700 14px var(--fd);color:#e8c25a}.unc-stars i{font-style:normal;margin-left:2px}
+.btnchip{cursor:pointer;border-style:dashed}.btnchip:hover{border-color:var(--accent);color:#fff}
+.acad-top{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.acad-lvl{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:14px;align-items:center;padding:12px;border:1px solid var(--line2);border-radius:4px;background:var(--bg2)}.acad-lvl b{display:block;font-size:14px}.acad-lvl small{color:var(--muted);font-size:12px}
+.acad-bars{display:flex;gap:3px}.acad-bars i{width:14px;height:18px;border-radius:2px;background:#26262a}.acad-bars i.on{background:var(--accent)}
+.acad-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;padding:12px}
+.acad-card{padding:12px;border:1px solid var(--line2);border-radius:4px;background:linear-gradient(180deg,#19191c,#141416);display:flex;flex-direction:column;gap:8px}
+.acad-h{display:flex;align-items:center;gap:8px}.acad-h b{flex:1;font-size:14px}.acad-h small{display:flex;align-items:center;gap:5px;color:var(--muted)}
+.acad-r{display:flex;justify-content:space-between}.acad-r small{display:block;font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
+@media (max-width:900px){.acad-top{grid-template-columns:1fr}.acad-lvl{grid-template-columns:1fr}}
 </style>
 
 <aside id="bar" hidden></aside>
@@ -1860,6 +1873,7 @@ function startCareer(cid){
  mail('Board of Directors',`Welcome to ${c.name}`,`<p>Welcome to ${esc(c.stadium)}. The board has made <b>${money(c.budget)}</b> available for transfers and a wage budget of <b>${money(c.wageBudget)}</b> per week.</p><p>Our objective this season: <b>${expectation(cid)}</b>.</p><p>The transfer window is open until matchday ${WIN1}.</p><p>Welcome aboard, and good luck.</p>`,null,'board',{att:{t:'stadium',cid},links:[['Club overview','nav','club'],['Office','nav','office']]});
  const best=squadOf(cid).sort((a,b)=>b.ovr-a.ovr)[0];
  mail('Assistant Manager','Squad assessment',`<p>${esc(best.fn+' '+best.ln)} is our standout player. I have set us up in a ${c.tac.form}. Review the shape, roles and instructions on the Tactics screen before the opener.</p><p>Here are the three players I think we build around.</p>`,null,'staff',{att:{t:'squad'},links:[['Open tactics','nav','tactics'],['View squad','nav','squad']]});
+ if(typeof academyIntake==='function'&&!(S.acad||[]).length)academyIntake();
  news(`The board hopes the new appointment can deliver: ${expectation(cid).toLowerCase()}.`,'club',[cid],{title:`${c.short} name new manager`});
  save();
 }
@@ -1941,7 +1955,7 @@ function processMatchday(userRes){
   if(p.inj){p.inj--;if(p.inj<=0)delete p.inj}
   if(p.ban){p.ban--;if(p.ban<=0)delete p.ban}
   const mine=p.club===S.user,tr=S.train,ti=[.6,1,1.45][tr.int];
-  if(p.age<=23&&p.ovr<p.pot&&G.f()<.055*(mine?ti*(tr.focus==='youth'?1.5:1):1)){if(mine)trainBump(p);else bump(p,1);if(mine){p.dev=(p.dev||0)+1;if(p.ovr>=p.lastNote+2||!p.lastNote){p.lastNote=p.ovr;S.devNews=(S.devNews||[]).concat(p.id)}}}
+  if(p.age<=23&&p.ovr<p.pot&&G.f()<.055*(mine?ti*(tr.focus==='youth'?1.5:1):1)*(p.loan?1.5:1)*(S.acad&&S.acad.includes(p.id)?.6+S.academy.fac*.2:1)){if(mine)trainBump(p);else bump(p,1);if(mine){p.dev=(p.dev||0)+1;if(p.ovr>=p.lastNote+2||!p.lastNote){p.lastNote=p.ovr;S.devNews=(S.devNews||[]).concat(p.id)}}}
   else if(p.age>=31&&G.f()<.03*(mine&&tr.focus==='fitness'?.6:1))bump(p,-1);
   if(mine){if(tr.focus==='fitness')p.cond=Math.min(100,p.cond+6);if(tr.int===2){p.cond=Math.max(40,p.cond-5);if(G.f()<.004)p.inj=G.i(1,3)}if(tr.int===0)p.cond=Math.min(100,p.cond+5)}
   p.val=valueOf(p);if(md%4===0){(p.vh=p.vh||[]).push(Math.round(p.val/1e4));if(p.vh.length>10)p.vh.shift();if(mine){(p.oh=p.oh||[]).push(p.ovr);if(p.oh.length>30)p.oh.shift()}}
@@ -1960,6 +1974,7 @@ function processMatchday(userRes){
  aiManagers();
  if(windowOpen()&&G.f()<(squadOf(S.user).some(p=>p.tl)?.6:.3))incomingOffer();
  if(typeof squadMood==='function')squadMood();
+ if(typeof scoutTick==='function')scoutTick();
  S.md++;if(S.cal)S.ci++;
  if(S.md===WIN2[0])mail('Director of Football','January window opens',`<p>The winter transfer window is open until matchday ${WIN2[1]}. Our current position and budget are below.</p>`,null,'transfer',{att:{t:'budget'},links:[['Transfer hub','nav','transfers']]});
  if(S.md===WIN1)mail('Director of Football','Transfer window closed',`<p>The summer window has closed. It reopens at matchday ${WIN2[0]+1}.</p>`,null,'transfer',{att:{t:'budget'}});
@@ -2056,6 +2071,7 @@ function canSell(p){const sq=squadOf(S.user);if(sq.length<=18)return'You need at
 /* ---------- season end ---------- */
 function endSeason(){
  seasonHistory();
+ if(typeof returnLoans==='function')returnLoans();
  if(typeof contractExits==='function')contractExits();
  const contNext=contQualifiers(true),report=[],uc0=clubOf(S.user),uLeague=S.leagues[uc0.league].name,uPos=posIn(table(uc0.league),S.user);
  COUNTRIES.forEach(co=>{
@@ -2091,7 +2107,7 @@ function endSeason(){
  {const uc=clubOf(S.user),prize=Math.round(budgetOf(uc.rep)*(1-(uPos-1)/PER)*.6);uc.balance+=prize;uc.budget+=Math.round(prize*.5);S.fin=newFin();S.fin.prize=prize}
  if(S.owed){clubOf(S.user).budget-=Math.round(S.owed);S.fin.buys+=Math.round(S.owed);S.owed=0}
  S.season++;S.md=0;S.bidLog={};S.bids=[];
- S.youth=youthIntake(S.user,G.i(3,5)).map(p=>p.id);for(const c of S.clubs)if(c.id!==S.user&&c.squad.length<30)youthIntake(c.id,G.i(1,2));
+ S.youth=typeof academyIntake==='function'?academyIntake():youthIntake(S.user,G.i(3,5)).map(p=>p.id);for(const c of S.clubs)if(c.id!==S.user&&c.squad.length<30)youthIntake(c.id,G.i(1,2));
  S.offers=S.lastSeason&&S.mgr.rep>clubOf(S.user).rep+4?jobOffers(2,clubOf(S.user).rep+3,Math.min(96,S.mgr.rep+8)).map(c=>c.id):[];
  for(const p of Object.values(S.players)){p.dev=0;p.ovr0=p.ovr;p.val0=p.val}
  for(const lg of S.leagues){S.fixtures[lg.id]=roundRobin(shuffled(lg.clubs));S.results[lg.id]=[]}
@@ -2111,8 +2127,8 @@ function jobOffers(n,minRep,maxRep){return shuffled(S.clubs.filter(c=>c.id!==S.u
 function takeJob(cid,reason){const old=S.user;S.mgr.clubs.push({club:old,season:seasonLabel(),reason});S.user=cid;S.board=60;S.sacked=false;S.fin=newFin();S.shortlist=[];S.bids=[];
  const c=clubOf(cid);ensureLineup(cid);mail('Board of Directors',`Welcome to ${c.name}`,`<p>We are delighted to appoint you. Your objective: <b>${expectation(cid)}</b>. Transfer budget: <b>${money(c.budget)}</b>.</p>`,null,'board',{att:{t:'stadium',cid},links:[['Club overview','nav','club']]});
  news(`${c.name} have appointed a new manager.`,'club',[cid],{title:`${c.short} name new manager`});save()}
-function youthIntake(cid,n){const c=clubOf(cid),co=COUNTRIES.find(x=>x.code===c.nation),rng=R((Math.random()*2e9)|0),out=[];
- for(let k=0;k<n;k++){const pos=rng.pick(['GK','CB','CB','LB','RB','DM','CM','CM','AM','LW','RW','ST','ST']),roll=rng.f(),pot=clamp(Math.round(repToOvr(c.rep)+(roll<.08?rng.i(12,20):roll<.35?rng.i(4,11):rng.i(-8,3))),45,roll<.015?95:89);
+function youthIntake(cid,n,fac){const c=clubOf(cid),co=COUNTRIES.find(x=>x.code===c.nation),rng=R((Math.random()*2e9)|0),out=[];
+ for(let k=0;k<n;k++){const pos=rng.pick(['GK','CB','CB','LB','RB','DM','CM','CM','AM','LW','RW','ST','ST']),roll=rng.f(),pot=clamp(Math.round(repToOvr(c.rep)+(roll<.08?rng.i(12,20):roll<.35?rng.i(4,11):rng.i(-8,3))+((fac||2)-2)*2),45,(roll<.015?95:89)+Math.max(0,(fac||2)-3));
   const y=genPlayer(rng,pos,clamp(pot-rng.i(16,26),35,70),cid,rng.chance(.75)?co.code:rng.pick(NAT_BAG),{age:rng.i(16,17),pot});y.con=3;y.wage=Math.max(500,Math.round(y.wage*.5/100)*100);y.id=S.npid++;S.players[y.id]=y;c.squad.push(y.id);y.num=assignNum(cid,pos);y.youth=S.season;out.push(y)}
  return out}
 /* ================= cup competitions =================
@@ -2392,7 +2408,7 @@ let view='home',sub='overview',W=null;
 const ui={trNat:'all',trExp:false,dealLeague:'all',sort:{squad:['ovr',-1],search:['ovr',-1]},group:'all',tSel:null,tSwap:null,trPos:'all',trLeague:'all',trMax:0,trAge:40,trMin:0,trQ:'',lg:null,lgMd:null,kitBack:false,pickNation:'ENG',pickLeague:null,pickClub:null,pid:null,back:null};
 const ARROW='<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 const LOGO=`<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="1" y="1" width="38" height="38" rx="10" fill="#ffb43a"/><path d="M11 10 H19 A10 10 0 0 1 19 30 H11 Z" fill="none" stroke="#2b1900" stroke-width="3.4" stroke-linejoin="round"/><path d="M15 20 H24 M21 16.5 L24.5 20 L21 23.5" fill="none" stroke="#2b1900" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-const NAV=[['home','Home',[['overview','Overview'],['inbox','Inbox'],['calendar','Calendar'],['news','News']]],['squad','Squad',[['players','Players'],['stats','Statistics'],['training','Training']]],['tactics','Tactics',[['tactics','Tactics']]],['transfers','Transfers',[['hub','Transfer hub'],['search','Player search'],['shortlist','Shortlist'],['bids','My bids'],['deals','Deals']]],['comps','Competitions',[['overview','Overview'],['table','Table'],['fixtures','Fixtures'],['stats','Stats'],['clubs','Clubs'],['history','History']]],['office','Office',[['budget','Budgets'],['finances','Finances'],['board','Board']]],['club','Club',[['overview','Overview'],['honours','Honours'],['history','History'],['records','Records']]]];
+const NAV=[['home','Home',[['overview','Overview'],['inbox','Inbox'],['calendar','Calendar'],['news','News']]],['squad','Squad',[['players','Players'],['stats','Statistics'],['training','Training'],['development','Development'],['academy','Academy']]],['tactics','Tactics',[['tactics','Tactics']]],['transfers','Transfers',[['hub','Transfer hub'],['search','Player search'],['scouting','Scouting'],['shortlist','Shortlist'],['bids','My bids'],['deals','Deals']]],['comps','Competitions',[['overview','Overview'],['table','Table'],['fixtures','Fixtures'],['stats','Stats'],['clubs','Clubs'],['history','History']]],['office','Office',[['budget','Budgets'],['finances','Finances'],['board','Board']]],['club','Club',[['overview','Overview'],['honours','Honours'],['history','History'],['records','Records']]]];
 const NAV_ICON={home:'<path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"/>',squad:'<path d="M8 3 4 6 2 11l4 1v9h12v-9l4-1-2-5-4-3q-4 3-8 0z"/>',tactics:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="14" r="1.5"/><path d="M10.5 11.5q3-4 6.5-2M15 15l3 3M18 15l-3 3"/>',transfers:'<path d="M4 8h15l-4-4M20 16H5l4 4"/>',comps:'<path d="M7 4h10v5a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 5M17 6h3a3 3 0 0 1-3 5M12 14v4M8 20h8"/>',office:'<rect x="3" y="7" width="18" height="13" rx="1"/><path d="M9 7V4h6v3M3 12h18"/>',club:'<path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z"/>'};
 function storyArt(n,big){
  if(n.score){const[h,a,hg,ag]=n.score,ch=clubOf(h),ca=clubOf(a);return`<div class="story-art" style="background:linear-gradient(115deg,${ch.colors[0]} 0 48%,${ca.colors[0]} 52% 100%)">${crest(h,big?62:30)}<span class="sc">${hg}–${ag}</span>${crest(a,big?62:30)}</div>`}
@@ -2422,8 +2438,8 @@ function openPlayer(pid){ui.back=[view,sub];if(ui.pid!==pid)ui.pTab='overview';g
 
 /* ---------- bar ---------- */
 function nextLabel(){if(S.md>=MDAYS)return'Season review';if(typeof M!=='undefined'&&M&&M.phase==='live')return'Resume match';if(typeof M!=='undefined'&&M&&M.phase==='done')return'Match report';return'Continue'}
-const PAGE={home:{overview:'Club Overview',inbox:'Inbox',news:'News',calendar:'Calendar'},squad:{players:'Squad',stats:'Squad Statistics',training:'Training'},tactics:{tactics:'Tactics'},
- transfers:{hub:'Transfer Centre',search:'Player Search',shortlist:'Shortlist',bids:'Transfer Activity',deals:'Deals Ledger'},comps:{overview:'Competition Overview',table:'Standings',fixtures:'Fixtures & Results',stats:'Player Statistics',clubs:'Clubs',history:'Roll of Honour'},
+const PAGE={home:{overview:'Club Overview',inbox:'Inbox',news:'News',calendar:'Calendar'},squad:{players:'Squad',stats:'Squad Statistics',training:'Training',development:'Development Centre',academy:'Youth Academy'},tactics:{tactics:'Tactics'},
+ transfers:{hub:'Transfer Centre',search:'Player Search',scouting:'Scouting Centre',shortlist:'Shortlist',bids:'Transfer Activity',deals:'Deals Ledger'},comps:{overview:'Competition Overview',table:'Standings',fixtures:'Fixtures & Results',stats:'Player Statistics',clubs:'Clubs',history:'Roll of Honour'},
  office:{budget:'Budgets',finances:'Finances',board:'Board Room'},club:{overview:'Club Info',honours:'Manager Profile',history:'Club History',records:'Records'},player:{'':'Player Profile'},match:{'':'Match Day'}};
 function renderBar(){
  const c=clubOf(S.user),nt=nextUserTie(),unread=S.inbox.filter(m=>!m.read).length;
@@ -2505,6 +2521,8 @@ function sortable(key,cols,list){const[sk,dir]=ui.sort[key];const col=cols.find(
 /* ---------- squad ---------- */
 function viewSquad(){
  if(sub==='training')return viewTraining();
+ if(sub==='development')return viewDevelopment();
+ if(sub==='academy')return viewAcademy();
  const c=clubOf(S.user),inXI=new Set(c.tac.xi),inB=new Set(c.tac.bench),grp=p=>ui.group==='all'||GROUP[p.pos]===ui.group;
  const list=squadOf(S.user).filter(grp);
  const head=`<div class="toolbar"><div class="seg" role="group" aria-label="Position group">${['all','GK','DEF','MID','ATT'].map(g=>`<button data-act="group" data-v="${g}" aria-pressed="${ui.group===g}">${g==='all'?'All':g}</button>`).join('')}</div><span class="grow"></span><small>${c.squad.length} players · wage bill ${money(wageBill(S.user))} p/w</small></div>`;
@@ -2734,6 +2752,7 @@ function transfersTop(){
 }
 function viewTransfers(){
  const top=transfersTop();
+ if(sub==='scouting')return top+viewScouting();
  if(sub==='search')return top+searchFilters()+`<div class="panel" id="tr-list"></div>`;
  if(sub==='shortlist'){const list=S.shortlist.map(id=>S.players[id]).filter(Boolean);return top+(list.length?`<div class="tcards">${list.map(p=>targetCard(p,squadOf(S.user).filter(x=>x.pos===p.pos).reduce((m,x)=>Math.max(m,rateAt(x,p.pos)),0))).join('')}</div>`:'<div class="panel"><p class="pb muted">Your shortlist is empty. Add players from the hub, search or their profile.</p></div>')}
  if(sub==='bids')return top+`<div class="panel"><div class="ph"><h3>Negotiations this season</h3></div>${S.bids.length?`<div class="tw"><table class="tbl"><thead><tr><th>Player</th><th>Club</th><th class="r">Offer</th><th class="r">Wage</th><th>Status</th><th>MD</th></tr></thead><tbody>${S.bids.map(b=>{const p=S.players[b.pid];return p?`<tr class="click" data-act="player" data-id="${p.id}"><td><b>${pName(p)}</b> ${posChip(p.pos)}</td><td><div class="who">${crest(b.from,18)}${esc(clubOf(b.from).short)}</div></td><td class="r">${money(b.fee)}</td><td class="r">${b.wage?money(b.wage):'–'}</td><td><span class="chip ${b.status==='Signed'?'ok':b.status==='Rejected'||b.status==='Terms refused'?'bad':''}">${b.status}</span></td><td>${b.md+1}</td></tr>`:''}).join('')}</tbody></table></div>`:'<p class="pb muted">No bids made yet this season.</p>'}</div>`;
@@ -3231,13 +3250,13 @@ const starsText=v=>stars(v).toFixed(1).replace('.0','')+'★';
 function viewPlayer(){
  const p=S.players[ui.pid];if(!p)return'<p>Player not found.</p>';
  const c=clubOf(p.club),mine=p.club===S.user,per=personality(p),[hp,hc]=happiness(p),role=squadRole(p),sw=strengths(p),shortl=S.shortlist.includes(p.id);
- const badges=[p.inj?`<span class="chip bad">Injured · ${p.inj} md</span>`:'',p.ban?`<span class="chip bad">Suspended · ${p.ban} md</span>`:'',p.tl?'<span class="chip">Transfer listed</span>':'',mine&&p.con<=1?'<span class="chip warn">Contract expiring</span>':'',(p.hon||[]).length?`<span class="chip ok">${p.hon.length} honour${p.hon.length>1?'s':''}</span>`:''].join('');
+ const badges=[p.inj?`<span class="chip bad">Injured · ${p.inj} md</span>`:'',p.ban?`<span class="chip bad">Suspended · ${p.ban} md</span>`:'',p.tl?'<span class="chip">Transfer listed</span>':'',mine&&p.con<=1?'<span class="chip warn">Contract expiring</span>':'',(p.hon||[]).length?`<span class="chip ok">${p.hon.length} honour${p.hon.length>1?'s':''}</span>`:'',!mine&&!p.loan?`<span class="chip">Scouted ${know(p)}%</span>`+(know(p)<100?`<button class="chip btnchip" data-act="scout-p" data-id="${p.id}">${(S.scoutQ||[]).includes(p.id)?'Report due after next match':'Scout player'}</button>`:''):'',p.loan?`<span class="chip">On loan at ${esc(c.short)}</span>`:''].join('');
  const tabs=[['overview','Overview'],['career','Career'],['contract','Contract'],['dev','Development']];
  const hero=`<section class="pp2-hero" style="--cc:${c.colors[0]==='#ffffff'?c.colors[1]:c.colors[0]}"><div class="pp2-kit">${kitSVG(c,'home',{back:true,name:p.ln,num:p.num})}</div>
  <div class="pp2-main"><div class="pp2-club">${crest(c.id,22)} ${esc(c.name)} · No. ${p.num}</div><h1>${esc(p.fn)} <b>${esc(p.ln)}</b></h1>
  <div class="pp2-meta"><span>${posChip(p.pos)} ${POS_NAME[p.pos]}${p.sec.length?` <small>also ${p.sec.join(', ')}</small>`:''}</span><span>${flagSVG(p.nat)} ${esc(NATIONS[p.nat].n)}</span><span>${p.age} years</span><span>${p.ht} cm</span><span>${p.foot==='L'?'Left':'Right'} foot</span></div>
  <div class="pp2-badges">${badges}</div></div>
- <div class="pp2-rate"><div><small>Current ability</small>${starHTML(stars(p.ovr))}</div><div><small>Potential ability</small>${starHTML(stars(p.pot))}</div><div><small>Value</small><b>${money(p.val)}</b></div></div>
+ <div class="pp2-rate"><div><small>Current ability</small>${starHTML(stars(p.ovr))}</div><div><small>Potential ability</small>${potShown(p)}</div><div><small>Value</small><b>${money(p.val)}</b></div></div>
  <div class="pp2-tabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" data-act="p-tab" data-v="${k}" aria-selected="${ui.pTab===k}">${l}</button>`).join('')}</div></section>`;
  const t=ui.pTab;let body='';
  if(t==='career'){const car=(p.car||[]).slice().reverse(),cur={season:seasonLabel(),club:p.club,ap:p.s.ap,g:p.s.g,a:p.s.a,r:avg(p)},all=[cur,...car],tot=all.reduce((a,x)=>({ap:a.ap+x.ap,g:a.g+x.g,a:a.a+x.a}),{ap:0,g:0,a:0});
@@ -3255,9 +3274,9 @@ function viewPlayer(){
   <section class="panel c6"><div class="ph"><h3>Outlook</h3></div><div class="pb" style="font-size:13px;line-height:1.6">${p.age<=23&&p.pot>p.ovr+3?`At ${p.age}, ${esc(p.ln)} still has plenty of growth in him. Regular football and focused training will help him reach ${starsText(p.pot)}.`:p.age>=31?`${esc(p.ln)} is past his peak; expect his physical attributes to start declining.`:`${esc(p.ln)} is at or near his peak.`}</div></section></div>`}
  else{const groups=p.pos==='GK'?['Goalkeeping','Mental','Physical']:['Technical','Mental','Physical'],ax=cardAxes(p);
   const posmap=Object.entries({GK:[50,94],CB:[50,78],LB:[14,72],RB:[86,72],DM:[50,62],CM:[50,48],AM:[50,32],LW:[14,28],RW:[86,28],ST:[50,12]}).map(([k,[x,y]])=>`<i class="${p.pos===k?'n':p.sec.includes(k)?'s':'x'}" style="left:${x}%;top:${y}%">${k}</i>`).join('');
-  body=`<div class="grid"><section class="panel c8"><div class="ph"><h3>Attributes</h3><small>out of 20</small></div><div class="pb attrs">${groups.map(g=>`<div class="ag"><h4>${g}</h4>${ATTR_GROUPS[g].map(a=>{const v=at20(p.at[AIX[a]]);return`<div class="ar"><span>${ATTR_NAME[a]}</span><b class="${v>=16?'v6':v>=13?'v5':v>=10?'v4':v>=7?'v3':'v2'}">${v}</b></div>`}).join('')}</div>`).join('')}</div></section>
-  <section class="panel c4"><div class="ph"><h3>Profile</h3></div><div class="pb" style="display:grid;place-items:center">${radarSVG(ax.map(x=>x[0]),[{v:ax.map(x=>x[1]),c:'#ffb43a'}],250)}</div></section>
-  <section class="panel c4"><div class="ph"><h3>Strengths and weaknesses</h3></div><div class="pb sw"><div><small>Strengths</small>${sw.good.map(([k,v])=>`<span class="v6">${ATTR_NAME[k]} <b>${v}</b></span>`).join('')}</div><div><small>Weaknesses</small>${sw.bad.map(([k,v])=>`<span class="v2">${ATTR_NAME[k]} <b>${v}</b></span>`).join('')}</div></div></section>
+  body=`<div class="grid"><section class="panel c8"><div class="ph"><h3>Attributes</h3><small>out of 20</small></div><div class="pb attrs">${groups.map(g=>`<div class="ag"><h4>${g}</h4>${ATTR_GROUPS[g].map(a=>{const x=attrShown(p,a),v=x.v;return`<div class="ar"><span>${ATTR_NAME[a]}</span><b class="${v>=16?'v6':v>=13?'v5':v>=10?'v4':v>=7?'v3':'v2'} ${x.unc?'unc':''}">${x.t}</b></div>`}).join('')}</div>`).join('')}</div></section>
+  <section class="panel c4"><div class="ph"><h3>Profile</h3></div><div class="pb" style="display:grid;place-items:center">${know(p)>=60?radarSVG(ax.map(x=>x[0]),[{v:ax.map(x=>x[1]),c:'#ffb43a'}],250):'<p class="muted" style="text-align:center">Scout him to build a full profile.</p>'}</div></section>
+  <section class="panel c4"><div class="ph"><h3>Strengths and weaknesses</h3></div><div class="pb sw">${know(p)<60?'<p class="muted" style="grid-column:1/-1;margin:0">Not enough is known about him yet. Send a scout.</p>':''}<div ${know(p)<60?'hidden':''}><small>Strengths</small>${sw.good.map(([k,v])=>`<span class="v6">${ATTR_NAME[k]} <b>${v}</b></span>`).join('')}</div><div ${know(p)<60?'hidden':''}><small>Weaknesses</small>${sw.bad.map(([k,v])=>`<span class="v2">${ATTR_NAME[k]} <b>${v}</b></span>`).join('')}</div></div></section>
   <section class="panel c4"><div class="ph"><h3>Positions</h3></div><div class="pb"><div class="posmap">${posmap}</div></div></section>
   <section class="panel c4"><div class="ph"><h3>This season</h3></div><div class="pb"><dl class="facts"><div><dt>Appearances</dt><dd>${p.s.ap}</dd></div><div><dt>Goals</dt><dd>${p.s.g}</dd></div><div><dt>Assists</dt><dd>${p.s.a}</dd></div><div><dt>Player of the match</dt><dd>${p.s.mom}</dd></div><div><dt>Average rating</dt><dd>${avg(p)?avg(p).toFixed(2):'–'}</dd></div><div><dt>Condition</dt><dd>${p.cond}%</dd></div></dl></div></section>
   <section class="panel c12"><div class="ph"><h3>Scout report</h3><small>${per[0]}</small></div><div class="pb" style="font-size:13.5px;line-height:1.65">${scoutReport(p)}</div></section></div>`}
@@ -3308,6 +3327,97 @@ function contractExits(){
   moveP(p.id,to.id,0);p.con=G.i(2,4);gone.push(p);news(`${p.fn} ${p.ln} joins ${to.name} on a free transfer after his contract with ${clubOf(S.user).name} expired.`,'transfer',[to.id,S.user])}
  if(gone.length)mail('Director of Football','Players released',`<p>These players left on free transfers when their contracts expired: ${gone.map(p=>esc(p.fn+' '+p.ln)).join(', ')}.</p>`,null,'transfer');
 }
+/* ================= scouting, youth academy, development and loans ================= */
+ui.sc={region:'all',pos:'all',age:23};
+
+/* ---------- knowledge: how well the club knows a player ---------- */
+function know(p){
+ if(!p||p.club===S.user||(S.acad||[]).includes(p.id))return 100;
+ const c=clubOf(p.club),uc=clubOf(S.user),base=c.league===uc.league?55:c.nation===uc.nation?35:15;
+ return Math.min(100,base+((S.know||{})[p.id]||0));
+}
+function attrShown(p,a){
+ const v=at20(p.at[AIX[a]]),k=know(p);if(k>=95)return{v,t:String(v)};
+ const sp=Math.max(1,Math.round((100-k)/24)),off=((p.id*7+AIX[a]*13)%3)-1,lo=clamp(v-sp+off,1,20),hi=clamp(v+sp+off,1,20);
+ return{v:(lo+hi)/2,t:lo===hi?String(lo):`${lo}–${hi}`,unc:true};
+}
+function potShown(p){const k=know(p);if(k>=80)return starHTML(stars(p.pot));const s=stars(p.pot),sp=k<40?1:.5;return`<span class="unc-stars">${Math.max(.5,s-sp)}–${Math.min(5,s+sp)}<i>★</i></span>`}
+
+/* ---------- scouting ---------- */
+function gradeOf(p){
+ const uc=S.user,peers=squadOf(uc).filter(q=>GROUP[q.pos]===GROUP[p.pos]).sort((a,b)=>b.ovr-a.ovr),bar=(peers[1]||peers[0]||{ovr:60}).ovr;
+ if(p.ovr>=bar+2||p.age<=21&&p.pot>=bar+8)return'A';if(p.ovr>=bar-2||p.age<=23&&p.pot>=bar+3)return'B';if(p.ovr>=bar-7)return'C';return'D';
+}
+const GRADE_TXT={A:'Would improve the first team. Strongly recommended.',B:'Could compete for a starting place.',C:'Squad depth at best.',D:'Not good enough for us.'};
+function addReport(pid){const p=S.players[pid];if(!p||p.club===S.user)return;S.reports=(S.reports||[]).filter(r=>r.pid!==pid);S.reports.unshift({pid,grade:gradeOf(p),md:S.md,season:S.season});if(S.reports.length>80)S.reports.length=80}
+function scoutTick(){
+ S.know=S.know||{};const fresh=[];
+ for(const pid of S.scoutQ||[]){S.know[pid]=100;addReport(pid);fresh.push(pid)}S.scoutQ=[];
+ const a=S.scout;
+ if(a){const pool=Object.values(S.players).filter(p=>p.club!==S.user&&p.club>=0&&(a.region==='all'||clubOf(p.club).nation===a.region)&&(a.pos==='all'||GROUP[p.pos]===a.pos)&&p.age<=a.age&&know(p)<90);
+  for(const p of shuffled(pool).sort((x,y)=>y.pot-x.pot).slice(0,30).sort(()=>G.f()-.5).slice(0,7)){S.know[p.id]=(S.know[p.id]||0)+38;if(know(p)>=70&&gradeOf(p)<='B'){addReport(p.id);fresh.push(p.id)}}}
+ if(fresh.length){const ps=fresh.map(id=>S.players[id]).filter(Boolean).sort((x,y)=>gradeOf(x).localeCompare(gradeOf(y)));
+  mail('Chief Scout',`Scouting update: ${fresh.length} new report${fresh.length>1?'s':''}`,`<p>${ps.slice(0,4).map(p=>`<b>${esc(p.fn+' '+p.ln)}</b> (${p.pos}, ${p.age}, ${esc(clubOf(p.club).short)}): grade ${gradeOf(p)}. ${GRADE_TXT[gradeOf(p)]}`).join('<br>')}</p>`,null,'transfer',{att:{t:'players',pids:ps.slice(0,2).map(p=>p.id)},links:[['Scouting centre','goto','transfers/scouting']]})}
+}
+function viewScouting(){
+ const a=S.scout,regions=[['all','All countries'],...COUNTRIES.map(c=>[c.code,NATIONS[c.code].n])];
+ const reps=(S.reports||[]).map(r=>({r,p:S.players[r.pid]})).filter(x=>x.p&&x.p.club!==S.user);
+ const known=Object.keys(S.know||{}).length;
+ return`<div class="grid"><section class="panel c5"><div class="ph"><h3>Scouting assignment</h3>${a?'<span class="chip ok">Active</span>':'<span class="chip">Idle</span>'}</div><div class="pb">
+ <p class="muted" style="margin:0 0 12px;font-size:13px">Your scouts watch players matching the brief every matchday. The better you know a player, the more precise his attributes and potential become.</p>
+ <div class="neg-f"><label>Region</label><select data-input="sc-region">${regions.map(([k,l])=>`<option value="${k}" ${ui.sc.region===k?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
+ <div class="neg-f"><label>Position</label><div class="seg" role="group">${['all','GK','DEF','MID','ATT'].map(g=>`<button data-act="sc-pos" data-v="${g}" aria-pressed="${ui.sc.pos===g}">${g==='all'?'Any':g}</button>`).join('')}</div></div>
+ <div class="neg-f"><label>Maximum age <b>${ui.sc.age}</b></label><input type="range" min="17" max="35" value="${ui.sc.age}" data-input="sc-age"></div>
+ <div class="toolbar" style="margin:0"><button class="btn pri" data-act="sc-start">${a?'Update assignment':'Send scouts'}</button>${a?'<button class="btn" data-act="sc-stop">Recall scouts</button>':''}</div>
+ ${a?`<p class="muted" style="font-size:12px;margin:12px 0 0">Watching: ${a.region==='all'?'all countries':esc(NATIONS[a.region].n)} · ${a.pos==='all'?'any position':a.pos} · age ${a.age} and under</p>`:''}</div></section>
+ <section class="panel c7"><div class="ph"><h3>Knowledge</h3></div><div class="pb rec-kpis"><div><small>Players scouted</small><b>${known}</b></div><div><small>Reports on file</small><b>${reps.length}</b></div><div><small>Grade A targets</small><b>${reps.filter(x=>x.r.grade==='A').length}</b></div></div>
+ <div class="pb" style="padding-top:0"><p class="muted" style="font-size:13px;margin:0">Players in your league are partly known already. Elsewhere, attributes show as ranges until scouted. Use “Scout player” on any profile for a full report after the next match.</p></div></section>
+ <section class="panel c12"><div class="ph"><h3>Scout reports</h3><small>${reps.length} on file</small></div>${reps.length?`<div class="tw"><table class="tbl"><thead><tr><th>Grade</th><th>Player</th><th>Club</th><th class="r">Age</th><th>Pos</th><th>Ability</th><th>Potential</th><th class="r">Value</th><th>Verdict</th></tr></thead><tbody>
+ ${reps.map(({r,p})=>`<tr class="click" data-act="player" data-id="${p.id}"><td><span class="grade g${r.grade}">${r.grade}</span></td><td><b>${pName(p)}</b></td><td><div class="who">${crest(p.club,16)}${esc(clubOf(p.club).short)}</div></td><td class="r">${p.age}</td><td>${posChip(p.pos)}</td><td>${starHTML(stars(p.ovr))}</td><td>${potShown(p)}</td><td class="r">${money(p.val)}</td><td><small>${GRADE_TXT[r.grade]}</small></td></tr>`).join('')}</tbody></table></div>`:'<p class="pb muted">No reports yet. Send your scouts out or scout a player from his profile.</p>'}</section></div>`;
+}
+
+/* ---------- youth academy ---------- */
+const ACAD_COST=[0,1.5e6,3e6,6e6,10e6];
+const acadOf=()=>(S.acad||[]).map(id=>S.players[id]).filter(Boolean);
+function ensureAcademy(){if(!S.academy)S.academy={fac:2,rec:2};if(!S.acad)S.acad=[]}
+function viewAcademy(){
+ ensureAcademy();const A=S.academy,ps=acadOf().sort((a,b)=>b.pot-a.pot),c=clubOf(S.user);
+ const lvl=(k,t,d)=>{const v=A[k],cost=ACAD_COST[v]||0;return`<div class="acad-lvl"><div><b>${t}</b><small>${d}</small></div><div class="acad-bars">${[1,2,3,4,5].map(i=>`<i class="${i<=v?'on':''}"></i>`).join('')}</div>${v<5?`<button class="btn" data-act="acad-up" data-v="${k}" ${c.budget<cost?'disabled':''}>Upgrade · ${money(cost)}</button>`:'<span class="chip ok">Maximum</span>'}</div>`};
+ return`<div class="grid"><section class="panel c12"><div class="ph"><h3>Academy</h3><small>Upgrades are paid from the transfer budget (${money(c.budget)})</small></div><div class="pb acad-top">
+ ${lvl('fac','Youth facilities','Speeds up the development of every academy player.')}${lvl('rec','Youth recruitment','More and better prospects at each intake.')}</div></section>
+ <section class="panel c12"><div class="ph"><h3>Academy players</h3><small>${ps.length} prospects · next intake at the end of the season</small></div>
+ ${ps.length?`<div class="acad-grid">${ps.map(p=>`<div class="acad-card"><div class="acad-h">${posChip(p.pos)}<b>${esc(p.fn+' '+p.ln)}</b><small>${p.age} · ${flagSVG(p.nat)}</small></div>
+ <div class="acad-r"><span><small>Now</small>${starHTML(stars(p.ovr))}</span><span><small>Potential</small>${starHTML(stars(p.pot))}</span></div>
+ <div class="meter"><i style="width:${clamp((p.ovr-40)/(Math.max(p.pot,p.ovr+1)-40)*100,4,100)}%"></i></div><small class="muted">${personality(p)[0]}${p.ovr>(p.ovr0||p.ovr)?` · +${p.ovr-p.ovr0} this season`:''}</small>
+ <div class="toolbar" style="margin:8px 0 0"><button class="btn" data-act="player" data-id="${p.id}">Profile</button><button class="btn pri" data-act="acad-promote" data-id="${p.id}">Promote</button><button class="btn ghost" data-act="acad-release" data-id="${p.id}">Release</button></div></div>`).join('')}</div>`:'<p class="pb muted">No prospects in the academy. The next intake arrives at the end of the season.</p>'}</section></div>`;
+}
+
+/* ---------- development centre ---------- */
+function viewDevelopment(){
+ ensureAcademy();const mine=squadOf(S.user).concat(acadOf()),loaned=Object.values(S.players).filter(p=>p.loan&&p.loan.from===S.user);
+ const list=mine.concat(loaned).filter(p=>p.age<=23).sort((a,b)=>(b.pot-b.ovr)-(a.pot-a.ovr));
+ const status=p=>p.loan?`<span class="chip">On loan · ${esc(clubOf(p.club).short)}</span>`:(S.acad||[]).includes(p.id)?'<span class="chip">Academy</span>':'<span class="chip ok">First team</span>';
+ return`<div class="panel"><div class="ph"><h3>Young players</h3><small>Under-24s at the club, on loan or in the academy</small></div>${list.length?`<div class="tw"><table class="tbl"><thead><tr><th>Player</th><th class="r">Age</th><th>Pos</th><th>Status</th><th>Now</th><th>Potential</th><th style="min-width:140px">Progress</th><th class="r">This season</th><th class="r">Apps</th><th>Training</th><th></th></tr></thead><tbody>
+ ${list.map(p=>{const dv=p.ovr-(p.ovr0||p.ovr);return`<tr><td><button class="link" data-act="player" data-id="${p.id}"><b>${pName(p)}</b></button></td><td class="r">${p.age}</td><td>${posChip(p.pos)}</td><td>${status(p)}</td><td>${starHTML(stars(p.ovr))}</td><td>${starHTML(stars(p.pot))}</td>
+ <td><div class="meter" style="margin:0"><i style="width:${clamp((p.ovr-40)/(Math.max(p.pot,p.ovr+1)-40)*100,4,100)}%"></i></div></td><td class="r ${dv>0?'v5':''}">${dv>0?'+'+dv:dv||'–'}</td><td class="r">${p.s.ap}</td><td><small>${IND_FOCUS[p.tf||'none'][0]}</small></td>
+ <td>${p.loan?'':`<button class="btn" data-act="loan-out" data-id="${p.id}">Loan out</button>`}</td></tr>`}).join('')}</tbody></table></div>`:'<p class="pb muted">No young players at the club.</p>'}</div>`;
+}
+
+/* ---------- loans ---------- */
+function loanOut(pid){
+ const p=S.players[pid],uc=clubOf(S.user),wasAcad=(S.acad||[]).includes(pid);
+ if(!wasAcad&&squadOf(S.user).length<=18){toast('You need at least 18 players in the squad.');return}
+ const to=S.clubs.filter(c=>c.id!==S.user&&c.rep<uc.rep-4&&c.rep>uc.rep-30&&c.squad.length<28).sort((a,b)=>Math.abs(repToOvr(a.rep)-p.ovr-4)-Math.abs(repToOvr(b.rep)-p.ovr-4))[G.i(0,2)];
+ if(!to){toast('No club wants him on loan right now.');return}
+ if(wasAcad){S.acad=S.acad.filter(x=>x!==pid);uc.squad.push(pid)}
+ moveP(pid,to.id,0);p.loan={from:S.user,season:S.season};
+ news(`${p.fn} ${p.ln} joins ${to.name} on a season-long loan from ${uc.name}.`,'transfer',[to.id,S.user]);
+ mail('Director of Football',`${p.ln} loaned to ${to.short}`,`<p>${esc(p.fn+' '+p.ln)} will spend the rest of the season at ${esc(to.name)} to get regular football. He returns in the summer.</p>`,null,'transfer',{att:{t:'player',pid:p.id,note:'On loan'}});
+ save();render();toast(`${p.ln} loaned to ${to.short}`);
+}
+// Loans end and academy intakes arrive at the end of the season.
+function returnLoans(){for(const p of Object.values(S.players))if(p.loan&&p.loan.from===S.user){const back=p.loan.from;delete p.loan;moveP(p.id,back,0);mail('Director of Football',`${p.ln} returns from loan`,`<p>${esc(p.fn+' '+p.ln)} is back after his loan spell: ${p.s.ap} appearances, ${p.s.g} goals.</p>`,null,'transfer',{att:{t:'player',pid:p.id}})}}
+function academyIntake(){ensureAcademy();const c=clubOf(S.user),ps=youthIntake(S.user,2+S.academy.rec+G.i(0,1),S.academy.fac);for(const p of ps){c.squad=c.squad.filter(x=>x!==p.id);S.acad.push(p.id)}return ps.map(p=>p.id)}
 /* ================= match day ================= */
 let M=null;
 const MODES={key:{label:'Key highlights',ff:120},ext:{label:'Extended',ff:70},full:{label:'Full match',ff:0}};
@@ -4181,6 +4291,14 @@ document.addEventListener('click',e=>{
   case'ren-offer':renewOffer();break;
   case'tlist':{const p=S.players[id];p.tl=!p.tl;save();render();toast(p.tl?`${p.ln} has been transfer listed`:`${p.ln} removed from the transfer list`);break}
   case'tfocus':{const p=S.players[id];p.tf=v==='none'?null:v;save();render();break}
+  case'sc-pos':ui.sc.pos=v;render();break;
+  case'sc-start':S.scout=Object.assign({},ui.sc);save();render();toast('Scouts are on the road');break;
+  case'sc-stop':S.scout=null;save();render();break;
+  case'scout-p':(S.scoutQ=S.scoutQ||[]).includes(id)||S.scoutQ.push(id);save();render();toast('A scout will report after the next match');break;
+  case'acad-up':{ensureAcademy();const k=v,cost=ACAD_COST[S.academy[k]],c=clubOf(S.user);if(c.budget<cost)break;c.budget-=cost;S.academy[k]++;save();render();toast('Academy upgraded');break}
+  case'acad-promote':{S.acad=S.acad.filter(x=>x!==id);const c=clubOf(S.user),p=S.players[id];c.squad.push(id);p.num=assignNum(S.user,p.pos);save();render();toast(`${p.ln} promoted to the first team`);break}
+  case'acad-release':{const p=S.players[id];S.acad=S.acad.filter(x=>x!==id);delete S.players[id];save();render();toast(`${p.ln} released`);break}
+  case'loan-out':loanOut(id);break;
   case'goto':{const[g,sb]=v.split('/');closeModal();go(g,sb);break}
   case'mailf':ui.mailF=v;ui.msg=null;render();break;
   case'mail-read-all':S.inbox.forEach(m=>m.read=true);save();render();renderBar();break;
@@ -4247,6 +4365,8 @@ document.addEventListener('input',e=>{const k=e.target.dataset.input,v=+e.target
  else if(k==='split'){const c=clubOf(S.user),total=c.budget+c.wageBudget*WAGE_TO_FEE;$('#sp-w').textContent=money(v)+'/w';$('#sp-t').textContent=money(Math.max(0,total-v*WAGE_TO_FEE))}
  else if(k==='trq'){ui.trQ=e.target.value;renderSearch()}
  else if(k==='an-pid'){ui.anPid=v;refreshAn()}
+ else if(k==='sc-region'){ui.sc.region=e.target.value}
+ else if(k==='sc-age'){ui.sc.age=v;const l=e.target.closest('.neg-f');if(l)l.querySelector('b').textContent=v}
  else if(k==='ren-w'){ui.ren.wage=v;const o=document.getElementById('rw-o');if(o)o.textContent=money(v)}});
 document.addEventListener('keydown',e=>{
  if(e.key==='Escape'&&!$('#modal').hidden)closeModal();
