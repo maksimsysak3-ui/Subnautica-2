@@ -60,7 +60,7 @@ function openRenew(pid){const p=S.players[pid];ui.ren={pid,wage:renewDemand(p),y
 function renderRenew(){
  const r=ui.ren,p=S.players[r.pid],d=renewDemand(p),room=clubOf(S.user).wageBudget-wageBill(S.user)+p.wage,max=Math.max(p.wage,Math.min(room,Math.round(d*1.6/100)*100));
  openModal(`<div class="eyebrow">Contract talks · ${esc(p.fn+' '+p.ln)}</div><h2 style="font-size:26px;margin:6px 0 4px">Offer a new contract</h2><p class="muted" style="margin:0 0 14px">Currently ${money(p.wage)} p/w until June ${2027+S.season+p.con-1}. His agent is looking for around <b>${money(d)}</b> p/w${p.age>=31?' and the security of a longer deal':''}.</p>
- <div class="neg-f"><label>Weekly wage <b id="rw-o">${money(r.wage)}</b></label><input type="range" min="${Math.round(p.wage*.8/100)*100}" max="${max}" step="100" value="${Math.min(r.wage,max)}" data-input="ren-w"></div>
+ <div class="neg-f"><label>Weekly wage</label>${stepper('ren','wage',r.wage,{min:0,max:9e12,label:'Weekly wage',suffix:' p/w',chips:[['His demand',d],['−5%',nice(d*.95,100)],['+5%',nice(d*1.05,100)],['Current',p.wage]]})}</div>
  <div class="neg-f"><label>Length</label><div class="seg" role="group">${[1,2,3,4,5].map(y=>`<button data-act="ren-y" data-v="${y}" aria-pressed="${r.years===y}">${y} yr${y>1?'s':''}</button>`).join('')}</div></div>
  <div class="neg-f"><label>Squad status promised</label><div class="seg" role="group">${PROMISES.filter(x=>x[0]!=='youth'||p.age<=21).map(([k,l])=>`<button data-act="ren-r" data-v="${k}" aria-pressed="${r.role===k}">${l}</button>`).join('')}</div></div>
  ${r.msg?`<p class="ren-msg">${esc(r.msg)}</p>`:''}<p class="muted" style="font-size:12px">Wage room after this deal: ${money(room-r.wage)} p/w</p>

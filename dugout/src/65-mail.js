@@ -70,7 +70,7 @@ const msgRow=mailRow;
 function readerHTML(m){
  if(!m)return`<div class="m-empty"><svg viewBox="0 0 24 24"><path d="M3 6h18v12H3zM3 6l9 7 9-7"/></svg><p>Select a message to read it.</p></div>`;
  const sd=sender(m),c=clubOf(S.user),a=m.action;let act='';
- if(a&&a.type==='offer'&&!a.done){const p=S.players[a.pid];act=p&&p.club===S.user&&windowOpen()?`<button class="btn pri" data-act="offer-yes" data-id="${m.id}">Accept ${money(a.fee)}</button><button class="btn" data-act="offer-no" data-id="${m.id}">Reject offer</button>`:'<span class="muted">This offer has lapsed.</span>'}
+ if(a&&a.type==='offer'&&!a.done){const p=S.players[a.pid];act=p&&p.club===S.user&&windowOpen()?`<button class="btn pri" data-act="oc-open" data-id="${m.id}">Take the call</button><button class="btn" data-act="offer-yes" data-id="${m.id}">Accept ${money(a.fee)}</button><button class="btn" data-act="offer-no" data-id="${m.id}">Reject offer</button>`:'<span class="muted">This offer has lapsed.</span>'}
  else if(a&&a.type==='offer')act=`<span class="muted">${a.done==='yes'?'You accepted this offer.':'You rejected this offer.'}</span>`;
  const links=(m.links||[]).map(([l,act2,v,isId])=>`<button class="btn" data-act="${act2}" ${isId?`data-id="${v}"`:`data-v="${v}"`}>${esc(l)} ${ARROW}</button>`).join('');
  return`<article class="m-read"><header class="m-head">${sd.avatar}<div class="m-who"><b>${esc(sd.name)}</b>${sd.addr?`<small>&lt;${esc(sd.addr)}&gt;${sd.role?' · '+esc(sd.role):''}</small>`:''}<small>To: You (Manager, ${esc(c.name)})</small></div>

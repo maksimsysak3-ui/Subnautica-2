@@ -38,7 +38,7 @@ function viewScouting(){
  <p class="muted" style="margin:0 0 12px;font-size:13px">Your scouts watch players matching the brief every matchday. The better you know a player, the more precise his attributes and potential become.</p>
  <div class="neg-f"><label>Region</label><select data-input="sc-region">${regions.map(([k,l])=>`<option value="${k}" ${ui.sc.region===k?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
  <div class="neg-f"><label>Position</label><div class="seg" role="group">${['all','GK','DEF','MID','ATT'].map(g=>`<button data-act="sc-pos" data-v="${g}" aria-pressed="${ui.sc.pos===g}">${g==='all'?'Any':g}</button>`).join('')}</div></div>
- <div class="neg-f"><label>Maximum age <b>${ui.sc.age}</b></label><input type="range" min="17" max="35" value="${ui.sc.age}" data-input="sc-age"></div>
+ <div class="neg-f"><label>Maximum age</label>${stepper('sc','age',ui.sc.age,{min:17,max:35,label:'Maximum age',fmt:v=>v+' yrs',chips:[['U19',19],['U21',21],['U23',23],['Any',35]]})}</div>
  <div class="toolbar" style="margin:0"><button class="btn pri" data-act="sc-start">${a?'Update assignment':'Send scouts'}</button>${a?'<button class="btn" data-act="sc-stop">Recall scouts</button>':''}</div>
  ${a?`<p class="muted" style="font-size:12px;margin:12px 0 0">Watching: ${a.region==='all'?'all countries':esc(NATIONS[a.region].n)} · ${a.pos==='all'?'any position':a.pos} · age ${a.age} and under</p>`:''}</div></section>
  <section class="panel c7"><div class="ph"><h3>Knowledge</h3></div><div class="pb rec-kpis"><div><small>Players scouted</small><b>${known}</b></div><div><small>Reports on file</small><b>${reps.length}</b></div><div><small>Grade A targets</small><b>${reps.filter(x=>x.r.grade==='A').length}</b></div></div>

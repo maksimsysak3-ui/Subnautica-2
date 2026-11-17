@@ -891,6 +891,29 @@ body.ingame main{max-width:none;width:100%;padding:0 max(22px,env(safe-area-inse
 @media (max-width:600px){.press-opt{grid-template-columns:1fr;gap:4px}}
 .stage canvas.mini{position:absolute;right:14px;bottom:14px;width:210px;height:136px;border-radius:3px;box-shadow:0 8px 20px -8px rgba(0,0,0,.8);pointer-events:none;z-index:2}
 @media (max-width:700px){.stage canvas.mini{width:120px;height:78px;right:8px;bottom:8px}}
+
+/* steppers */
+.stp-wrap{display:flex;flex-direction:column;gap:6px;margin:0 0 14px}
+.stp{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:stretch;border:1px solid var(--line2);border-radius:4px;background:#101012;overflow:hidden;max-width:360px}
+.stp-b{font:600 20px/1 var(--fb);color:#d6d4cd;background:#18181b;transition:background .12s}.stp-b:hover:not(:disabled){background:#232327;color:#fff}.stp-b:disabled{opacity:.3}
+.stp-v{display:grid;place-items:center;padding:9px 6px;font:700 20px var(--fd);letter-spacing:.02em;font-variant-numeric:tabular-nums;border-left:1px solid var(--line2);border-right:1px solid var(--line2)}
+.stp-chips{display:flex;gap:4px;flex-wrap:wrap}.stp-chips button{padding:4px 9px;border:1px solid var(--line2);border-radius:3px;font:500 12px var(--fb);color:var(--muted)}.stp-chips button:hover{color:#fff;border-color:#4a4a50}.stp-chips button[aria-pressed="true"]{color:#111;background:#ecebe6;border-color:#ecebe6}
+.neg-lbl small{color:var(--dim);font-weight:400;margin-left:6px}
+/* phone */
+.phone{position:relative;width:min(360px,100%);margin:0 auto;border-radius:34px;padding:12px 12px 74px;background:linear-gradient(180deg,#1b1b1f,#0f0f11);border:1px solid #2c2c31;box-shadow:0 30px 60px -20px rgba(0,0,0,.9),inset 0 0 0 6px #0a0a0b}
+.ph-top{display:flex;justify-content:space-between;padding:4px 14px 8px;font:600 12px var(--fb);color:#cfcdc6}.ph-net{display:flex;gap:2px;align-items:flex-end}.ph-net i{width:3px;background:#cfcdc6;border-radius:1px}.ph-net i:nth-child(1){height:4px}.ph-net i:nth-child(2){height:6px}.ph-net i:nth-child(3){height:8px}.ph-net i:nth-child(4){height:10px}
+.ph-call{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 12px;border-radius:18px;background:rgba(255,255,255,.05);margin:0 4px 10px}
+.ph-call b{display:block;font-size:14px}.ph-call small{display:block;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ph-av{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:#2a2a30;overflow:hidden}.ph-av .crest{width:30px;height:36px}.ph-ini{font:700 15px var(--fb);color:#fff}
+.ph-dur{font:600 12px var(--fb);color:#38d184;font-variant-numeric:tabular-nums}
+.ph-msgs{display:flex;flex-direction:column;gap:8px;padding:6px 8px;max-height:300px;overflow-y:auto}
+.ph-m{align-self:flex-start;max-width:86%;padding:9px 12px;border-radius:16px 16px 16px 4px;background:#26262b;font-size:13.5px;line-height:1.4;animation:pkIn .3s ease-out}
+.ph-m.me{align-self:flex-end;border-radius:16px 16px 4px 16px;background:#2f6fed;color:#fff}
+.ph-replies{display:flex;flex-direction:column;gap:6px;padding:10px 6px 0}
+.ph-r{padding:10px 12px;border-radius:12px;border:1px solid #34343a;background:#16161a;text-align:left;font-size:13.5px;color:#e6e4dd}.ph-r:hover{border-color:#5a5a62;background:#1d1d22}.ph-r.pri{background:#ecebe6;color:#111;border-color:#ecebe6;font-weight:600}
+.ph-extra{padding:10px 6px 0;display:flex;flex-direction:column;gap:8px}.ph-extra small{color:var(--muted);font-size:12px}
+.ph-hang{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);width:52px;height:52px;border-radius:50%;background:#e5383b;display:grid;place-items:center;box-shadow:0 8px 20px -6px rgba(229,56,59,.6)}.ph-hang svg{width:26px;height:26px;fill:#fff}
+.nr-body.call{align-items:start}.oc{padding:6px 0}
 </style>
 
 <aside id="bar" hidden></aside>
@@ -2870,9 +2893,9 @@ function openNegotiation(pid){
 function negHeader(n,p){
  const uc=clubOf(S.user),sc=clubOf(p.club);
  return`<div class="nr-head" style="--a:${uc.colors[0]};--b:${sc.colors[0]}"><div class="nr-club">${crest(uc.id,64)}<b>${esc(uc.short)}</b><small>Buying club</small></div>
- <div class="nr-player">${kitSVG(sc,'home',{back:true,name:p.ln,num:p.num})}<div><div class="eyebrow">${n.stage==='fee'?'Club negotiation':n.stage==='terms'?'Personal terms':'Done deal'}</div><h2>${esc(p.fn)} <b>${esc(p.ln)}</b></h2><div class="nr-meta">${posChip(p.pos)} <span>${p.age} yrs</span> ${flagSVG(p.nat)} <span>${starHTML(stars(p.ovr))}</span></div></div></div>
+ <div class="nr-player">${kitSVG(sc,'home',{back:true,name:p.ln,num:p.num})}<div><div class="eyebrow">${n.stage==='fee'?'Club negotiation':n.stage==='call'?'On the phone with his agent':n.stage==='terms'?'Personal terms':'Done deal'}</div><h2>${esc(p.fn)} <b>${esc(p.ln)}</b></h2><div class="nr-meta">${posChip(p.pos)} <span>${p.age} yrs</span> ${flagSVG(p.nat)} <span>${starHTML(stars(p.ovr))}</span></div></div></div>
  <div class="nr-club">${crest(sc.id,64)}<b>${esc(sc.short)}</b><small>Selling club</small></div></div>
- <div class="nr-steps">${[['fee','1. Agree fee'],['terms','2. Personal terms'],['done','3. Signed']].map(([k,l])=>`<span class="${n.stage===k?'on':['fee','terms','done'].indexOf(n.stage)>['fee','terms','done'].indexOf(k)?'ok':''}">${l}</span>`).join('')}</div>`;
+ <div class="nr-steps">${[['fee','1. Agree fee'],['call','2. Call the agent'],['terms','3. Personal terms'],['done','4. Signed']].map(([k,l])=>{const o=['fee','call','terms','done'];return`<span class="${n.stage===k?'on':o.indexOf(n.stage)>o.indexOf(k)?'ok':''}">${l}</span>`}).join('')}</div>`;
 }
 function gauge(val,est,c){
  const lo=est*.5,hi=est*1.5,pct=v=>clamp((v-lo)/(hi-lo)*100,0,100),[w,cl]=chanceWord(c);
@@ -2887,18 +2910,21 @@ function renderNeg(){
   const max=Math.max(Math.round(p.val*.6/5e4)*5e4+1e5,Math.round(Math.min(uc.budget*(n.inst?2:1),p.val*2.6)/5e4)*5e4),min=Math.round(p.val*.3/5e4)*5e4;
   const c=negChance(n,p);
   body=`<div class="nr-body"><div class="nr-col"><h3>Your offer</h3>
-  <label class="neg-lbl" for="nf">Up-front fee <output id="nf-o">${money(n.fee)}</output></label><input type="range" id="nf" min="${min}" max="${max}" step="50000" value="${clamp(n.fee,min,max)}" data-input="neg" data-k="fee">
-  <label class="neg-lbl" for="na">Add-ons (appearances, trophies) <output id="na-o">${money(n.addons)}</output></label><input type="range" id="na" min="0" max="${Math.round(p.val*.5/5e4)*5e4}" step="50000" value="${n.addons}" data-input="neg" data-k="addons">
-  <label class="neg-lbl" for="ns">Sell-on clause <output id="ns-o">${n.sellOn}%</output></label><input type="range" id="ns" min="0" max="25" step="5" value="${n.sellOn}" data-input="neg" data-k="sellOn">
+  <div class="neg-lbl">Up-front fee</div>${stepper('neg','fee',n.fee,{min:0,max:9e12,label:'Up-front fee',chips:[['Their valuation',nice(n.est,5e4)],['−10%',nice(n.est*.9,5e4)],['+10%',nice(n.est*1.1,5e4)],['Market value',nice(p.val,5e4)]]})}
+  <div class="neg-lbl">Add-ons <small>appearances, goals, trophies</small></div>${stepper('neg','addons',n.addons,{min:0,max:9e12,label:'Add-ons',chips:[['None',0],['10% of fee',nice(n.fee*.1,5e4)],['25% of fee',nice(n.fee*.25,5e4)]]})}
+  <div class="neg-lbl">Sell-on clause</div><div class="seg" role="group" aria-label="Sell-on clause">${[0,10,15,20,25].map(v=>`<button data-act="neg-sellon" data-v="${v}" aria-pressed="${n.sellOn===v}">${v?v+'%':'None'}</button>`).join('')}</div>
   <label class="nr-check"><input type="checkbox" id="ni" data-change="negInst" ${n.inst?'checked':''}> Pay in two instalments (half now, half next season)</label>
   <div id="nr-sum">${feeSum(n,p)}</div></div>
   <div class="nr-col"><div id="nr-gauge">${gauge(negValue(n,p),n.est,c)}</div>${n.counter?`<div class="neg-counter"><span>${esc(clubOf(p.club).short)} would accept <b>${money(n.counter)}</b> up front with your current add-ons.</span><button class="btn" data-act="neg-accept-counter">Accept counter</button></div>`:''}${negLog(n)}</div></div>
   <div class="nr-foot"><button class="btn" data-act="close">Walk away</button><button class="btn pri lg" data-act="neg-bid" ${n.round>n.max?'disabled':''}>Submit offer</button></div>`;
+ }else if(n.stage==='call'){
+  body=agentCallHTML(n,p);
  }else if(n.stage==='terms'){
   const need=termsNeed(n,p);
   body=`<div class="nr-body"><div class="nr-col"><h3>Contract offer</h3>
-  ${(()=>{const room=uc.wageBudget-wageBill(S.user),lo=Math.round(need*.55/500)*500,hi=Math.max(lo+500,Math.min(Math.round(need*1.7/500)*500,Math.floor(room/500)*500));if(n.wage>hi)n.wage=hi;return`<label class="neg-lbl" for="nw">Weekly wage <output id="nw-o">${money(n.wage)}</output></label><input type="range" id="nw" min="${lo}" max="${hi}" step="500" value="${n.wage}" data-input="neg" data-k="wage">${room<need?`<p class="neg-warn">His demand is above your wage room of ${money(room)} a week. Raise the wage budget in the Office or offer a bigger signing bonus.</p>`:''}`})()}
-  <label class="neg-lbl" for="nb">Signing-on bonus <output id="nb-o">${money(n.bonus)}</output></label><input type="range" id="nb" min="0" max="${Math.round(p.wage*60/1e4)*1e4}" step="10000" value="${n.bonus}" data-input="neg" data-k="bonus">
+  ${(()=>{const room=uc.wageBudget-wageBill(S.user);return`<div class="neg-lbl">Weekly wage</div>${stepper('neg','wage',n.wage,{min:0,max:9e12,label:'Weekly wage',suffix:' p/w',chips:[['His demand',nice(need,500)],['−10%',nice(need*.9,500)],['+10%',nice(need*1.1,500)]]})}${room<need?`<p class="neg-warn">His demand is above your wage room of ${money(room)} a week. Raise the wage budget in the Office or lean on the signing bonus.</p>`:''}`})()}
+  <div class="neg-lbl">Signing-on bonus</div>${stepper('neg','bonus',n.bonus,{min:0,max:9e12,label:'Signing bonus',chips:[['None',0],['4 weeks',nice(n.wage*4,1e4)],['12 weeks',nice(n.wage*12,1e4)],['26 weeks',nice(n.wage*26,1e4)]]})}
+  <div class="neg-lbl">Agent fee</div>${stepper('neg','agentFee',n.agentFee,{min:0,max:9e12,label:'Agent fee',chips:[['His ask',n.agentAsk],['−25%',nice(n.agentAsk*.75,1e4)],['None',0]]})}
   <div class="neg-lbl">Contract length</div><div class="seg" role="group" aria-label="Contract length">${[1,2,3,4,5].map(y=>`<button data-act="neg-years" data-v="${y}" aria-pressed="${n.years===y}">${y} yr</button>`).join('')}</div>
   <div class="neg-lbl" style="margin-top:12px">Squad role</div><div class="seg" role="group" aria-label="Squad role">${ROLES_SQ.map(([k,l])=>`<button data-act="neg-role" data-v="${k}" aria-pressed="${n.role===k}">${l}</button>`).join('')}</div>
   <label class="nr-check"><input type="checkbox" data-change="negClause" ${n.clause?'checked':''}> Include a release clause</label>
@@ -2913,8 +2939,8 @@ function renderNeg(){
  openModal(`<div class="nroom">${negHeader(n,p)}${body}</div>`);$('#modal .modal-box').classList.add('wide');
 }
 function feeSum(n,p){const uc=clubOf(S.user),now=n.fee*(n.inst?.5:1);return`<div class="nr-sum"><div><small>Due now</small><b>${money(now)}</b></div><div><small>Budget after</small><b class="${uc.budget-now<0?'v1':''}">${money(uc.budget-now)}</b></div><div><small>Round</small><b>${Math.min(n.round,n.max)} of ${n.max}</b></div></div>`}
-function termsSum(n,p){const uc=clubOf(S.user);return`<div class="nr-sum"><div><small>Wage room</small><b>${money(uc.wageBudget-wageBill(S.user))}/w</b></div><div><small>Agent fee</small><b>${money(Math.round(n.fee*.05/1e4)*1e4)}</b></div><div><small>Total cost</small><b>${money(n.fee+n.bonus+n.wage*52*n.years)}</b></div></div>`}
-function termsRead(n,p){const need=termsNeed(n,p),c=sig((n.wage/need-1)*16+(n.clause?.3:0)),[w,cl]=chanceWord(c);return`<div class="gauge"><div class="g-read"><div><small>Agent wants</small><b>${money(need)}/w</b></div><div><small>Expects role</small><b>${ROLES_SQ.find(r=>r[0]===n.expect)[1]}</b></div><div><small>Agreement</small><b class="${cl}">${w} · ${Math.round(c*100)}%</b></div></div></div>`}
+function termsSum(n,p){const uc=clubOf(S.user),now=n.fee*(n.inst?.5:1)+n.bonus+(n.agentFee||0);return`<div class="nr-sum"><div><small>Wage room</small><b>${money(uc.wageBudget-wageBill(S.user))}/w</b></div><div><small>Due now</small><b class="${now>uc.budget?'v1':''}">${money(now)}</b></div><div><small>Total cost</small><b>${money(n.fee+n.bonus+(n.agentFee||0)+n.wage*52*n.years)}</b></div></div>`}
+function termsRead(n,p){const need=termsNeed(n,p),c=sig((n.wage/need-1)*16+(n.clause?.3:0)+(n.interest||0)*3+((n.agentFee/(n.agentAsk||1))-1)*1.6),[w,cl]=chanceWord(c);return`<div class="gauge"><div class="g-read"><div><small>Agent wants</small><b>${money(need)}/w</b></div><div><small>Expects role</small><b>${ROLES_SQ.find(r=>r[0]===n.expect)[1]}</b></div><div><small>Agreement</small><b class="${cl}">${w} · ${Math.round(c*100)}%</b></div></div></div>`}
 function negLive(){const n=ui.neg,p=S.players[n.pid],g=$('#nr-gauge'),sm=$('#nr-sum');if(!g)return;
  if(n.stage==='fee'){g.innerHTML=gauge(negValue(n,p),n.est,negChance(n,p));sm.innerHTML=feeSum(n,p)}else if(n.stage==='terms'){g.innerHTML=termsRead(n,p);sm.innerHTML=termsSum(n,p)}}
 function termsNeed(n,p){const role=ROLES_SQ.find(r=>r[0]===n.role),exp=ROLES_SQ.findIndex(r=>r[0]===n.expect),got=ROLES_SQ.findIndex(r=>r[0]===n.role);
@@ -2925,7 +2951,7 @@ function negBid(){
  if(uc.squad.length>=34){toast('Your squad is full (34 players).');return}
  const v=negValue(n,p),r=v/n.want;
  n.log.push({who:'us',t:`We offer ${money(n.fee)}${n.addons?` plus ${money(n.addons)} in add-ons`:''}${n.sellOn?` and a ${n.sellOn}% sell-on clause`:''}${n.inst?', paid in two instalments':''}.`});
- if(r>=1){n.log.push({who:'them',t:`We accept. You may speak to ${p.ln}'s representatives.`});n.stage='terms';n.counter=null;S.bids.unshift({pid:p.id,from:p.club,fee:n.fee,status:'Fee agreed',md:S.md});
+ if(r>=1){n.log.push({who:'them',t:`We accept. You may speak to ${p.ln}'s representatives.`});n.stage='call';n.agentAsk=nice(Math.max(n.fee*.05,wageDemand(p)*8),1e4);n.agentFee=n.agentAsk;n.interest=agentInterest(p);n.counter=null;S.bids.unshift({pid:p.id,from:p.club,fee:n.fee,status:'Fee agreed',md:S.md});
   n.log.push({who:'agent',t:`${p.ln} is interested. We are looking for around ${money(wageDemand(p))} a week and a ${ROLES_SQ.find(x=>x[0]===n.expect)[1].toLowerCase()} role.`});n.wage=termsNeed(n,p);renderNeg();return}
  n.round++;
  if(n.round>n.max){n.log.push({who:'them',t:`We are too far apart. ${sel.short} have ended talks.`});S.bids.unshift({pid:p.id,from:p.club,fee:n.fee,status:'Rejected',md:S.md});save();renderNeg();return}
@@ -2937,9 +2963,10 @@ function negTerms(){
  const n=ui.neg,p=S.players[n.pid],uc=clubOf(S.user),need=termsNeed(n,p);n.tries++;
  if(wageBill(S.user)+n.wage>uc.wageBudget){n.log.push({who:'us',t:'We cannot go that high: it breaks our wage budget.'});renderNeg();return}
  n.log.push({who:'us',t:`We offer ${money(n.wage)} a week for ${n.years} years as a ${ROLES_SQ.find(r=>r[0]===n.role)[1].toLowerCase()}${n.bonus?`, with a ${money(n.bonus)} signing bonus`:''}${n.clause?' and a release clause':''}.`});
- const c=sig((n.wage/need-1)*16+(n.clause?.3:0));
+ const c=sig((n.wage/need-1)*16+(n.clause?.3:0)+(n.interest||0)*3+((n.agentFee/(n.agentAsk||1))-1)*1.6);
+ if(n.fee*(n.inst?.5:1)+n.bonus+(n.agentFee||0)>uc.budget){n.log.push({who:'us',t:'We cannot cover the fee, bonus and agent fee from the transfer budget.'});renderNeg();return}
  if(G.f()<c){
-  const from=p.club,now=n.fee*(n.inst?.5:1);moveP(p.id,S.user,0);uc.budget-=now+n.bonus;clubOf(from).budget+=n.fee;if(n.inst)S.owed=(S.owed||0)+n.fee/2;
+  const from=p.club,now=n.fee*(n.inst?.5:1);moveP(p.id,S.user,0);uc.budget-=now+n.bonus+(n.agentFee||0);clubOf(from).budget+=n.fee;if(n.inst)S.owed=(S.owed||0)+n.fee/2;
   p.wage=n.wage;p.con=n.years;S.fin.buys+=now+n.bonus;logDeal(p.id,from,S.user,n.fee);
   const b=S.bids.find(x=>x.pid===p.id&&x.status==='Fee agreed');if(b){b.status='Signed';b.wage=n.wage}
   mail('Director of Football',`${p.ln} signs from ${clubOf(from).short}`,`<p>${esc(p.fn+' '+p.ln)} has joined for <b>${money(n.fee)}</b>${n.addons?` plus ${money(n.addons)} in add-ons`:''} on ${money(n.wage)} a week until ${2026+S.season+n.years}. He will wear number ${p.num}.</p>`,null,'transfer',{att:{t:'player',pid:p.id,note:'New signing'},links:[['View player','player',p.id,1]]});
@@ -2972,13 +2999,108 @@ function viewOffice(){
  const total=c.budget+c.wageBudget*WAGE_TO_FEE,minW=Math.round(wb/1000)*1000,maxW=Math.round(Math.min(total/WAGE_TO_FEE,wb*1.8)/1000)*1000;
  return top+`<div class="grid"><section class="panel c7"><div class="ph"><h3>Budget split</h3><small>Move money between transfers and wages</small></div><div class="pb">
  <div class="split"><div><small>Transfer budget</small><b id="sp-t">${money(c.budget)}</b></div><div style="text-align:right"><small>Wage budget</small><b id="sp-w">${money(c.wageBudget)}/w</b></div></div>
- <input type="range" id="sp-r" min="${minW}" max="${Math.max(maxW,minW+1000)}" step="1000" value="${c.wageBudget}" data-input="split" aria-label="Wage budget">
+ ${(()=>{ui.split=ui.split&&ui.split.season===S.season&&ui.split.md===S.md?ui.split:{w:c.wageBudget,season:S.season,md:S.md};const w=ui.split.w;return`<div class="split" style="margin-top:6px"><div><small>New transfer budget</small><b class="v5">${money(Math.max(0,total-w*WAGE_TO_FEE))}</b></div><div style="text-align:right"><small>New wage budget</small><b class="v5">${money(w)}/w</b></div></div>${stepper('split','w',w,{min:0,max:9e12,label:'Wage budget',suffix:' p/w',chips:[['Current',c.wageBudget],['Wage bill',minW],['+10%',Math.round(c.wageBudget*1.1/1000)*1000],['−10%',Math.max(minW,Math.round(c.wageBudget*.9/1000)*1000)]]})}`})()}
  <p class="muted" style="font-size:13px">Every £1,000 a week of wages is worth £${WAGE_TO_FEE},000 of transfer budget. You cannot set the wage budget below your current wage bill.</p>
  <div class="toolbar" style="margin:0"><button class="btn pri" data-act="split-apply">Apply split</button></div></div></section>
  <section class="panel c5"><div class="ph"><h3>Spending power</h3></div><div class="pb"><div class="frow"><span>Wage room</span><i><b style="width:${clamp((c.wageBudget-wb)/c.wageBudget*100,0,100)}%"></b></i><em>${money(c.wageBudget-wb)}/w</em></div>
  <div class="frow"><span>Budget vs league</span><i><b style="width:${clamp(c.budget/Math.max(...S.leagues[c.league].clubs.map(id=>clubOf(id).budget))*100,2,100)}%"></b></i><em>${ordinal(S.leagues[c.league].clubs.map(clubOf).sort((a,b)=>b.budget-a.budget).findIndex(x=>x.id===S.user)+1)}</em></div>
  <div class="frow"><span>Squad value</span><i><b style="width:${clamp(squadOf(S.user).reduce((a,p)=>a+p.val,0)/Math.max(...S.leagues[c.league].clubs.map(id=>squadOf(id).reduce((a,p)=>a+p.val,0)))*100,2,100)}%"></b></i><em>${money(squadOf(S.user).reduce((a,p)=>a+p.val,0))}</em></div></div></section></div>`;
 }
+/* ================= dealmaking: steppers, agents and phone calls =================
+   Every number in a deal is set with a precise stepper (minus, value, plus) and quick-pick chips, never a
+   slider. Talks with agents and rival directors happen on the phone: you choose what to ask and how to reply. */
+const AG_FIRST=['Marco','Daniel','Sofia','Luca','Elena','Tomás','Jonas','Clara','Rafael','Nina','Pieter','Hugo','Ines','Victor','Anna','Samir'];
+const AG_LAST=['Bellini','Okafor','Lindqvist','Moreau','Ferreira','Kowalski','Van Dijkstra','Rossetti','Haddad','Brennan','Castell','Novak','Duarte','Sauer'];
+const AGENCIES=['Apex Sports Management','Northline Talent','Crest Football Group','Meridian Athletes','Blue Ribbon Agency','Kestrel Sports','Linea Football','Firstteam Partners'];
+function agentOf(p){const h=Math.imul(p.id+31,2654435761)>>>0;return{name:`${AG_FIRST[h%AG_FIRST.length]} ${AG_LAST[(h>>>5)%AG_LAST.length]}`,agency:AGENCIES[(h>>>9)%AGENCIES.length]}}
+const nice=(v,m)=>Math.max(m,Math.round(v/m)*m);
+/* ---------- stepper ---------- */
+const STEP_TARGETS={};
+function stepper(t,k,v,o){
+ const f=o.fmt||money;
+ return`<div class="stp-wrap"><div class="stp" role="group" aria-label="${esc(o.label||k)}"><button class="stp-b" data-act="stp" data-t="${t}" data-k="${k}" data-d="-1" aria-label="Decrease" ${v<=o.min?'disabled':''}>−</button>
+ <output class="stp-v">${f(v)}${o.suffix||''}</output><button class="stp-b" data-act="stp" data-t="${t}" data-k="${k}" data-d="1" aria-label="Increase" ${v>=o.max?'disabled':''}>+</button></div>
+ ${o.chips?`<div class="stp-chips">${o.chips.map(([l,x])=>`<button data-act="stp-set" data-t="${t}" data-k="${k}" data-v="${Math.round(x)}" aria-pressed="${Math.round(x)===Math.round(v)}">${esc(l)}</button>`).join('')}</div>`:''}</div>`;
+}
+// Each stepper target registers how to read its object, its limits and how to redraw.
+function stepApply(t,k,dir,setTo){
+ const T=STEP_TARGETS[t];if(!T)return;const obj=T.obj(),lim=T.lim(k);if(!obj||!lim)return;
+ let v=setTo!=null?setTo:obj[k]+dir*lim.step;obj[k]=clamp(Math.round(v/lim.step)*lim.step,lim.min,lim.max);if(setTo!=null)obj[k]=clamp(setTo,lim.min,lim.max);T.redraw();
+}
+
+/* ---------- phone ---------- */
+function phoneHTML(o){
+ return`<div class="phone"><div class="ph-top"><span>${o.time||'09:41'}</span><span class="ph-net"><i></i><i></i><i></i><i></i></span></div>
+ <div class="ph-call"><div class="ph-av">${o.avatar}</div><div><b>${esc(o.who)}</b><small>${esc(o.sub)}</small></div><span class="ph-dur" id="ph-dur">${o.dur||'00:12'}</span></div>
+ <div class="ph-msgs">${o.msgs.map(m=>`<div class="ph-m ${m.me?'me':''}">${m.html||esc(m.t)}</div>`).join('')}</div>
+ <div class="ph-replies">${o.replies.map(r=>`<button class="ph-r ${r.cls||''}" data-act="${r.act}" ${r.v!=null?`data-v="${r.v}"`:''} ${r.id!=null?`data-id="${r.id}"`:''}>${esc(r.label)}</button>`).join('')}</div>
+ ${o.extra||''}<button class="ph-hang" data-act="${o.hang||'close'}" aria-label="End call"><svg viewBox="0 0 24 24"><path d="M3 15c5-5 13-5 18 0l-2.5 2.5-3.5-2v-3c-2-.7-4-.7-6 0v3l-3.5 2z"/></svg></button></div>`;
+}
+const callClock=n=>{const s=12+n*17;return`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`};
+
+/* ---------- buying: the call with the player's agent ---------- */
+function agentInterest(p){const uc=clubOf(S.user),sc=clubOf(p.club),d=(uc.rep-sc.rep)/10,role=ui.neg?ROLES_SQ.findIndex(r=>r[0]===ui.neg.expect):1;return clamp(d*.12+(p.age>=29?.05:0)-(role===0?.05:0)+(personality(p)[0]==='Ambitious'?(d>0?.12:-.12):0),-.35,.35)}
+function agentCallHTML(n,p){
+ const ag=agentOf(p),q=n.asked||(n.asked={}),msgs=n.call||(n.call=[{t:`${ag.name} speaking. You've agreed a fee with ${clubOf(p.club).short} for ${p.fn}. What would you like to know?`}]);
+ const reps=[];if(!q.int)reps.push({label:'Is he interested in joining us?',act:'call-q',v:'int'});if(!q.wage)reps.push({label:'What is he looking for?',act:'call-q',v:'wage'});if(!q.fee)reps.push({label:'What is your fee?',act:'call-q',v:'fee'});if(!q.comp)reps.push({label:'Is anyone else interested?',act:'call-q',v:'comp'});
+ reps.push({label:'Let’s put an offer together',act:'call-terms',cls:'pri'});
+ const ini=ag.name.split(' ').map(x=>x[0]).join('');
+ return`<div class="nr-body call"><div class="nr-col">${phoneHTML({who:ag.name,sub:`${ag.agency} · agent of ${p.fn} ${p.ln}`,avatar:`<span class="ph-ini">${ini}</span>`,dur:callClock(Object.keys(q).length),msgs,replies:reps,hang:'close'})}</div>
+ <div class="nr-col"><h3>What you know</h3><dl class="facts"><div><dt>Interest</dt><dd>${q.int?n.intWord:'Ask the agent'}</dd></div><div><dt>Wage expectation</dt><dd>${q.wage?`${money(Math.round(termsNeed(n,p)*.92/500)*500)}–${money(Math.round(termsNeed(n,p)*1.08/500)*500)} p/w`:'Ask the agent'}</dd></div><div><dt>Expected role</dt><dd>${q.wage?ROLES_SQ.find(r=>r[0]===n.expect)[1]:'Ask the agent'}</dd></div><div><dt>Agent fee</dt><dd>${q.fee?money(n.agentAsk):'Ask the agent'}</dd></div><div><dt>Competition</dt><dd>${q.comp?n.compWord:'Ask the agent'}</dd></div></dl>
+ <p class="muted" style="font-size:13px">Agreed fee: <b>${money(n.fee)}</b>${n.addons?` + ${money(n.addons)} add-ons`:''}.</p></div></div>`;
+}
+function callAsk(k){
+ const n=ui.neg,p=S.players[n.pid],ag=agentOf(p);n.asked[k]=1;
+ const say=t=>n.call.push({t}),me=t=>n.call.push({t,me:1});
+ if(k==='int'){me('Is he interested in joining us?');const i=n.interest=agentInterest(p);n.intWord=i>.15?'Very keen':i>0?'Open to it':i>-.15?'Needs convincing':'Reluctant';say(i>.15?`He'd love it. ${clubOf(S.user).short} is a step up for him.`:i>0?'He likes the project. Get the details right and we can do business.':i>-.15?`Honestly, he's happy where he is. You'll need to make it worth his while.`:`He has reservations. He'd need a big role and a strong offer.`)}
+ if(k==='wage'){me('What is he looking for?');say(`Around ${money(Math.round(termsNeed(n,p)/500)*500)} a week, and he wants to be a ${ROLES_SQ.find(r=>r[0]===n.expect)[1].toLowerCase()}.`)}
+ if(k==='fee'){me('And your fee?');say(`My fee would be ${money(n.agentAsk)}. That's standard for a deal this size.`)}
+ if(k==='comp'){me('Is anyone else interested?');const rival=S.clubs.filter(c=>c.id!==S.user&&c.id!==p.club&&Math.abs(c.rep-clubOf(S.user).rep)<8).sort(()=>G.f()-.5)[0];n.rival=G.f()<.45&&rival?rival.id:null;n.compWord=n.rival?`${clubOf(n.rival).short} have called`:'No firm interest';say(n.rival?`I won't lie, ${clubOf(n.rival).name} have been in touch. If you want him, don't wait too long.`:`There's been some noise, nothing concrete. You're in pole position.`)}
+ renderNeg();
+}
+
+/* ---------- selling: a rival director calls with a bid ---------- */
+function offerCall(mid){
+ const m=S.inbox.find(x=>x.id===mid);if(!m||!m.action||m.action.done)return;const o=m.action,p=S.players[o.pid],c=clubOf(o.club);
+ if(!ui.oc||ui.oc.mid!==mid)ui.oc={mid,ask:nice(o.fee*1.2,5e4),msgs:[{t:`Hello, this is the director of football at ${c.name}. We've sent over a bid of ${money(o.fee)} for ${p.fn} ${p.ln}. Can we make this work?`}],stage:'open',max:Math.round(o.fee*(1.12+G.f()*.25)/5e4)*5e4,tries:0};
+ renderOfferCall();
+}
+function renderOfferCall(){
+ const oc=ui.oc,m=S.inbox.find(x=>x.id===oc.mid),o=m.action,p=S.players[o.pid],c=clubOf(o.club);
+ const reps=oc.stage==='done'?[{label:'Close',act:'close'}]:[{label:`Accept ${money(o.fee)}`,act:'oc-accept',cls:'pri'},{label:'Counter with your price',act:'oc-counter'},{label:'He is not for sale',act:'oc-nfs'},{label:'Reject the bid',act:'oc-reject'}];
+ const extra=oc.stage==='open'&&oc.counter?`<div class="ph-extra"><small>Your asking price</small>${stepper('oc','ask',oc.ask,{min:nice(o.fee,5e4),max:nice(o.fee*2.5,5e4),label:'Asking price',chips:[['Value',p.val],['+20%',o.fee*1.2],['+40%',o.fee*1.4]]})}<button class="btn pri" data-act="oc-name">Name your price</button></div>`:'';
+ openModal(`<div class="oc">${phoneHTML({who:`${c.short} · Director of Football`,sub:`Bid for ${p.fn} ${p.ln} · valued at ${money(p.val)}`,avatar:crest(c.id,34),dur:callClock(oc.msgs.length),msgs:oc.msgs,replies:oc.counter&&oc.stage==='open'?[]:reps,extra,hang:'close'})}</div>`);
+}
+function offerCallAct(a){
+ const oc=ui.oc,m=S.inbox.find(x=>x.id===oc.mid),o=m.action,p=S.players[o.pid],c=clubOf(o.club),me=t=>oc.msgs.push({t,me:1}),say=t=>oc.msgs.push({t});
+ if(a==='counter'){oc.counter=true;me('We would need more than that.');return renderOfferCall()}
+ if(a==='name'){oc.tries++;me(`${money(oc.ask)} and he's yours.`);
+  if(oc.ask<=oc.max){o.fee=oc.ask;say(`...Fine. ${money(oc.ask)} it is. Send the paperwork.`);oc.counter=false;return completeOfferSale(m,true)}
+  if(oc.tries>=2||oc.ask>oc.max*1.35){say(`That's way beyond what we can do. We'll look elsewhere.`);o.done='no';oc.stage='done';oc.counter=false;save();return renderOfferCall()}
+  const mid=nice((oc.ask+oc.max)/2*.97,5e4);o.fee=Math.max(o.fee,Math.min(mid,oc.max));say(`We can't go that high. Our final offer is ${money(o.fee)}.`);oc.counter=false;return renderOfferCall()}
+ if(a==='accept')return completeOfferSale(m,true);
+ if(a==='nfs'){me(`${p.ln} is not for sale.`);say('Understood. Thanks for your time.');o.done='no';p.mor=clamp(p.mor+5,25,98);oc.stage='done';save();return renderOfferCall()}
+ if(a==='reject'){me('We are rejecting the bid.');say('Disappointing. We may come back.');o.done='no';oc.stage='done';save();return renderOfferCall()}
+}
+function completeOfferSale(m,fromCall){
+ const o=m.action,p=S.players[o.pid],c=clubOf(o.club),why=canSell(p);
+ if(p.club!==S.user){toast('He is no longer at the club.');return}if(why){toast(why);return}
+ moveP(p.id,o.club,o.fee);S.fin.sales+=o.fee;logDeal(p.id,S.user,o.club,o.fee);o.done='yes';
+ news(`${p.fn} ${p.ln} joins ${c.name} from ${clubOf(S.user).name} for ${money(o.fee)}.`,'transfer',[o.club,S.user]);toast(`${p.ln} sold for ${money(o.fee)}`);
+ if(ui.oc){ui.oc.stage='done';ui.oc.msgs.push({t:`Pleasure doing business. We'll confirm ${p.ln}'s medical today.`})}save();if(fromCall)renderOfferCall();render();
+}
+
+/* ---------- stepper targets ---------- */
+STEP_TARGETS.neg={obj:()=>ui.neg,redraw:()=>renderNeg(),lim:k=>{const n=ui.neg,p=S.players[n.pid],uc=clubOf(S.user);
+ if(k==='fee')return{min:nice(p.val*.3,5e4),max:nice(Math.max(p.val*.7,Math.min(uc.budget*(n.inst?2:1),p.val*2.6)),5e4),step:nice(n.est*.025,5e4)};
+ if(k==='addons')return{min:0,max:nice(p.val*.5,5e4),step:nice(p.val*.025,5e4)};
+ if(k==='wage'){const need=termsNeed(n,p);return{min:nice(need*.55,500),max:Math.max(nice(need*.55,500),nice(Math.min(need*1.7,uc.wageBudget-wageBill(S.user)),500)),step:nice(need*.025,250)}}
+ if(k==='bonus')return{min:0,max:nice(p.wage*60,1e4),step:nice(p.wage*2,1e4)};
+ if(k==='agentFee')return{min:0,max:nice(n.agentAsk*2,1e4),step:nice(n.agentAsk*.1,1e4)};}};
+STEP_TARGETS.oc={obj:()=>ui.oc,redraw:()=>renderOfferCall(),lim:()=>{const o=S.inbox.find(x=>x.id===ui.oc.mid).action;return{min:nice(o.fee,5e4),max:nice(o.fee*2.5,5e4),step:nice(o.fee*.05,5e4)}}};
+STEP_TARGETS.ren={obj:()=>ui.ren,redraw:()=>renderRenew(),lim:()=>{const p=S.players[ui.ren.pid],d=renewDemand(p),room=clubOf(S.user).wageBudget-wageBill(S.user)+p.wage;return{min:nice(p.wage*.8,100),max:Math.max(p.wage,Math.min(room,nice(d*1.6,100))),step:nice(d*.025,100)}}};
+STEP_TARGETS.sc={obj:()=>ui.sc,redraw:()=>render(),lim:()=>({min:17,max:35,step:1})};
+STEP_TARGETS.split={obj:()=>ui.split||(ui.split={w:clubOf(S.user).wageBudget,season:S.season,md:S.md}),redraw:()=>render(),lim:()=>{const c=clubOf(S.user),wb=wageBill(S.user),total=c.budget+c.wageBudget*WAGE_TO_FEE;return{min:Math.round(wb/1000)*1000,max:Math.max(Math.round(wb/1000)*1000+1000,Math.round(Math.min(total/WAGE_TO_FEE,wb*1.8)/1000)*1000),step:1000}}};
 /* ================= charts, celebrations, training, team talks, honours ================= */
 // ---- charts ----
 function radarSVG(axes,series,size=260){
@@ -3141,7 +3263,7 @@ const msgRow=mailRow;
 function readerHTML(m){
  if(!m)return`<div class="m-empty"><svg viewBox="0 0 24 24"><path d="M3 6h18v12H3zM3 6l9 7 9-7"/></svg><p>Select a message to read it.</p></div>`;
  const sd=sender(m),c=clubOf(S.user),a=m.action;let act='';
- if(a&&a.type==='offer'&&!a.done){const p=S.players[a.pid];act=p&&p.club===S.user&&windowOpen()?`<button class="btn pri" data-act="offer-yes" data-id="${m.id}">Accept ${money(a.fee)}</button><button class="btn" data-act="offer-no" data-id="${m.id}">Reject offer</button>`:'<span class="muted">This offer has lapsed.</span>'}
+ if(a&&a.type==='offer'&&!a.done){const p=S.players[a.pid];act=p&&p.club===S.user&&windowOpen()?`<button class="btn pri" data-act="oc-open" data-id="${m.id}">Take the call</button><button class="btn" data-act="offer-yes" data-id="${m.id}">Accept ${money(a.fee)}</button><button class="btn" data-act="offer-no" data-id="${m.id}">Reject offer</button>`:'<span class="muted">This offer has lapsed.</span>'}
  else if(a&&a.type==='offer')act=`<span class="muted">${a.done==='yes'?'You accepted this offer.':'You rejected this offer.'}</span>`;
  const links=(m.links||[]).map(([l,act2,v,isId])=>`<button class="btn" data-act="${act2}" ${isId?`data-id="${v}"`:`data-v="${v}"`}>${esc(l)} ${ARROW}</button>`).join('');
  return`<article class="m-read"><header class="m-head">${sd.avatar}<div class="m-who"><b>${esc(sd.name)}</b>${sd.addr?`<small>&lt;${esc(sd.addr)}&gt;${sd.role?' · '+esc(sd.role):''}</small>`:''}<small>To: You (Manager, ${esc(c.name)})</small></div>
@@ -3350,7 +3472,7 @@ function openRenew(pid){const p=S.players[pid];ui.ren={pid,wage:renewDemand(p),y
 function renderRenew(){
  const r=ui.ren,p=S.players[r.pid],d=renewDemand(p),room=clubOf(S.user).wageBudget-wageBill(S.user)+p.wage,max=Math.max(p.wage,Math.min(room,Math.round(d*1.6/100)*100));
  openModal(`<div class="eyebrow">Contract talks · ${esc(p.fn+' '+p.ln)}</div><h2 style="font-size:26px;margin:6px 0 4px">Offer a new contract</h2><p class="muted" style="margin:0 0 14px">Currently ${money(p.wage)} p/w until June ${2027+S.season+p.con-1}. His agent is looking for around <b>${money(d)}</b> p/w${p.age>=31?' and the security of a longer deal':''}.</p>
- <div class="neg-f"><label>Weekly wage <b id="rw-o">${money(r.wage)}</b></label><input type="range" min="${Math.round(p.wage*.8/100)*100}" max="${max}" step="100" value="${Math.min(r.wage,max)}" data-input="ren-w"></div>
+ <div class="neg-f"><label>Weekly wage</label>${stepper('ren','wage',r.wage,{min:0,max:9e12,label:'Weekly wage',suffix:' p/w',chips:[['His demand',d],['−5%',nice(d*.95,100)],['+5%',nice(d*1.05,100)],['Current',p.wage]]})}</div>
  <div class="neg-f"><label>Length</label><div class="seg" role="group">${[1,2,3,4,5].map(y=>`<button data-act="ren-y" data-v="${y}" aria-pressed="${r.years===y}">${y} yr${y>1?'s':''}</button>`).join('')}</div></div>
  <div class="neg-f"><label>Squad status promised</label><div class="seg" role="group">${PROMISES.filter(x=>x[0]!=='youth'||p.age<=21).map(([k,l])=>`<button data-act="ren-r" data-v="${k}" aria-pressed="${r.role===k}">${l}</button>`).join('')}</div></div>
  ${r.msg?`<p class="ren-msg">${esc(r.msg)}</p>`:''}<p class="muted" style="font-size:12px">Wage room after this deal: ${money(room-r.wage)} p/w</p>
@@ -3428,7 +3550,7 @@ function viewScouting(){
  <p class="muted" style="margin:0 0 12px;font-size:13px">Your scouts watch players matching the brief every matchday. The better you know a player, the more precise his attributes and potential become.</p>
  <div class="neg-f"><label>Region</label><select data-input="sc-region">${regions.map(([k,l])=>`<option value="${k}" ${ui.sc.region===k?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
  <div class="neg-f"><label>Position</label><div class="seg" role="group">${['all','GK','DEF','MID','ATT'].map(g=>`<button data-act="sc-pos" data-v="${g}" aria-pressed="${ui.sc.pos===g}">${g==='all'?'Any':g}</button>`).join('')}</div></div>
- <div class="neg-f"><label>Maximum age <b>${ui.sc.age}</b></label><input type="range" min="17" max="35" value="${ui.sc.age}" data-input="sc-age"></div>
+ <div class="neg-f"><label>Maximum age</label>${stepper('sc','age',ui.sc.age,{min:17,max:35,label:'Maximum age',fmt:v=>v+' yrs',chips:[['U19',19],['U21',21],['U23',23],['Any',35]]})}</div>
  <div class="toolbar" style="margin:0"><button class="btn pri" data-act="sc-start">${a?'Update assignment':'Send scouts'}</button>${a?'<button class="btn" data-act="sc-stop">Recall scouts</button>':''}</div>
  ${a?`<p class="muted" style="font-size:12px;margin:12px 0 0">Watching: ${a.region==='all'?'all countries':esc(NATIONS[a.region].n)} · ${a.pos==='all'?'any position':a.pos} · age ${a.age} and under</p>`:''}</div></section>
  <section class="panel c7"><div class="ph"><h3>Knowledge</h3></div><div class="pb rec-kpis"><div><small>Players scouted</small><b>${known}</b></div><div><small>Reports on file</small><b>${reps.length}</b></div><div><small>Grade A targets</small><b>${reps.filter(x=>x.r.grade==='A').length}</b></div></div>
@@ -4463,6 +4585,17 @@ document.addEventListener('click',e=>{
   case'press-a':answerPress(+v);break;
   case'press-skip':if(ui.press&&M)M['press_'+ui.press.kind]=true;ui.press=null;closeModal();render();toast('Your assistant handled the media');break;
   case'press-done':closeModal();render();break;
+  case'stp':stepApply(t.dataset.t,t.dataset.k,+t.dataset.d,null);break;
+  case'stp-set':stepApply(t.dataset.t,t.dataset.k,0,+v);break;
+  case'neg-sellon':ui.neg.sellOn=+v;renderNeg();break;
+  case'call-q':callAsk(v);break;
+  case'call-terms':{const n=ui.neg,p=S.players[n.pid];n.stage='terms';n.wage=nice(termsNeed(n,p),500);n.log.push({who:'agent',t:`Send me the offer. ${p.ln} wants ${money(nice(termsNeed(n,p),500))} a week.`});renderNeg();break}
+  case'oc-open':offerCall(id);break;
+  case'oc-accept':offerCallAct('accept');break;
+  case'oc-counter':offerCallAct('counter');break;
+  case'oc-name':offerCallAct('name');break;
+  case'oc-nfs':offerCallAct('nfs');break;
+  case'oc-reject':offerCallAct('reject');break;
   case'goto':{const[g,sb]=v.split('/');closeModal();go(g,sb);break}
   case'mailf':ui.mailF=v;ui.msg=null;render();break;
   case'mail-read-all':S.inbox.forEach(m=>m.read=true);save();render();renderBar();break;
@@ -4479,7 +4612,7 @@ document.addEventListener('click',e=>{
   case'neg-accept-counter':ui.neg.fee=ui.neg.counter;ui.neg.counter=null;negBid();break;
   case'pickComp':ui.lg=/^\d+$/.test(v)?+v:v;ui.lgMd=null;render();break;
   case'board-req':{const c=clubOf(S.user);S.boardReq=S.season;if(S.board>=62){const g=Math.round(c.budget*.2/1e5)*1e5+5e6;c.budget+=g;toast(`The board has added ${money(g)} to your transfer budget`)}else{S.board=Math.max(5,S.board-3);toast('The board turned down your request')}save();render();break}
-  case'split-apply':{const c=clubOf(S.user),w=+$('#sp-r').value,total=c.budget+c.wageBudget*WAGE_TO_FEE;c.wageBudget=w;c.budget=Math.max(0,Math.round((total-w*WAGE_TO_FEE)/1e5)*1e5);save();render();toast('Budgets updated');break}
+  case'split-apply':{const c=clubOf(S.user),w=ui.split?ui.split.w:c.wageBudget,total=c.budget+c.wageBudget*WAGE_TO_FEE;c.wageBudget=w;c.budget=Math.max(0,Math.round((total-w*WAGE_TO_FEE)/1e5)*1e5);save();render();toast('Budgets updated');break}
   case'sell':sellUI(id);break;
   case'sell-yes':{const s=ui.sell;if(!s)break;const p=S.players[s.pid];moveP(s.pid,s.buyer,s.fee);S.fin.sales+=s.fee;logDeal(s.pid,S.user,s.buyer,s.fee);news(`${p.fn} ${p.ln} joins ${clubOf(s.buyer).name} from ${clubOf(S.user).name} for ${money(s.fee)}.`,'transfer',[s.buyer,S.user]);save();toast(`${p.ln} sold for ${money(s.fee)}`);ui.sell=null;go('squad');break}
   case'shortlist':{const i=S.shortlist.indexOf(id);if(i>=0)S.shortlist.splice(i,1);else S.shortlist.push(id);save();render();break}

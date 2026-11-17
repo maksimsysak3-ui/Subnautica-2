@@ -82,9 +82,9 @@ function openNegotiation(pid){
 function negHeader(n,p){
  const uc=clubOf(S.user),sc=clubOf(p.club);
  return`<div class="nr-head" style="--a:${uc.colors[0]};--b:${sc.colors[0]}"><div class="nr-club">${crest(uc.id,64)}<b>${esc(uc.short)}</b><small>Buying club</small></div>
- <div class="nr-player">${kitSVG(sc,'home',{back:true,name:p.ln,num:p.num})}<div><div class="eyebrow">${n.stage==='fee'?'Club negotiation':n.stage==='terms'?'Personal terms':'Done deal'}</div><h2>${esc(p.fn)} <b>${esc(p.ln)}</b></h2><div class="nr-meta">${posChip(p.pos)} <span>${p.age} yrs</span> ${flagSVG(p.nat)} <span>${starHTML(stars(p.ovr))}</span></div></div></div>
+ <div class="nr-player">${kitSVG(sc,'home',{back:true,name:p.ln,num:p.num})}<div><div class="eyebrow">${n.stage==='fee'?'Club negotiation':n.stage==='call'?'On the phone with his agent':n.stage==='terms'?'Personal terms':'Done deal'}</div><h2>${esc(p.fn)} <b>${esc(p.ln)}</b></h2><div class="nr-meta">${posChip(p.pos)} <span>${p.age} yrs</span> ${flagSVG(p.nat)} <span>${starHTML(stars(p.ovr))}</span></div></div></div>
  <div class="nr-club">${crest(sc.id,64)}<b>${esc(sc.short)}</b><small>Selling club</small></div></div>
- <div class="nr-steps">${[['fee','1. Agree fee'],['terms','2. Personal terms'],['done','3. Signed']].map(([k,l])=>`<span class="${n.stage===k?'on':['fee','terms','done'].indexOf(n.stage)>['fee','terms','done'].indexOf(k)?'ok':''}">${l}</span>`).join('')}</div>`;
+ <div class="nr-steps">${[['fee','1. Agree fee'],['call','2. Call the agent'],['terms','3. Personal terms'],['done','4. Signed']].map(([k,l])=>{const o=['fee','call','terms','done'];return`<span class="${n.stage===k?'on':o.indexOf(n.stage)>o.indexOf(k)?'ok':''}">${l}</span>`}).join('')}</div>`;
 }
 function gauge(val,est,c){
  const lo=est*.5,hi=est*1.5,pct=v=>clamp((v-lo)/(hi-lo)*100,0,100),[w,cl]=chanceWord(c);
@@ -99,18 +99,21 @@ function renderNeg(){
   const max=Math.max(Math.round(p.val*.6/5e4)*5e4+1e5,Math.round(Math.min(uc.budget*(n.inst?2:1),p.val*2.6)/5e4)*5e4),min=Math.round(p.val*.3/5e4)*5e4;
   const c=negChance(n,p);
   body=`<div class="nr-body"><div class="nr-col"><h3>Your offer</h3>
-  <label class="neg-lbl" for="nf">Up-front fee <output id="nf-o">${money(n.fee)}</output></label><input type="range" id="nf" min="${min}" max="${max}" step="50000" value="${clamp(n.fee,min,max)}" data-input="neg" data-k="fee">
-  <label class="neg-lbl" for="na">Add-ons (appearances, trophies) <output id="na-o">${money(n.addons)}</output></label><input type="range" id="na" min="0" max="${Math.round(p.val*.5/5e4)*5e4}" step="50000" value="${n.addons}" data-input="neg" data-k="addons">
-  <label class="neg-lbl" for="ns">Sell-on clause <output id="ns-o">${n.sellOn}%</output></label><input type="range" id="ns" min="0" max="25" step="5" value="${n.sellOn}" data-input="neg" data-k="sellOn">
+  <div class="neg-lbl">Up-front fee</div>${stepper('neg','fee',n.fee,{min:0,max:9e12,label:'Up-front fee',chips:[['Their valuation',nice(n.est,5e4)],['−10%',nice(n.est*.9,5e4)],['+10%',nice(n.est*1.1,5e4)],['Market value',nice(p.val,5e4)]]})}
+  <div class="neg-lbl">Add-ons <small>appearances, goals, trophies</small></div>${stepper('neg','addons',n.addons,{min:0,max:9e12,label:'Add-ons',chips:[['None',0],['10% of fee',nice(n.fee*.1,5e4)],['25% of fee',nice(n.fee*.25,5e4)]]})}
+  <div class="neg-lbl">Sell-on clause</div><div class="seg" role="group" aria-label="Sell-on clause">${[0,10,15,20,25].map(v=>`<button data-act="neg-sellon" data-v="${v}" aria-pressed="${n.sellOn===v}">${v?v+'%':'None'}</button>`).join('')}</div>
   <label class="nr-check"><input type="checkbox" id="ni" data-change="negInst" ${n.inst?'checked':''}> Pay in two instalments (half now, half next season)</label>
   <div id="nr-sum">${feeSum(n,p)}</div></div>
   <div class="nr-col"><div id="nr-gauge">${gauge(negValue(n,p),n.est,c)}</div>${n.counter?`<div class="neg-counter"><span>${esc(clubOf(p.club).short)} would accept <b>${money(n.counter)}</b> up front with your current add-ons.</span><button class="btn" data-act="neg-accept-counter">Accept counter</button></div>`:''}${negLog(n)}</div></div>
   <div class="nr-foot"><button class="btn" data-act="close">Walk away</button><button class="btn pri lg" data-act="neg-bid" ${n.round>n.max?'disabled':''}>Submit offer</button></div>`;
+ }else if(n.stage==='call'){
+  body=agentCallHTML(n,p);
  }else if(n.stage==='terms'){
   const need=termsNeed(n,p);
   body=`<div class="nr-body"><div class="nr-col"><h3>Contract offer</h3>
-  ${(()=>{const room=uc.wageBudget-wageBill(S.user),lo=Math.round(need*.55/500)*500,hi=Math.max(lo+500,Math.min(Math.round(need*1.7/500)*500,Math.floor(room/500)*500));if(n.wage>hi)n.wage=hi;return`<label class="neg-lbl" for="nw">Weekly wage <output id="nw-o">${money(n.wage)}</output></label><input type="range" id="nw" min="${lo}" max="${hi}" step="500" value="${n.wage}" data-input="neg" data-k="wage">${room<need?`<p class="neg-warn">His demand is above your wage room of ${money(room)} a week. Raise the wage budget in the Office or offer a bigger signing bonus.</p>`:''}`})()}
-  <label class="neg-lbl" for="nb">Signing-on bonus <output id="nb-o">${money(n.bonus)}</output></label><input type="range" id="nb" min="0" max="${Math.round(p.wage*60/1e4)*1e4}" step="10000" value="${n.bonus}" data-input="neg" data-k="bonus">
+  ${(()=>{const room=uc.wageBudget-wageBill(S.user);return`<div class="neg-lbl">Weekly wage</div>${stepper('neg','wage',n.wage,{min:0,max:9e12,label:'Weekly wage',suffix:' p/w',chips:[['His demand',nice(need,500)],['−10%',nice(need*.9,500)],['+10%',nice(need*1.1,500)]]})}${room<need?`<p class="neg-warn">His demand is above your wage room of ${money(room)} a week. Raise the wage budget in the Office or lean on the signing bonus.</p>`:''}`})()}
+  <div class="neg-lbl">Signing-on bonus</div>${stepper('neg','bonus',n.bonus,{min:0,max:9e12,label:'Signing bonus',chips:[['None',0],['4 weeks',nice(n.wage*4,1e4)],['12 weeks',nice(n.wage*12,1e4)],['26 weeks',nice(n.wage*26,1e4)]]})}
+  <div class="neg-lbl">Agent fee</div>${stepper('neg','agentFee',n.agentFee,{min:0,max:9e12,label:'Agent fee',chips:[['His ask',n.agentAsk],['−25%',nice(n.agentAsk*.75,1e4)],['None',0]]})}
   <div class="neg-lbl">Contract length</div><div class="seg" role="group" aria-label="Contract length">${[1,2,3,4,5].map(y=>`<button data-act="neg-years" data-v="${y}" aria-pressed="${n.years===y}">${y} yr</button>`).join('')}</div>
   <div class="neg-lbl" style="margin-top:12px">Squad role</div><div class="seg" role="group" aria-label="Squad role">${ROLES_SQ.map(([k,l])=>`<button data-act="neg-role" data-v="${k}" aria-pressed="${n.role===k}">${l}</button>`).join('')}</div>
   <label class="nr-check"><input type="checkbox" data-change="negClause" ${n.clause?'checked':''}> Include a release clause</label>
@@ -125,8 +128,8 @@ function renderNeg(){
  openModal(`<div class="nroom">${negHeader(n,p)}${body}</div>`);$('#modal .modal-box').classList.add('wide');
 }
 function feeSum(n,p){const uc=clubOf(S.user),now=n.fee*(n.inst?.5:1);return`<div class="nr-sum"><div><small>Due now</small><b>${money(now)}</b></div><div><small>Budget after</small><b class="${uc.budget-now<0?'v1':''}">${money(uc.budget-now)}</b></div><div><small>Round</small><b>${Math.min(n.round,n.max)} of ${n.max}</b></div></div>`}
-function termsSum(n,p){const uc=clubOf(S.user);return`<div class="nr-sum"><div><small>Wage room</small><b>${money(uc.wageBudget-wageBill(S.user))}/w</b></div><div><small>Agent fee</small><b>${money(Math.round(n.fee*.05/1e4)*1e4)}</b></div><div><small>Total cost</small><b>${money(n.fee+n.bonus+n.wage*52*n.years)}</b></div></div>`}
-function termsRead(n,p){const need=termsNeed(n,p),c=sig((n.wage/need-1)*16+(n.clause?.3:0)),[w,cl]=chanceWord(c);return`<div class="gauge"><div class="g-read"><div><small>Agent wants</small><b>${money(need)}/w</b></div><div><small>Expects role</small><b>${ROLES_SQ.find(r=>r[0]===n.expect)[1]}</b></div><div><small>Agreement</small><b class="${cl}">${w} · ${Math.round(c*100)}%</b></div></div></div>`}
+function termsSum(n,p){const uc=clubOf(S.user),now=n.fee*(n.inst?.5:1)+n.bonus+(n.agentFee||0);return`<div class="nr-sum"><div><small>Wage room</small><b>${money(uc.wageBudget-wageBill(S.user))}/w</b></div><div><small>Due now</small><b class="${now>uc.budget?'v1':''}">${money(now)}</b></div><div><small>Total cost</small><b>${money(n.fee+n.bonus+(n.agentFee||0)+n.wage*52*n.years)}</b></div></div>`}
+function termsRead(n,p){const need=termsNeed(n,p),c=sig((n.wage/need-1)*16+(n.clause?.3:0)+(n.interest||0)*3+((n.agentFee/(n.agentAsk||1))-1)*1.6),[w,cl]=chanceWord(c);return`<div class="gauge"><div class="g-read"><div><small>Agent wants</small><b>${money(need)}/w</b></div><div><small>Expects role</small><b>${ROLES_SQ.find(r=>r[0]===n.expect)[1]}</b></div><div><small>Agreement</small><b class="${cl}">${w} · ${Math.round(c*100)}%</b></div></div></div>`}
 function negLive(){const n=ui.neg,p=S.players[n.pid],g=$('#nr-gauge'),sm=$('#nr-sum');if(!g)return;
  if(n.stage==='fee'){g.innerHTML=gauge(negValue(n,p),n.est,negChance(n,p));sm.innerHTML=feeSum(n,p)}else if(n.stage==='terms'){g.innerHTML=termsRead(n,p);sm.innerHTML=termsSum(n,p)}}
 function termsNeed(n,p){const role=ROLES_SQ.find(r=>r[0]===n.role),exp=ROLES_SQ.findIndex(r=>r[0]===n.expect),got=ROLES_SQ.findIndex(r=>r[0]===n.role);
@@ -137,7 +140,7 @@ function negBid(){
  if(uc.squad.length>=34){toast('Your squad is full (34 players).');return}
  const v=negValue(n,p),r=v/n.want;
  n.log.push({who:'us',t:`We offer ${money(n.fee)}${n.addons?` plus ${money(n.addons)} in add-ons`:''}${n.sellOn?` and a ${n.sellOn}% sell-on clause`:''}${n.inst?', paid in two instalments':''}.`});
- if(r>=1){n.log.push({who:'them',t:`We accept. You may speak to ${p.ln}'s representatives.`});n.stage='terms';n.counter=null;S.bids.unshift({pid:p.id,from:p.club,fee:n.fee,status:'Fee agreed',md:S.md});
+ if(r>=1){n.log.push({who:'them',t:`We accept. You may speak to ${p.ln}'s representatives.`});n.stage='call';n.agentAsk=nice(Math.max(n.fee*.05,wageDemand(p)*8),1e4);n.agentFee=n.agentAsk;n.interest=agentInterest(p);n.counter=null;S.bids.unshift({pid:p.id,from:p.club,fee:n.fee,status:'Fee agreed',md:S.md});
   n.log.push({who:'agent',t:`${p.ln} is interested. We are looking for around ${money(wageDemand(p))} a week and a ${ROLES_SQ.find(x=>x[0]===n.expect)[1].toLowerCase()} role.`});n.wage=termsNeed(n,p);renderNeg();return}
  n.round++;
  if(n.round>n.max){n.log.push({who:'them',t:`We are too far apart. ${sel.short} have ended talks.`});S.bids.unshift({pid:p.id,from:p.club,fee:n.fee,status:'Rejected',md:S.md});save();renderNeg();return}
@@ -149,9 +152,10 @@ function negTerms(){
  const n=ui.neg,p=S.players[n.pid],uc=clubOf(S.user),need=termsNeed(n,p);n.tries++;
  if(wageBill(S.user)+n.wage>uc.wageBudget){n.log.push({who:'us',t:'We cannot go that high: it breaks our wage budget.'});renderNeg();return}
  n.log.push({who:'us',t:`We offer ${money(n.wage)} a week for ${n.years} years as a ${ROLES_SQ.find(r=>r[0]===n.role)[1].toLowerCase()}${n.bonus?`, with a ${money(n.bonus)} signing bonus`:''}${n.clause?' and a release clause':''}.`});
- const c=sig((n.wage/need-1)*16+(n.clause?.3:0));
+ const c=sig((n.wage/need-1)*16+(n.clause?.3:0)+(n.interest||0)*3+((n.agentFee/(n.agentAsk||1))-1)*1.6);
+ if(n.fee*(n.inst?.5:1)+n.bonus+(n.agentFee||0)>uc.budget){n.log.push({who:'us',t:'We cannot cover the fee, bonus and agent fee from the transfer budget.'});renderNeg();return}
  if(G.f()<c){
-  const from=p.club,now=n.fee*(n.inst?.5:1);moveP(p.id,S.user,0);uc.budget-=now+n.bonus;clubOf(from).budget+=n.fee;if(n.inst)S.owed=(S.owed||0)+n.fee/2;
+  const from=p.club,now=n.fee*(n.inst?.5:1);moveP(p.id,S.user,0);uc.budget-=now+n.bonus+(n.agentFee||0);clubOf(from).budget+=n.fee;if(n.inst)S.owed=(S.owed||0)+n.fee/2;
   p.wage=n.wage;p.con=n.years;S.fin.buys+=now+n.bonus;logDeal(p.id,from,S.user,n.fee);
   const b=S.bids.find(x=>x.pid===p.id&&x.status==='Fee agreed');if(b){b.status='Signed';b.wage=n.wage}
   mail('Director of Football',`${p.ln} signs from ${clubOf(from).short}`,`<p>${esc(p.fn+' '+p.ln)} has joined for <b>${money(n.fee)}</b>${n.addons?` plus ${money(n.addons)} in add-ons`:''} on ${money(n.wage)} a week until ${2026+S.season+n.years}. He will wear number ${p.num}.</p>`,null,'transfer',{att:{t:'player',pid:p.id,note:'New signing'},links:[['View player','player',p.id,1]]});

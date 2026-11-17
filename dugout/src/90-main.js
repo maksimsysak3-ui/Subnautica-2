@@ -86,6 +86,17 @@ document.addEventListener('click',e=>{
   case'press-a':answerPress(+v);break;
   case'press-skip':if(ui.press&&M)M['press_'+ui.press.kind]=true;ui.press=null;closeModal();render();toast('Your assistant handled the media');break;
   case'press-done':closeModal();render();break;
+  case'stp':stepApply(t.dataset.t,t.dataset.k,+t.dataset.d,null);break;
+  case'stp-set':stepApply(t.dataset.t,t.dataset.k,0,+v);break;
+  case'neg-sellon':ui.neg.sellOn=+v;renderNeg();break;
+  case'call-q':callAsk(v);break;
+  case'call-terms':{const n=ui.neg,p=S.players[n.pid];n.stage='terms';n.wage=nice(termsNeed(n,p),500);n.log.push({who:'agent',t:`Send me the offer. ${p.ln} wants ${money(nice(termsNeed(n,p),500))} a week.`});renderNeg();break}
+  case'oc-open':offerCall(id);break;
+  case'oc-accept':offerCallAct('accept');break;
+  case'oc-counter':offerCallAct('counter');break;
+  case'oc-name':offerCallAct('name');break;
+  case'oc-nfs':offerCallAct('nfs');break;
+  case'oc-reject':offerCallAct('reject');break;
   case'goto':{const[g,sb]=v.split('/');closeModal();go(g,sb);break}
   case'mailf':ui.mailF=v;ui.msg=null;render();break;
   case'mail-read-all':S.inbox.forEach(m=>m.read=true);save();render();renderBar();break;
@@ -102,7 +113,7 @@ document.addEventListener('click',e=>{
   case'neg-accept-counter':ui.neg.fee=ui.neg.counter;ui.neg.counter=null;negBid();break;
   case'pickComp':ui.lg=/^\d+$/.test(v)?+v:v;ui.lgMd=null;render();break;
   case'board-req':{const c=clubOf(S.user);S.boardReq=S.season;if(S.board>=62){const g=Math.round(c.budget*.2/1e5)*1e5+5e6;c.budget+=g;toast(`The board has added ${money(g)} to your transfer budget`)}else{S.board=Math.max(5,S.board-3);toast('The board turned down your request')}save();render();break}
-  case'split-apply':{const c=clubOf(S.user),w=+$('#sp-r').value,total=c.budget+c.wageBudget*WAGE_TO_FEE;c.wageBudget=w;c.budget=Math.max(0,Math.round((total-w*WAGE_TO_FEE)/1e5)*1e5);save();render();toast('Budgets updated');break}
+  case'split-apply':{const c=clubOf(S.user),w=ui.split?ui.split.w:c.wageBudget,total=c.budget+c.wageBudget*WAGE_TO_FEE;c.wageBudget=w;c.budget=Math.max(0,Math.round((total-w*WAGE_TO_FEE)/1e5)*1e5);save();render();toast('Budgets updated');break}
   case'sell':sellUI(id);break;
   case'sell-yes':{const s=ui.sell;if(!s)break;const p=S.players[s.pid];moveP(s.pid,s.buyer,s.fee);S.fin.sales+=s.fee;logDeal(s.pid,S.user,s.buyer,s.fee);news(`${p.fn} ${p.ln} joins ${clubOf(s.buyer).name} from ${clubOf(S.user).name} for ${money(s.fee)}.`,'transfer',[s.buyer,S.user]);save();toast(`${p.ln} sold for ${money(s.fee)}`);ui.sell=null;go('squad');break}
   case'shortlist':{const i=S.shortlist.indexOf(id);if(i>=0)S.shortlist.splice(i,1);else S.shortlist.push(id);save();render();break}
