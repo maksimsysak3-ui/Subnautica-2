@@ -57,13 +57,13 @@ All persons and cases are fictional. The techniques, and the years they arrived,
 
 **Play:** https://raw.githack.com/maksimsysak3-ui/Subnautica-2/claude/nfl-gm-sim/dugout-manager.html
 
-An original football management sim in one file (`dugout-manager.html`, no build step). Pick one of twelve
-fictional clubs in the Crown Division and run it for as many seasons as you like.
+An original football management sim. Six countries, twelve divisions and 168 generated clubs with their own crests,
+kits and stadiums, about 4,000 players, promotion and relegation, and a career that runs for as many seasons as you like.
 
-- **Clubs.** Every crest and kit is drawn in SVG from a small spec (shield shape, division, emblem, kit pattern, collar, sponsor). Home, away and third kits, with a back view showing name and number.
-- **Players.** Procedural faces (skin, hair, beard, eyes, brows) wearing their club's shirt, on holographic tilt cards in six tiers: bronze, silver, gold, elite, legend and wonderkid.
-- **Management.** Squad, five formations with tap-to-swap lineups and positional fit, mentality and pressing, transfers with AI clubs that accept, counter or break off talks, incoming offers, and a scouting network with an animated prospect reveal.
-- **Live 3D matches.** Three.js stadium with floodlights, crowd, LED boards and nets; players wear their real kits and look like their cards. Shots, saves and goals from the match engine play out on the pitch before the score changes. TV and tactical cameras, 1×/2×/4× speed, live mentality changes, commentary and stats.
-- **Seasons.** 22 matchdays, league table, top scorers, player ratings, development and ageing, prize money.
+- **Match engine.** A positional simulation at 10 Hz: all 22 players hold a shape from your tactic, and the ball carrier weighs passes (with interception risk), dribbles, crosses and shots from space, pressure and attributes. Tackles, fouls, cards, offsides, corners, penalties, rebounds, fatigue and AI substitutions. Calibrated over many headless matches to about 2.6 goals, 1,100 passes at 79%, 21 fouls and 4 offsides per game.
+- **Tactics.** Separate shapes with and without the ball, a role for every position, eight team instructions, and transition behaviour (counter-attack or keep possession, counter-press or regroup). Each one changes what the engine does.
+- **Match day.** Watch in 3D (jointed players with sculpted heads, textured hair and kit numbers, floodlit stadium) or 2D, in key highlights, extended or full mode. Live commentary, stats, ratings, tactical changes and substitutions.
+- **Weather and time.** Kick-off times from lunchtime to night games, daylight that fades into floodlights, and weather (rain, storms, snow, wind, heat) that can change mid-match and affects first touch, pass accuracy, ball speed, keeping and fatigue.
+- **Management.** Squad with 1-20 attributes and star ratings, scouting search across all leagues, bids, wage demands, transfer windows, AI transfers, incoming offers, finances, inbox and a news feed.
 
-Saves to the browser's local storage.
+Source lives in `dugout/src/` and is stitched into the page by `npm run build:dugout`. Saves to the browser's local storage.
