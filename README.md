@@ -57,7 +57,7 @@ All persons and cases are fictional. The techniques, and the years they arrived,
 
 **Play:** https://raw.githack.com/maksimsysak3-ui/Subnautica-2/claude/nfl-gm-sim/dugout-manager.html
 
-An original football management sim. Six countries, twelve divisions and 168 generated clubs with their own crests,
+An original football management sim. Six countries, twelve divisions and 240 generated clubs with their own crests,
 kits and stadiums, about 4,000 players, promotion and relegation, and a career that runs for as many seasons as you like.
 
 - **Match engine.** A positional simulation at 10 Hz: all 22 players hold a shape from your tactic, and the ball carrier weighs passes (with interception risk), dribbles, crosses and shots from space, pressure and attributes. Tackles, fouls, cards, offsides, corners, penalties, rebounds, fatigue and AI substitutions. Calibrated over many headless matches to about 2.6 goals, 1,100 passes at 79%, 21 fouls and 4 offsides per game.
@@ -66,6 +66,13 @@ kits and stadiums, about 4,000 players, promotion and relegation, and a career t
 - **Rival managers adapt.** AI clubs scout your tactic: they go direct over a high press and sit deeper to counter an all-out attack. Pressing and attacking cost energy and leave space.
 - **Match day.** Watch in 3D (stylised boxy players wearing each club's actual kit: pattern, crest, sponsor, name and number, floodlit stadium) or 2D, in key highlights (about 3–4 minutes a match), extended or full mode. A skippable pre-match ceremony (walkout from the tunnel, line-up cards, an original anthem, handshakes), a broadcast camera with scorebug, captions and a time-lapse between highlights, goal replays, full screen, and synthesised crowd, whistle and anthem audio. Live commentary, stats, ratings, tactical changes and substitutions.
 - **Weather and time.** Kick-off times from lunchtime to night games, daylight that fades into floodlights, and weather (rain, storms, snow, wind, heat) that can change mid-match and affects first touch, pass accuracy, ball speed, keeping and fatigue.
+- **Competitions.** Six 32-team domestic cups and the 16-club Continental Elite Cup (groups, then knockouts), played midweek between league matchdays. Penalty shootouts shown kick by kick, brackets, group tables, rolls of honour and a themed season calendar.
+- **Analysis.** Live and after the match: momentum, xG race, shot map, passing network with average positions, player heatmaps and full player stats.
+- **Transfers.** Agree a fee, call the player's agent, then negotiate wage, bonus, agent fee, length and promised role with precise steppers. Rival directors phone with bids you can counter. Scouting with knowledge levels and graded reports, a youth academy with upgradeable facilities, loans and a development centre.
+- **People.** Deep player profiles with careers and honours, contract renewals, playing-time promises, personalities, press conferences, fan mood and board confidence.
+- **History.** Season awards and Team of the Season for every league, club records, all-time scorers, hall of fame and a chart of every finish.
 - **Management.** Squad with 1-20 attributes and star ratings, scouting search across all leagues, bids, wage demands, transfer windows, AI transfers, incoming offers, finances, inbox and a news feed.
+
+A store page with Steamworks listing copy lives in `dugout-store/`.
 
 Source lives in `dugout/src/` and is stitched into the page by `npm run build:dugout`. Three career save slots live in the browser (IndexedDB, gzip-compressed, about 0.4 MB each), managed from the main menu. An older single save moves into slot 1 automatically.
