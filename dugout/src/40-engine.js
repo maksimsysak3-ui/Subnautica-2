@@ -144,7 +144,7 @@ function assign(E){
 function movePlayer(E,p){
  // Off-ball players never freeze: a slow personal drift around their target keeps them shuffling and walking.
  const wob=E.ball.owner===p.i||p.pos==='GK'?0:Math.hypot(E.ball.x-p.x,E.ball.y-p.y)>15?.9:.35;
- const dx=p.tx+Math.sin(E.t*.45+p.i*2.1)*wob-p.x,dy=p.ty+Math.cos(E.t*.37+p.i*1.3)*wob-p.y,d=Math.hypot(dx,dy),fat=.72+.28*clamp(p.en,0,1);
+ const dx=p.tx+Math.sin(E.t*.45+p.i*2.1)*wob-p.x,dy=p.ty+Math.cos(E.t*.37+p.i*1.3)*wob-p.y,d=Math.hypot(dx,dy),fat=.56+.44*clamp(p.en,0,1);
  if(d>5&&E.poss!==p.s)p.sprint=true;else if(d>9)p.sprint=true;
  let vmax=(5.4+p.a.pac*3.4)*fat*(p.sprint?1:.68)*E.wx.spd;
  if(p.stun>E.t)vmax*=.35;
@@ -154,7 +154,7 @@ function movePlayer(E,p){
  let vx=0,vy=0;if(d>.12){const sp=Math.min(vmax,d*1.8);vx=dx/d*sp;vy=dy/d*sp}
  const acc=(4+p.a.acc*5)*fat*DT;let ax=vx-p.vx,ay=vy-p.vy;const am=Math.hypot(ax,ay);if(am>acc){ax*=acc/am;ay*=acc/am}
  p.vx+=ax;p.vy+=ay;p.x=clamp(p.x+p.vx*DT,-2,PW+2);p.y=clamp(p.y+p.vy*DT,-2,PH+2);
- const sp=Math.hypot(p.vx,p.vy);const ti=E.T[p.s].tac.ins;p.en=Math.max(.2,p.en-(3e-5+3.4e-6*sp*sp)*(1.3-p.a.sta)*DT*(ti.press===2?2.1:ti.press===0?.85:1)*(ti.ment>=3?1.15:1)*(ti.line===2?1.1:1)*E.wx.fat);
+ const sp=Math.hypot(p.vx,p.vy);const ti=E.T[p.s].tac.ins;p.en=Math.max(.2,p.en-(3e-5+3.4e-6*sp*sp)*(1.3-p.a.sta)*DT*(ti.press===2?2.6:ti.press===0?.8:1)*(ti.ment>=3?1.3:1)*(ti.line===2?1.1:1)*E.wx.fat);
  p.sprint=false;
 }
 function placeBall(c,b){const sp=Math.hypot(c.vx,c.vy);let dx,dy;if(sp>.4){dx=c.vx/sp;dy=c.vy/sp}else{dx=c.s?-1:1;dy=0}b.x=c.x+dx*.55;b.y=c.y+dy*.55;b.z=.11;b.vx=c.vx;b.vy=c.vy;b.vz=0}
@@ -200,7 +200,7 @@ function decide(E,c,pr){
   if(fX(s,m.x)>ol+.2)continue;
   const lr=laneRisk(c,tx,ty,op),lofted=d>34;
   let risk=lofted?.3+.005*d:lr;const rp=pressure(E,{s,x:tx,y:ty});if(rp<2)risk+=.17;else if(rp<4)risk+=.06;
-  let p=clamp((.99-d*.0038*(1.35-c.a.pas))*(1-risk*.9),.03,.98);if(pr<1.1)p*=.9;
+  let p=clamp((.99-d*.0038*(1.35-c.a.pas))*(1-risk*.9)*(.88+.12*clamp(c.en,0,1)),.03,.98);if(pr<1.1)p*=.9;
   const val=threat(mfx,mfy)-base;
   let u=p*(val*2.2*riskW*tempoW*((mfx>fx+8)?(rf.prog||1):1)+.06)-(1-p)*lossCost;
   if(ins.passing===0&&d>26)u-=.025;if(ins.passing===2&&mfx-fx>12)u+=.012+.0005*d;
@@ -295,7 +295,7 @@ function ballFlight(E){
 }
 function receive(E,p,loose){
  const b=E.ball,pr=pressure(E,p),sp=Math.hypot(b.vx,b.vy),passer=b.lastP>=0?E.P[b.lastP]:null;
- let ok=.905+.09*p.a.fir-(pr<1.1?.1:pr<2.4?.035:0)-(sp>16?.05:0)-E.wx.touch;
+ let ok=(.905+.09*p.a.fir-(pr<1.1?.1:pr<2.4?.035:0))*(.9+.1*clamp(p.en,0,1))-(sp>16?.05:0)-E.wx.touch;
  if(p.pos==='GK'&&inBox(p.s,b.x,b.y))ok=.98;
  if(E.rng.f()<ok){
   if(passer&&passer.s===p.s&&passer!==p&&(!loose||E.t-b.kt<4)&&!b.shot){passer.st.pc++;E.st.pc[p.s]++;E.lastPass={i:passer.i,t:E.t}}

@@ -81,8 +81,8 @@ function prepAI(cid,oppId){
   // AI managers scout the opponent and adapt: go direct over a high press, sit deeper and counter an all-out attack.
   if(!c.tac.base)c.tac.base={passing:ins.passing,tempo:ins.tempo,onWin:ins.onWin,line:ins.line,press:ins.press};
   Object.assign(ins,c.tac.base);
-  if(oi.press===2){ins.passing=2;ins.tempo=Math.max(ins.tempo,1);ins.onWin=0}
-  if(oi.ment>=3){ins.ment=Math.min(ins.ment,2);ins.onWin=0;ins.line=Math.min(ins.line,1)}
+  if(oi.press===2){ins.passing=2;ins.tempo=Math.max(ins.tempo,1)}
+  if(oi.ment>=3){ins.press=Math.max(ins.press,1);ins.line=Math.min(ins.line,1)}
   if(oi.line===2&&ins.passing<2)ins.passing=2;
  }
 }
