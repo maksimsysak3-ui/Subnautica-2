@@ -74,6 +74,11 @@ button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}
 .slot .k{position:absolute;left:4px;top:2px;font:12px var(--tiny);color:var(--dim)}
 .slot .n{position:absolute;right:4px;bottom:1px;font:20px/1 var(--mono);color:var(--text);text-shadow:2px 2px 0 #000}
 .slot.empty img{opacity:.25}.slot.cd::after{content:"";position:absolute;inset:0;background:rgba(0,0,0,.6);clip-path:inset(var(--cd,0%) 0 0 0)}
+#bossBar{left:50%;transform:translateX(-50%);top:max(14px,env(safe-area-inset-top));width:min(520px,60vw);padding:10px 14px}
+.fd.ach{box-shadow:0 0 0 2px #000,inset 2px 2px 0 var(--amber);color:var(--amber)}
+.perk{cursor:pointer;text-align:left;transition:transform .08s}.perk:hover,.perk:focus-visible{transform:translateY(-4px);outline:none;box-shadow:inset 3px 3px 0 var(--violet),inset -3px -3px 0 var(--sh),0 0 0 3px #000}
+.ach{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:10px 12px;background:var(--p2);box-shadow:inset 2px 2px 0 var(--line),inset -2px -2px 0 #000}
+.ach.got{box-shadow:inset 2px 2px 0 var(--amber2),inset -2px -2px 0 #000}.ach .nm{font:18px var(--disp);font-weight:600}.ach.no .nm{color:var(--dim)}
 #prompt{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(max(14px,env(safe-area-inset-bottom)) + 92px);padding:8px 14px;font:22px var(--mono);pointer-events:none;color:var(--amber);animation:bob 1s steps(2) infinite}
 #prompt kbd{font:16px var(--tiny);background:var(--amber);color:#000;padding:1px 6px;margin-right:4px}
 @keyframes bob{50%{transform:translate(-50%,-3px)}}
@@ -181,7 +186,8 @@ input[type=range]{accent-color:var(--amber);width:200px}
     <div class="gauge"><div class="row"><span class="lab">Hull</span><span class="v" id="gHullT">0</span></div><div class="bar" id="gHullB" style="--c:#7ee05a"><i></i></div></div>
     <div class="gauge"><div class="row"><span class="lab">Heat</span><span class="v" id="gHeatT">0</span></div><div class="bar" id="gHeatB" style="--c:#ff7a2e"><i></i></div></div>
   </div>
-  <div id="moneyBox" class="hudbox px rv"><div class="lab">Credits</div><div id="money">$0</div><div id="cargoRow"><span class="lab">Cargo</span><span class="v" id="cargoT" style="font:20px var(--mono)">0/0</span></div><div class="bar" id="cargoB" style="--c:#3ee6d0"><i></i></div><div id="cargoIcons"></div></div>
+  <div id="moneyBox" class="hudbox px rv"><div class="lab">Credits</div><div id="money">$0</div><div id="cargoRow"><span class="lab">Cargo</span><span class="v" id="cargoT" style="font:20px var(--mono)">0/0</span></div><div class="bar" id="cargoB" style="--c:#3ee6d0"><i></i></div><div id="cargoIcons"></div><div id="cargoRow" style="margin-top:8px"><span class="lab">Pilot level <b id="lvNum" style="color:var(--violet);font:20px var(--mono)">1</b></span><span class="v" id="xpT" style="font:18px var(--mono);color:var(--dim)">0/0</span></div><div class="bar" id="xpB" style="--c:#b07cff"><i></i></div></div>
+  <div id="bossBar" class="hudbox px" hidden><div class="rowx" style="justify-content:space-between"><span class="lab" style="color:var(--red);font-size:14px">The Magma Wyrm</span><span class="v" id="bossT" style="font:20px var(--mono)"></span></div><div class="bar" id="bossB" style="--c:#ff5a4e;height:16px"><i></i></div></div>
   <div id="feed"></div>
   <div id="mini" class="hudbox px flat"><canvas id="miniCv" width="8" height="200"></canvas></div>
   <div id="hotbar" class="hudbox px"></div>
@@ -204,7 +210,7 @@ input[type=range]{accent-color:var(--amber);width:200px}
 
 <section id="term" class="screen dim" hidden>
   <div class="shell px crt">
-    <div class="thead"><div class="co">HOLLOWAY OUTPOST 7<small id="termSub">TERMINAL · DAY 1</small></div><div class="sp"></div><div class="lab" style="margin-right:6px">Credits</div><div class="cash" id="tCash">$0</div></div>
+    <div class="thead"><div class="co">HOLLOWAY OUTPOST 7<small id="termSub">TERMINAL · DAY 1</small></div><div class="sp"></div><div id="tMkt" style="font:18px var(--mono);color:var(--dim);margin-right:18px;text-align:right"></div><div class="lab" style="margin-right:6px">Credits</div><div class="cash" id="tCash">$0</div></div>
     <div class="tbody"><nav class="tnav" id="tnav"></nav><div class="tview" id="tview"></div></div>
     <div class="hz"></div>
     <div class="tfoot"><span class="stat">Fuel <b id="tfFuel">0</b></span><span class="stat">Hull <b id="tfHull">0</b></span><span class="stat">Cargo <b id="tfCargo">0</b></span><span class="sp" style="flex:1"></span><button class="btn" id="launch">Launch rig ▼</button></div>
@@ -223,6 +229,8 @@ input[type=range]{accent-color:var(--amber);width:200px}
   <p>Some rock is too hard for your drill until you upgrade. Relics complete museum sets that grant permanent bonuses. Contracts pay well. Somewhere below 800 m beats the planet's heart.</p>
   <div class="rowx" style="justify-content:center"><button class="btn" data-close>Got it</button></div></div></section>
 
+<section id="mPerk" class="screen dim modal" hidden><div class="box px rv" style="width:min(900px,100%)"><div class="lab" style="color:var(--violet);font-size:14px">Level up</div><h2 style="color:var(--violet)" id="perkT">Pilot level 2</h2><p>Choose one upgrade to your piloting. Keys 1–3.</p><div class="grid" id="perkCards" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));text-align:left"></div></div></section>
+<section id="mTrader" class="screen dim modal" hidden><div class="box px rv" style="width:min(620px,100%)"><div class="lab" style="color:var(--teal);font-size:14px">Burrow trader</div><h2 style="color:var(--amber)">"Psst. Pilot."</h2><p id="trSay">Long way from the surface, eh? Prices are what they are down here.</p><div class="grid" id="trOffers" style="text-align:left"></div><div class="rowx" style="justify-content:center;margin-top:16px"><button class="btn ghost" id="trClose">Leave</button></div></div></section>
 <section id="mWin" class="screen dim modal" hidden><div class="box px rv"><h2 style="color:var(--violet)">The Heart is yours</h2><p id="winTxt"></p><div class="rowx" style="justify-content:center;gap:14px;flex-wrap:wrap"><button class="btn" id="winNext">Survey a new planet</button><button class="btn ghost" id="winStay">Keep mining here</button></div></div></section>
 
 <script>
@@ -308,7 +316,8 @@ const ITEMS=[
   {k:'fuelc',name:'Fuel cell',cost:35,desc:'Instantly adds 12 L of fuel.'},
   {k:'kit',name:'Repair kit',cost:70,desc:'Patches 45 hull.'},
   {k:'flare',name:'Flare',cost:12,desc:'Drops a light that burns for 90 seconds.'},
-  {k:'tele',name:'Teleporter',cost:140,desc:'Beams the rig, and its cargo, back to the pad.'}
+  {k:'tele',name:'Teleporter',cost:140,desc:'Beams the rig, and its cargo, back to the pad.'},
+  {k:'relay',name:'Relay beacon',cost:450,desc:'Deploy underground on solid ground: sell, refuel and fast travel from it.'}
 ];
 const RELICS=[
   ['Rusted Lunchbox','Still has a sandwich in it. Do not open.'],['Prospector\'s Pocketwatch','Stopped at 4:51. Ominous.'],['Petrified Boot','The foot is a separate relic.'],
@@ -327,6 +336,42 @@ const PAINTS=['#e8b630','#d8452f','#2f8fd8','#3fbf6a','#e8e4d8','#30333c','#b04a
 const PAINT_LOCK={6:'Reach 200 m',8:'Complete 3 contracts',10:'Find 6 relics'};
 const DECALS=['None','Stripes','Flames','Checker','Skull','Star','Bolt','Number'];
 const DECAL_LOCK={2:'Reach the Magma Belt',4:'Kill 10 creatures',6:'Complete 5 contracts'};
+const PERKS=[
+ {k:'pros',name:'Prospector',d:'+8% value on every ore.',max:3},{k:'miser',name:'Fuel Miser',d:'Burn 12% less fuel.',max:3},
+ {k:'frame',name:'Reinforced Frame',d:'+15% maximum hull.',max:3},{k:'sink',name:'Heat Sink',d:'+35°C heat tolerance.',max:3},
+ {k:'pockets',name:'Deep Pockets',d:'+4 cargo slots.',max:5},{k:'bit',name:'Hardened Bit',d:'+12% drill power.',max:3},
+ {k:'lucky',name:'Lucky Strike',d:'8% chance to pull a second ore from a tile.',max:3},{k:'vein',name:'Vein Hunter',d:'Vein combos build twice as fast.',max:1},
+ {k:'scav',name:'Scavenger',d:'+50% credits from caches and wrecks.',max:2},{k:'owl',name:'Night Owl',d:'+2 m headlamp range.',max:2},
+ {k:'shocks',name:'Shock Absorbers',d:'Take 40% less fall damage.',max:2},{k:'demo',name:'Demolitionist',d:'Bigger blasts, and your own blasts no longer hurt you.',max:1},
+ {k:'barg',name:'Bargainer',d:'10% off everything you buy.',max:2},{k:'tune',name:'Thruster Tuning',d:'+10% thrust.',max:3},
+ {k:'salv',name:'Salvage Rights',d:'Halved recovery fees. Keep half your cargo when the rig is lost.',max:1},{k:'geo',name:'Geologist',d:'+4 scanner range and faster recharge.',max:2}];
+const CHASSIS={mole:{name:'Mole',cost:0,d:'The company standard. Balanced in every way.',hull:1,cargo:1,thrust:1,fuel:1},
+ badger:{name:'Badger',cost:3500,d:'Armoured hauler: +35% hull, +30% cargo, −15% thrust.',hull:1.35,cargo:1.3,thrust:0.85,fuel:1},
+ hornet:{name:'Hornet',cost:3500,d:'Racing frame: +35% thrust, +25% fuel, −20% cargo, −10% hull.',hull:0.9,cargo:0.8,thrust:1.35,fuel:1.25}};
+const ACH=[
+ ['ore1','First Strike','Mine your first ore',()=>ORE_IDS.some(i=>S.found[i]),50],['d50','Breaking Ground','Reach 50 m',()=>S.stats.maxDepth>=50,100],
+ ['d100','Hundred Down','Reach 100 m',()=>S.stats.maxDepth>=100,200],['d200','Crystal Clear','Reach the Crystal Caverns',()=>S.stats.maxDepth>=180,400],
+ ['d320','Fire Below','Reach the Magma Belt',()=>S.stats.maxDepth>=320,800],['d480','Time Traveller','Reach the Fossil Deep',()=>S.stats.maxDepth>=480,1500],
+ ['d640','Into the Hollow','Reach The Hollow',()=>S.stats.maxDepth>=640,3000],['d820','Core Sample','Reach The Core',()=>S.stats.maxDepth>=820,6000],
+ ['coal','Coal Baron','Mine 100 coal',()=>(S.found[20]||0)>=100,300],['gold','Gold Fever','Mine 25 gold',()=>(S.found[24]||0)>=25,600],
+ ['dia','Ice Cold','Mine a diamond',()=>S.found[29]>0,1000],['void','Stare Back','Mine a void shard',()=>S.found[30]>0,2000],
+ ['allore','Full Spectrum','Mine every kind of ore',()=>ORE_IDS.every(i=>S.found[i]),5000],['r1','Curiosity','Recover a relic',()=>S.relics.length>=1,150],
+ ['r7','Collector','Recover 7 relics',()=>S.relics.length>=7,800],['r21','Curator','Recover all 21 relics',()=>S.relics.length>=21,8000],
+ ['set','Matching Set','Complete a museum set',()=>setsDone().length>=1,500],['c5','Reliable','Complete 5 contracts',()=>S.done>=5,400],
+ ['c20','Company Pilot','Complete 20 contracts',()=>S.done>=20,2000],['k25','Exterminator','Clear 25 creatures',()=>S.stats.kills>=25,500],
+ ['b20','Demolition Expert','Detonate 20 charges',()=>S.stats.blasts>=20,400],['e10k','Pocket Money','Earn $10,000',()=>S.stats.earned>=1e4,500],
+ ['e100k','Big Earner','Earn $100,000',()=>S.stats.earned>=1e5,3000],['e1m','Tycoon','Earn $1,000,000',()=>S.stats.earned>=1e6,20000],
+ ['max1','Top of the Line','Max out any rig system',()=>Object.values(S.tiers).some(t=>t>=5),2000],['maxall','Perfection','Max out every rig system',()=>Object.values(S.tiers).every(t=>t>=5),25000],
+ ['lost','Insurance Claim','Lose a rig',()=>S.stats.lost>=1,100],['vein8','Motherlode','Build a vein combo of 8',()=>(S.stats.bestVein||0)>=8,600],
+ ['relay','Base Camp','Deploy a relay station',()=>S.relays.length>=1,300],['wreck','Pilot Down','Search an abandoned rig',()=>S.wrecks.length>=1,150],
+ ['wyrm','Wyrmslayer','Defeat the Magma Wyrm',()=>S.wyrm.dead,5000],['heart','Heartbreaker','Take the Planet Heart',()=>S.heartTaken,10000],
+ ['lv10','Veteran','Reach pilot level 10',()=>S.level>=10,1500],['chassis','New Wheels','Buy a new chassis',()=>Object.keys(S.owned).length>1,500]];
+const LOGS=['Day 3. Hit a gas pocket. The canary was right about everything.','They told me the gravel stays put. The gravel does not stay put.',
+ 'The bats sing back if you hum. I have stopped humming.','Crystals that glow with no light. Company says impossible. Company isn\'t down here.',
+ 'Radiator\'s cooked. Writing this in oven mitts.','Something huge swims through the rock. The lava ripples where it passes.',
+ 'The ruins have doors that open inward, toward the core. Who were they keeping out?','Tablet, partial translation: "...the heart sleeps. do not wake the..."',
+ 'The walls breathe here. I counted. Four breaths a minute.','If you find this rig, tell Holloway the core is real. And it beats.'];
+const WY_Y=SURF+432,WY_X0=8,WY_X1=WW-9;
 
 /* =====================================================================
    AUDIO (synthesised)
@@ -409,7 +454,29 @@ const PF={A:'010101111101101',B:'110101110101110',C:'011100100100011',D:'1101011
   0:'111101101101111',1:'010110010010111',2:'110001010100111',3:'110001010001110',4:'101101111001001',5:'111100110001110',6:'011100110101010',7:'111001010010010',8:'010101010101010',9:'010101011001110','.':'000000000000010','-':'000000111000000','$':'011110010011110',' ':'000000000000000',':':'000010000010000','!':'010010010000010'};
 function ptext(c,s,x,y,col){c.fillStyle=col;s=String(s).toUpperCase();for(let i=0;i<s.length;i++){const g=PF[s[i]]||PF[' '];for(let k=0;k<15;k++)if(g[k]==='1')c.fillRect(x+i*4+(k%3),y+Math.floor(k/3),1,1);}}
 // rig sprite template (facing right). k outline, p paint, s trim, g glass, h glass-hi, m metal, t tread, w tread-hi, l lamp
-const RIG=[
+const RIGS={badger:[
+ '...kkkkkkk.....',
+ '..kgggghppk....',
+ '..kgghgggpk....',
+ '.kpppppppppkk..',
+ 'kpmpmpmpppppsk.',
+ 'kmmmmmmmmmmmmlk',
+ 'kpppppppppppsmk',
+ 'kssssssssssssmk',
+ 'ktwttwttwttwtwk',
+ '.kkkkkkkkkkkkk.'],
+ hornet:[
+ '.....kkkkk.....',
+ '....kggghpk....',
+ '...kgghggppk...',
+ 'k.kpppppppsskk.',
+ 'kkpppppppppssmk',
+ 'kammmmmmmmmmmlk',
+ 'kpppppppppppsk.',
+ '.kssssssssssk..',
+ '..ktwttwttwtk..',
+ '...kkkkkkkkk...']};
+const RIG=RIGS.mole=[
  '....kkkkkk.....',
  '...kgggghpk....',
  '...kgghggpk....',
@@ -422,8 +489,8 @@ const RIG=[
  '.kkkkkkkkkkkk..'];
 function drawRig(c,x,y,o){// x,y = top-left
   const P=o.p,S=o.s,M='#9aa0ae',col={k:'#0c0d11',p:P,s:S,g:'#7ad8f0',h:'#dff8ff',m:M,t:'#26282e',w:'#555a66',l:o.lampOn?'#fff2a0':'#7a7040'};
-  const flip=o.flip;const W=RIG[0].length;
-  for(let r=0;r<RIG.length;r++)for(let q=0;q<W;q++){let ch=RIG[r][q];if(ch==='.')continue;if((ch==='t'||ch==='w')&&o.tread%2&&ch==='t')ch='w';else if(ch==='w'&&o.tread%2)ch='t';
+  const flip=o.flip;const TPL=RIGS[o.ch||'mole']||RIG,W=TPL[0].length;col.a=o.a;
+  for(let r=0;r<TPL.length;r++)for(let q=0;q<W;q++){let ch=TPL[r][q];if(ch==='.')continue;if((ch==='t'||ch==='w')&&o.tread%2&&ch==='t')ch='w';else if(ch==='w'&&o.tread%2)ch='t';
     let cc=col[ch];if(o.flash)cc='#ffffff';c.fillStyle=cc;c.fillRect(x+(flip?W-1-q:q),y+r,1,1);}
   // decal
   const dx=q=>x+(flip?W-1-q:q),A=o.a;c.fillStyle=A;
@@ -449,9 +516,10 @@ const ITEM_PIX={
   fuelc:['..kkkk..','.kaaaak.','.kayyak.','.kaaaak.','.kaaaak.','.kayyak.','.kaaaak.','..kkkk..'],
   kit:['.kkkkkk.','kwwwwwwk','kwwrrwwk','kwrrrrwk','kwwrrwwk','kwwwwwwk','.kkkkkk.','........'],
   flare:['...yy...','..yooy..','...rr...','...kk...','...kk...','...kk...','...kk...','........'],
+  relay:['...gg...','...kk...','..kmmk..','..kmmk..','.kmggmk.','.kmmmmk.','kkmmmmkk','kmmmmmmk'],
   tele:['..cccc..','.c....c.','c..cc..c','c.cwwc.c','c.cwwc.c','c..cc..c','.c....c.','..cccc..'],
   scan:['.cccccc.','c......c','c.c..c.c','c..cc..c','c..cc..c','c.c..c.c','c......c','.cccccc.']};
-const PIXC={k:'#0c0d11',r:'#d8452f',w:'#f0ece0',y:'#ffd04a',a:'#ffb636',o:'#ff7a2e',c:'#3ee6d0'};
+const PIXC={k:'#0c0d11',r:'#d8452f',w:'#f0ece0',y:'#ffd04a',a:'#ffb636',o:'#ff7a2e',c:'#3ee6d0',g:'#7ee05a',m:'#9aa0ae'};
 const itemIcon=k=>icon('i'+k,g=>{const p=ITEM_PIX[k];for(let y=0;y<8;y++)for(let x=0;x<8;x++){const ch=p[y][x];if(ch!=='.'){g.fillStyle=PIXC[ch];g.fillRect(x,y,1,1);}}});
 const PART_PIX={drill:['........','kmmm....','kmmmm...','kmmmmmw.','kmmmmmww','kmmmmmw.','kmmmm...','kmmm....'],hull:['.kkkkkk.','kmmmmmmk','kmwwmmmk','kmmmmmmk','kmmmmmmk','.kmmmmk.','..kmmk..','...kk...'],
   fuel:['..kkkk..','.kaaaak.','.kawaak.','.kaaaak.','.kaaaak.','.kaaaak.','.kaaaak.','..kkkk..'],engine:['..kkkk..','.kmmmmk.','.kmmmmk.','..kmmk..','..oooo..','..oyyo..','...yy...','........'],
@@ -467,13 +535,41 @@ const relicIcon=i=>icon('r'+i,g=>{const r=mulberry(i*41+3);const pal=[['#ffd04a'
 let world=null,S=null;// world tiles + persistent save state
 const G={mode:'title',t:0,depthBiome:0,shake:0};
 let rig=null;
-const ent={parts:[],floats:[],crea:[],falls:[],bombs:[],flares:[]};
-function freshSave(seed,planet=1){return{v:1,seed,planet,money:120,tiers:{drill:0,hull:0,fuel:0,engine:0,cargo:0,cool:0,lamp:0,scan:0},items:{tnt:3,mega:0,fuelc:1,kit:1,flare:4,tele:0},
-  paint:{p:0,s:5,a:1},decal:1,rigName:'MOLE-1',relics:[],found:{},contracts:[],done:0,stats:{maxDepth:0,earned:0,kills:0,blasts:0,trips:0,lost:0},day:1,heartTaken:false,valueMul:1};}
-function stat(k){const t=S.tiers[k];let v=PARTS.find(p=>p.k===k).tiers[t];const sets=setsDone();
-  if(k==='fuel'&&sets.includes('fuel5'))v+=5;if(k==='lamp'&&sets.includes('lamp2'))v+=2;if(k==='cool'&&sets.includes('cool60'))v+=60;if(k==='engine'&&sets.includes('thrust25'))v*=1.25;return v;}
+const ent={parts:[],floats:[],crea:[],falls:[],bombs:[],flares:[],shots:[],wrecks:[],traders:[]};let WY=null;
+function freshSave(seed,planet=1){return{v:1,seed,planet,money:120,tiers:{drill:0,hull:0,fuel:0,engine:0,cargo:0,cool:0,lamp:0,scan:0},items:{tnt:3,mega:0,fuelc:1,kit:1,flare:4,tele:0,relay:0},
+  paint:{p:0,s:5,a:1},decal:1,rigName:'MOLE-1',relics:[],found:{},contracts:[],done:0,stats:{maxDepth:0,earned:0,kills:0,blasts:0,trips:0,lost:0},day:1,heartTaken:false,valueMul:1,
+  xp:0,level:1,perks:{},ach:{},market:{},hot:0,dayT:0,relays:[],chassis:'mole',owned:{mole:1},wyrm:{hp:50,dead:false},wrecks:[],logs:[]};}
+function stat(k){const t=S.tiers[k];let v=PARTS.find(p=>p.k===k).tiers[t];const sets=setsDone(),P=S.perks||{},C=CHASSIS[S.chassis]||CHASSIS.mole;
+  if(k==='fuel'){if(sets.includes('fuel5'))v+=5;v=Math.round(v*C.fuel);}
+  if(k==='lamp'){if(sets.includes('lamp2'))v+=2;v+=2*(P.owl||0);}
+  if(k==='cool'){if(sets.includes('cool60'))v+=60;v+=35*(P.sink||0);}
+  if(k==='engine'){if(sets.includes('thrust25'))v*=1.25;v*=(1+0.1*(P.tune||0))*C.thrust;}
+  if(k==='hull')v=Math.round(v*(1+0.15*(P.frame||0))*C.hull);
+  if(k==='cargo')v=Math.round((v+4*(P.pockets||0))*C.cargo);
+  if(k==='drill')v*=1+0.12*(P.bit||0);
+  if(k==='scan'&&v>0)v+=4*(P.geo||0);
+  return v;}
+function costMul(){return 1-0.1*((S.perks||{}).barg||0);}
+function marketMul(t){return (S.market[t]||1)*(S.hot===t?1.6:1);}
+function price(t,m){return TL[t].val*(m||1)*valueMul()*marketMul(t);}
+function sellMul(){return G.termRelay?0.85:1;}
+function shiftMarket(){for(const id of ORE_IDS)S.market[id]=clamp((S.market[id]||1)*(0.86+Math.random()*0.3),0.65,1.45);const pool=ORE_IDS.filter(id=>BIOMES.slice(0,Math.min(6,BIOMES.findIndex(b=>Math.max(40,S.stats.maxDepth)<b.to)+1)).some(b=>b.ores.some(o=>o[0]===id)));S.hot=pool[Math.floor(Math.random()*pool.length)]||21;}
+function xpNeed(l){return Math.round(120*Math.pow(l,1.45));}
+function gainXP(n){if(!S||n<=0)return;S.xp+=Math.round(n);let up=0;while(S.xp>=xpNeed(S.level)){S.xp-=xpNeed(S.level);S.level++;up++;}if(up){G.perkQ=(G.perkQ||0)+up;SFX.relic();banner('Level up!','Pilot level '+S.level+' · choose a perk','violet');G.perkDelay=1.1;}}
+function showPerk(){if(!G.perkQ||G.mode==='perk')return;const pool=PERKS.filter(p=>(S.perks[p.k]||0)<p.max);if(!pool.length){G.perkQ=0;return;}
+  const opts=[];while(opts.length<3&&pool.length){opts.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);}
+  G.prevMode=G.mode;G.mode='perk';G.perkAt=performance.now();G.perkOpts=opts;$('perkT').textContent='Pilot level '+(S.level-G.perkQ+1);
+  const pic={pros:oreIcon(24),miser:partIcon('fuel'),frame:partIcon('hull'),sink:partIcon('cool'),pockets:partIcon('cargo'),bit:partIcon('drill'),lucky:oreIcon(29),vein:oreIcon(22),scav:itemIcon('tnt'),owl:partIcon('lamp'),shocks:partIcon('engine'),demo:itemIcon('mega'),barg:oreIcon(24),tune:partIcon('engine'),salv:itemIcon('kit'),geo:partIcon('scan')};
+  $('perkCards').innerHTML=opts.map((p,i)=>`<button class="card px flat perk" data-perk="${i}"><div class="rowx"><img class="pxicon" src="${pic[p.k]}" style="width:40px;height:40px" alt=""><div><h3>${p.name}</h3><div class="lab">${S.perks[p.k]?'Rank '+(S.perks[p.k]+1)+' of '+p.max:'New'} · key ${i+1}</div></div></div><div class="statline" style="margin-top:10px">${p.d}</div></button>`).join('');
+  $('mPerk').hidden=false;}
+function pickPerk(i){if(performance.now()-(G.perkAt||0)<700)return;const p=G.perkOpts&&G.perkOpts[i];if(!p)return;const hb=stat('hull');S.perks[p.k]=(S.perks[p.k]||0)+1;rig.hull+=Math.max(0,stat('hull')-hb);rig.hull=Math.min(rig.hull,stat('hull'));
+  SFX.buy();$('mPerk').hidden=true;G.perkQ--;G.mode=G.prevMode||'play';banner(p.name,p.d,'violet');if(G.mode==='term')renderTerm();if(G.perkQ>0)setTimeout(showPerk,300);}
+function checkAch(){if(!S)return;for(const a of ACH){if(S.ach[a[0]])continue;let ok=false;try{ok=a[3]();}catch(e){}if(ok){S.ach[a[0]]=1;S.money+=a[4];gainXP(40);SFX.register();
+  const el=document.createElement('div');el.className='fd ach';el.innerHTML=`<img class="pxicon" src="${relicIcon(18)}" alt="">Achievement: ${a[1]} <b>+${fmt(a[4])}</b>`;const F=$('feed');F.prepend(el);setTimeout(()=>el.remove(),5000);}}}
+function nearRelay(){return rig&&S.relays.find(r=>Math.abs(r.x-rig.x)<14&&Math.abs(r.y-rig.y)<10);}
+function nearTrader(){return rig&&ent.traders.find(t=>Math.abs(t.x-rig.x)<14&&Math.abs(t.y-rig.y)<10);}
 function setsDone(){const out=[];for(let i=0;i<7;i++){if([0,1,2].every(j=>S.relics.includes(i*3+j)))out.push(SETS[i].k);}return out;}
-function valueMul(){const s=setsDone();return S.valueMul*(1+(s.includes('val10')?0.1:0)+(s.includes('val15')?0.15:0));}
+function valueMul(){const s=setsDone();return S.valueMul*(1+(s.includes('val10')?0.1:0)+(s.includes('val15')?0.15:0))*(1+0.08*((S.perks||{}).pros||0));}
 
 /* =====================================================================
    WORLD GENERATION
@@ -502,8 +598,16 @@ function genWorld(seed){R=mulberry(seed);const W=new Uint8Array(WW*WH),V=new Uin
   const hy=WH-12,hx=WW>>1;for(let y=hy-5;y<=hy+4;y++)for(let x=hx-7;x<=hx+7;x++){const d=Math.hypot((x-hx)*0.8,y-hy);if(d<6)W[y*WW+x]=d<1?T.HEART:(d>4.6?T.CORE:T.AIR);}W[hy*WW+hx]=T.HEART;
   // surface: keep a clean open start shaft area
   for(let x=28;x<WW-1;x++)W[SURF*WW+x]=T.SOIL;
+  // the Magma Wyrm's arena: a vast lava cavern
+  {const cx=(WY_X0+WY_X1)/2,rx=(WY_X1-WY_X0)/2,ry=9;for(let y=WY_Y-ry;y<=WY_Y+ry;y++)for(let x=WY_X0;x<=WY_X1;x++){const e=((x-cx)/rx)**2+((y-WY_Y)/ry)**2;if(e<1){W[y*WW+x]=y>WY_Y+5?T.LAVA:T.AIR;}else if(e<1.25&&W[y*WW+x]!==T.AIR)W[y*WW+x]=T.OBSID;}
+   for(let k=0;k<5;k++){const px=Math.round(WY_X0+6+k*(WY_X1-WY_X0-12)/4);for(let y=WY_Y+2;y<=WY_Y+6;y++)W[y*WW+px]=T.BASALT;W[(WY_Y+1)*WW+px]=T.RUBY;}}
+  for(const[k,id]of[...RELIC_AT.entries()]){if(W[k]===T.RELIC)continue;RELIC_AT.delete(k);const b2=BIOMES[Math.floor(id/3)];for(let n=0;n<200;n++){const y=SURF+ri(b2.from+4,b2.to-4),x=ri(3,WW-4);if(Math.abs(y-WY_Y)>12&&W[y*WW+x]!==T.AIR&&W[y*WW+x]!==T.LAVA&&W[y*WW+x]!==T.BED){W[y*WW+x]=T.RELIC;RELIC_AT.set(y*WW+x,id);break;}}}
   // creatures
   ent.crea=[];for(let y=SURF+10;y<WH-4;y+=2){const b=biomeAt(y);if(!b.creature)continue;for(let x=2;x<WW-2;x+=2){if(W[y*WW+x]===T.AIR&&R()<0.012)ent.crea.push({type:b.creature,x:x*TS+4,y:y*TS+4,vx:0,vy:0,hp:b.creature==='wisp'?2:1,t:R()*10,home:[x*TS+4,y*TS+4],dead:false});}}
+  // abandoned rigs and burrow traders
+  ent.wrecks=[];ent.traders=[];const floorSpot=(bi)=>{const b=BIOMES[bi];for(let k=0;k<300;k++){const x=ri(3,WW-4),y=SURF+ri(b.from+6,b.to-6);if(W[y*WW+x]===T.AIR&&W[(y-1)*WW+x]===T.AIR&&TL[W[(y+1)*WW+x]].solid&&W[(y+1)*WW+x]!==T.BED)return[x,y];}
+    const x=ri(4,WW-5),y=SURF+ri(b.from+6,b.to-6);W[y*WW+x]=T.AIR;W[(y-1)*WW+x]=T.AIR;W[(y+1)*WW+x]=b.base[0][0];return[x,y];};
+  let wi=0;for(let bi=1;bi<=5;bi++){for(let j=0;j<2;j++){const[x,y]=floorSpot(bi);ent.wrecks.push({x:x*TS+4,y:y*TS+4,bi,i:wi++});}const[x,y]=floorSpot(bi);ent.traders.push({x:x*TS+4,y:y*TS+4,bi,t:R()*9});}
   return{W,V,seed};}
 const RELIC_AT=new Map();
 const tAt=(x,y)=>(x<0||y<0||x>=WW||y>=WH)?T.BED:world.W[y*WW+x];
@@ -547,17 +651,17 @@ function rigUpdate(dt){const r=rig;const eng=stat('engine');r.spin+=dt*30;r.flas
       if(r.ground&&dir){const tx=Math.floor((r.x+dir*(HALFW+1))/TS),ty=Math.floor(r.y/TS);if(!startDrill(tx,ty,dir>0?'right':'left')){}}
       nx=r.x;r.vx=0;}
     r.x=nx;
-    let ny=r.y+r.vy*dt;if(hitBox(r.x,ny)){if(r.vy>0){if(r.vy>170){const h=(r.vy-170)/90;damage(h*16,'fall');SFX.thud(h);G.shake=Math.max(G.shake,2+h*3);}else if(r.vy>60)SFX.thud(0);
+    let ny=r.y+r.vy*dt;if(hitBox(r.x,ny)){if(r.vy>0){if(r.vy>170){const h=(r.vy-170)/90;damage(h*16*(1-0.4*((S.perks||{}).shocks||0)),'fall');SFX.thud(h);G.shake=Math.max(G.shake,2+h*3);}else if(r.vy>60)SFX.thud(0);
         ny=Math.floor((r.y+HALFH)/TS+1)*TS-HALFH-0.001;if(hitBox(r.x,ny))ny=r.y;}else ny=Math.ceil((r.y-HALFH)/TS)*TS+HALFH;r.vy=0;}
     r.y=ny;
     // drill down
     if(INP.d&&r.ground&&!r.drill){const tx=Math.floor(r.x/TS),ty=Math.floor((r.y+HALFH+1)/TS);const off=r.x-(tx*TS+4);if(Math.abs(off)<3.2){r.x=tx*TS+4;startDrill(tx,ty,'down');}else r.vx=-off*8;}
   }
-  r.fuel=Math.max(0,r.fuel-burn*dt);
+  r.fuel=Math.max(0,r.fuel-burn*dt*(1-0.12*((S.perks||{}).miser||0)));
   if(r.fuel<=0&&!r.stranded&&Math.floor(r.y/TS)>SURF+1&&!onPad()){r.stranded=true;strand('fuel');}
   // vein combo timeout
   if(r.vein.t<=0)r.vein.n=0;
-  const depth=Math.max(0,depthT-SURF);r.deep=depth;if(depth>S.stats.maxDepth){S.stats.maxDepth=depth;}
+  const depth=Math.max(0,depthT-SURF);r.deep=depth;if(depth>S.stats.maxDepth){if(Math.floor(depth/10)>Math.floor(S.stats.maxDepth/10))gainXP(10+Math.floor(depth/12));S.stats.maxDepth=depth;}
   const bi=BIOMES.indexOf(biomeAt(depthT));if(depthT>SURF&&bi!==G.depthBiome){if(bi>G.maxBiomeSeen){G.maxBiomeSeen=bi;banner(BIOMES[bi].name,'Depth '+BIOMES[bi].from+' m · '+['soft going','hard rock ahead','listen for wings','mind the heat','something ancient','do not look too long','the heart is near'][bi],'teal');SFX.biome();}G.depthBiome=bi;}
   if(depthT<=SURF)G.depthBiome=0;
   contractTick();}
@@ -568,27 +672,28 @@ function damage(n,src){if(n<=0||G.mode!=='play')return;rig.hull-=n;if(src!=='hea
 function mine(tx,ty,byDrill,blast){const t=tAt(tx,ty);const D=TL[t];if(!D.solid||D.hard>=1e8||t===T.PAD)return;
   setT(tx,ty,T.AIR);for(let k=0;k<(byDrill?5:3);k++)debris(tx*TS+4+rr(-3,3),ty*TS+4+rr(-3,3),t,1);SFX.crumble();
   if(D.ore)collect(t,tx,ty);
-  else if(D.chest){const cash=ri(40,120)*(1+biomeIndex(ty));S.money+=cash;const it=pick(['tnt','fuelc','kit','flare','tnt','mega','tele']);S.items[it]++;feed(itemIcon(it),`Cache: ${fmt(cash)} + ${ITEMS.find(i=>i.k===it).name}`,true);SFX.buy();}
-  else if(D.relic){const id=RELIC_AT.get(ty*WW+tx);if(id!==undefined&&!S.relics.includes(id)){S.relics.push(id);banner('Relic found',RELICS[id][0],'violet');SFX.relic();feed(relicIcon(id),RELICS[id][0],true);
+  else if(D.chest){gainXP(25);const cash=Math.round(ri(40,120)*(1+biomeIndex(ty))*(1+0.5*((S.perks||{}).scav||0)));S.money+=cash;const it=pick(['tnt','fuelc','kit','flare','tnt','mega','tele']);S.items[it]++;feed(itemIcon(it),`Cache: ${fmt(cash)} + ${ITEMS.find(i=>i.k===it).name}`,true);SFX.buy();}
+  else if(D.relic){const id=RELIC_AT.get(ty*WW+tx);if(id!==undefined&&!S.relics.includes(id)){S.relics.push(id);gainXP(150);banner('Relic found',RELICS[id][0],'violet');SFX.relic();feed(relicIcon(id),RELICS[id][0],true);
       const si=Math.floor(id/3);if([0,1,2].every(j=>S.relics.includes(si*3+j)))setTimeout(()=>{banner('Set complete!',SETS[si].name+': '+SETS[si].bonus,'violet');SFX.relic();},2400);}}
   else if(D.gas){explode(tx,ty,1,true);}
-  else if(D.heart&&!S.heartTaken){S.heartTaken=true;S.money+=50000;G.mode='win';$('winTxt').textContent=`${S.rigName} drilled the Planet Heart at ${S.stats.maxDepth} m. Holloway wires a 50,000 credit bonus. A new world waits, richer and stranger.`;$('mWin').hidden=false;SFX.relic();}
+  else if(D.heart&&!S.heartTaken){S.heartTaken=true;gainXP(5000);S.money+=50000;G.mode='win';$('winTxt').textContent=`${S.rigName} drilled the Planet Heart at ${S.stats.maxDepth} m. Holloway wires a 50,000 credit bonus. A new world waits, richer and stranger.`;$('mWin').hidden=false;SFX.relic();}
   // gravity for gravel above
   for(let yy=ty-1;yy>SURF;yy--){if(tAt(tx,yy)!==T.GRAVEL)break;setT(tx,yy,T.AIR);ent.falls.push({x:tx*TS,y:yy*TS,vy:0,tx});}
   if(byDrill&&ty>SURF&&Math.random()<0.0035*(1+biomeIndex(ty)))quake();}
 function biomeIndex(ty){return BIOMES.indexOf(biomeAt(ty));}
 function collect(t,tx,ty){const D=TL[t];const r=rig;const cap=stat('cargo');S.found[t]=(S.found[t]||0)+1;
   if(r.cargo.length>=cap){if(G.t-(r.fullMsg||0)>2){r.fullMsg=G.t;banner('Cargo full','Head back up and sell','red');SFX.deny();}floatT(tx*TS+4,ty*TS,'LOST','#ff5a4e');return;}
-  if(r.vein.id===t&&r.vein.t>0)r.vein.n++;else{r.vein.id=t;r.vein.n=0;}r.vein.t=2.5;
-  const combo=1+Math.min(10,r.vein.n)*0.05;r.cargo.push({t,m:combo});const v=Math.round(D.val*combo*valueMul());
+  if(r.vein.id===t&&r.vein.t>0)r.vein.n+=(S.perks.vein?2:1);else{r.vein.id=t;r.vein.n=0;}r.vein.t=2.5;S.stats.bestVein=Math.max(S.stats.bestVein||0,r.vein.n+1);
+  const combo=1+Math.min(10,r.vein.n)*0.05;r.cargo.push({t,m:combo});let v=Math.round(price(t,combo));gainXP(Math.max(1,D.val/5));
+  if(Math.random()<0.08*(S.perks.lucky||0)&&r.cargo.length<cap){r.cargo.push({t,m:combo});v*=2;floatT(tx*TS+4,ty*TS-14,'LUCKY X2','#b07cff');S.found[t]++;}
   SFX.ore(r.vein.n,D.val>=200);floatT(tx*TS+4,ty*TS,'+'+fmt(v),r.vein.n>1?'#ffd04a':'#7ee05a');if(r.vein.n>=2)floatT(tx*TS+4,ty*TS-7,'VEIN X'+(r.vein.n+1),'#ffb636');
   if(D.val>=200)feed(oreIcon(t),D.name+' <b>'+fmt(v)+'</b>',true);else feed(oreIcon(t),D.name+' <b>'+fmt(v)+'</b>');
   for(let k=0;k<6;k++)ent.parts.push({x:tx*TS+4,y:ty*TS+4,vx:rr(-50,50),vy:rr(-80,-20),l:0.5,ml:0.5,c:D.speck[k%3],s:1,g:1});}
 function debris(x,y,t,n){const D=TL[t];for(let k=0;k<n;k++)ent.parts.push({x,y,vx:rr(-40,40),vy:rr(-60,-10),l:rr(0.3,0.7),ml:0.7,c:D.cols[k%4]||'#777',s:1,g:1});}
-function explode(cx,cy,rad,gas){SFX.boom();G.shake=7;S.stats.blasts+=gas?0:1;
+function explode(cx,cy,rad,gas){const demo=!gas&&(S.perks||{}).demo;if(demo)rad+=1;if(WY&&WY.awake&&!S.wyrm.dead){for(const sg of WY.segs){if(Math.hypot(sg.x-(cx*TS+4),sg.y-(cy*TS+4))<(rad+2.6)*TS){hurtWyrm(rad>1?16:8,sg.x,sg.y);break;}}}SFX.boom();G.shake=7;S.stats.blasts+=gas?0:1;
   for(let y=cy-rad;y<=cy+rad;y++)for(let x=cx-rad;x<=cx+rad;x++){const t=tAt(x,y);if(TL[t].solid&&TL[t].hard<100&&!TL[t].heart&&t!==T.PAD){mine(x,y,false,true);}}
   for(let k=0;k<40;k++)ent.parts.push({x:cx*TS+4,y:cy*TS+4,vx:rr(-120,120),vy:rr(-120,80),l:rr(0.3,0.8),ml:0.8,c:pick(['#fff2a0','#ffb636','#ff7a2e','#555']),s:rr(1,2),g:0.4});
-  G.flashL={x:cx,y:cy,t:0.3};const d=Math.hypot(rig.x/TS-cx-0.5,rig.y/TS-cy-0.5);if(d<rad+1.6)damage(gas?28:(rad>1?40:22),'blast');
+  G.flashL={x:cx,y:cy,t:0.3};const d=Math.hypot(rig.x/TS-cx-0.5,rig.y/TS-cy-0.5);if(d<rad+1.6&&!demo)damage(gas?28:(rad>1?40:22),'blast');
   for(const c of ent.crea)if(Math.hypot(c.x/TS-cx,c.y/TS-cy)<rad+1.5)killCrea(c);}
 function quake(){banner('Tremor','Loose rock incoming','red');G.shake=6;SFX.boom();const tx=Math.floor(rig.x/TS),ty=Math.floor(rig.y/TS);
   for(let k=0;k<14;k++){const x=tx+ri(-6,6),y=ty+ri(-8,-1);if(TL[tAt(x,y)].solid&&TL[tAt(x,y)].hard<20&&tAt(x,y+1)===T.AIR&&y>SURF+2){setT(x,y,T.AIR);ent.falls.push({x:x*TS,y:y*TS,vy:0,tx:x,rock:tAt(x,y)});}}}
@@ -596,7 +701,7 @@ function quake(){banner('Tremor','Loose rock incoming','red');G.shake=6;SFX.boom
 /* =====================================================================
    CREATURES, FALLS, BOMBS, PARTICLES
    ===================================================================== */
-function killCrea(c){if(c.dead)return;c.dead=true;S.stats.kills++;const v=c.type==='wisp'?60:c.type==='slug'?35:20;S.money+=v;floatT(c.x,c.y-6,'+'+fmt(v),'#7ee05a');SFX.squeak();
+function killCrea(c){if(c.dead)return;c.dead=true;S.stats.kills++;gainXP(15);const v=c.type==='wisp'?60:c.type==='slug'?35:20;S.money+=v;floatT(c.x,c.y-6,'+'+fmt(v),'#7ee05a');SFX.squeak();
   for(let k=0;k<10;k++)ent.parts.push({x:c.x,y:c.y,vx:rr(-60,60),vy:rr(-60,20),l:0.5,ml:0.5,c:c.type==='wisp'?'#ff5aff':c.type==='slug'?'#ff7a2e':'#7a6aa0',s:1,g:0.5});}
 function creaUpdate(dt){for(const c of ent.crea){if(c.dead)continue;const dx=rig.x-c.x,dy=rig.y-c.y,d=Math.hypot(dx,dy);if(d>260)continue;c.t+=dt;
     if(c.type==='bat'){const chase=d<70;const tx=chase?rig.x:c.home[0]+Math.sin(c.t*1.3)*18,ty=chase?rig.y:c.home[1]+Math.cos(c.t*2.1)*8;c.vx+=(tx-c.x)*dt*3;c.vy+=(ty-c.y)*dt*3;c.vx*=0.96;c.vy*=0.96;
@@ -622,6 +727,9 @@ function floatT(x,y,s,c){ent.floats.push({x,y,s,c,l:1});if(ent.floats.length>30)
    ITEMS / SCANNER
    ===================================================================== */
 function useItem(k){if(G.mode!=='play'||!S.items[k]){SFX.deny();return;}const tx=Math.floor(rig.x/TS),ty=Math.floor(rig.y/TS);
+  if(k==='relay'){if(ty<=SURF+4){banner('Too shallow','Deploy relays underground','red');SFX.deny();return;}if(!rig.ground){banner('Land first','Relays need solid ground','red');SFX.deny();return;}
+    if(S.relays.some(r=>Math.abs(r.y/TS-ty)<25)){banner('Too close','Another relay is within 25 m','red');SFX.deny();return;}
+    S.relays.push({x:tx*TS+4,y:ty*TS+4,d:ty-SURF});S.items.relay--;buildHotbar();SFX.buy();banner('Relay online','Station at '+(ty-SURF)+' m · press E to use','teal');checkAch();return;}
   switch(k){case'tnt':ent.bombs.push({x:tx,y:ty,t:1.6,r:1});SFX.fuse();banner('Fuse lit','Move away!','red');break;
     case'mega':ent.bombs.push({x:tx,y:ty,t:2.4,r:2});SFX.fuse();banner('Mega charge armed','Get clear!','red');break;
     case'fuelc':rig.fuel=Math.min(stat('fuel'),rig.fuel+12);rig.stranded=false;SFX.buy();break;
@@ -650,6 +758,60 @@ function contractTick(){for(const c of S.contracts){if(c.ready)continue;
 function fillContracts(){while(S.contracts.length<3)S.contracts.push(genContract());}
 
 /* =====================================================================
+   RELAYS, TRADERS, WRECKS, THE WYRM
+   ===================================================================== */
+function travel(i){const dest=i<0?{x:(PAD_X[0]+PAD_X[1])/2*TS,y:SURF*TS-4}:{x:S.relays[i].x,y:S.relays[i].y-1};closeTerm();for(let k=0;k<30;k++)ent.parts.push({x:rig.x,y:rig.y,vx:rr(-80,80),vy:rr(-80,80),l:0.6,ml:0.6,c:'#3ee6d0',s:1});
+  rig.x=dest.x;rig.y=dest.y;rig.vx=rig.vy=0;rig.drill=null;rig.stranded=false;cam.x=rig.x-VW/2;cam.y=rig.y-VH*0.45;SFX.scan();banner(i<0?'Outpost 7':'Relay '+String.fromCharCode(65+i),i<0?'Welcome back':S.relays[i].d+' m below','teal');}
+function openTrader(){if(G.mode!=='play')return;G.mode='trader';const cm=costMul();const tr=nearTrader();const lines=['Long way from the surface, eh? Prices are what they are down here.','Fuel? Dynamite? A biscuit? No biscuits. Fuel, then.','I don\'t ask where you dig. You don\'t ask where I sleep.','Heard something big moving in the lava. Bad for business.'];$('trSay').textContent=lines[(tr.bi+S.day)%lines.length];
+  const offers=[['fill','Fill the tank',Math.ceil((stat('fuel')-rig.fuel)*4*cm)],['fix','Patch the hull',Math.ceil((stat('hull')-rig.hull)*3*cm)],['tnt3','Dynamite ×3',Math.round(150*cm)],['cell','Fuel cell',Math.round(75*cm)]];
+  $('trOffers').innerHTML=offers.map(([k,n,c])=>`<div class="contract px flat" style="grid-template-columns:1fr auto auto"><div><h3>${n}</h3></div><span class="price ${S.money<c?'no':''}">${c<=0?'—':fmt(c)}</span><button class="btn" data-tr="${k}" data-c="${c}" ${c<=0||S.money<c?'disabled':''}>Buy</button></div>`).join('');$('mTrader').hidden=false;SFX.click();}
+function closeTrader(){$('mTrader').hidden=true;G.mode='play';cv.focus();}
+$('trClose').addEventListener('click',closeTrader);
+$('trOffers').addEventListener('click',e=>{const b=e.target.closest('[data-tr]');if(!b||b.disabled)return;const c=+b.dataset.c;if(S.money<c)return;S.money-=c;
+  switch(b.dataset.tr){case'fill':rig.fuel=stat('fuel');rig.stranded=false;break;case'fix':rig.hull=stat('hull');break;case'tnt3':S.items.tnt+=3;break;case'cell':S.items.fuelc++;break;}SFX.buy();buildHotbar();G.mode='play';openTrader();});
+function encountersUpdate(dt){for(const w of ent.wrecks){if(S.wrecks.includes(w.i))continue;if(Math.abs(w.x-rig.x)<12&&Math.abs(w.y-rig.y)<10){S.wrecks.push(w.i);const cash=Math.round(ri(80,220)*(w.bi+1)*(1+0.5*((S.perks||{}).scav||0)));S.money+=cash;
+    const it=pick(['tnt','fuelc','kit','mega','tele']);S.items[it]++;S.logs.push(w.i);gainXP(40);banner('Abandoned rig','"'+LOGS[w.i]+'"','teal');feed(itemIcon(it),`Salvaged ${fmt(cash)} + ${ITEMS.find(i=>i.k===it).name}`,true);SFX.relic();buildHotbar();checkAch();}}
+  for(const t of ent.traders)t.t+=dt;}
+function initWyrm(){WY=null;if(S.wyrm.dead)return;const cx=(WY_X0+WY_X1)/2*TS,cy=(WY_Y+6)*TS;WY={segs:[...Array(16)].map((_,i)=>({x:cx-i*6,y:cy})),hp:Math.min(S.wyrm.hp,50),max:50,awake:false,t:0,mode:'circle',lt:3,spitT:3,ang:-Math.PI/2,ramCd:0,hitCd:0,flash:0};}
+function wyrmUpdate(dt){if(!WY||S.wyrm.dead)return;const ry=rig.y/TS;
+  if(!WY.awake){if(ry>WY_Y-8&&ry<WY_Y+10&&rig.x/TS>WY_X0&&rig.x/TS<WY_X1){WY.awake=true;banner('The Magma Wyrm wakes','Blast it with charges or ram it with your drill','red');SFX.boom();G.shake=10;$('bossBar').hidden=false;}else return;}
+  if(Math.abs(ry-WY_Y)>32){WY.awake=false;$('bossBar').hidden=true;return;}
+  WY.t+=dt;WY.ramCd-=dt;WY.hitCd-=dt;WY.flash-=dt;const h=WY.segs[0],enr=WY.hp<WY.max*0.5;let tx,ty,sp;WY.lt-=dt;
+  if(WY.mode==='lunge'){tx=WY.lx;ty=WY.ly;sp=enr?185:150;if(Math.hypot(tx-h.x,ty-h.y)<10||WY.lt<-1.8){WY.mode='circle';WY.lt=rr(2.6,4.2);}}
+  else{const a=WY.t*(enr?1.3:0.9);tx=rig.x+Math.cos(a)*(44+Math.sin(a*0.7)*14);ty=rig.y+Math.sin(a*1.3)*34;sp=enr?105:80;if(WY.lt<=0){WY.mode='lunge';const la=Math.atan2(rig.y-h.y,rig.x-h.x);WY.lx=rig.x+Math.cos(la)*30;WY.ly=rig.y+Math.sin(la)*30;WY.lt=0;G.shake=Math.max(G.shake,3);SFX.thud(0.6);}}
+  const want=Math.atan2(ty-h.y,tx-h.x);let da=want-WY.ang;while(da>Math.PI)da-=Math.PI*2;while(da<-Math.PI)da+=Math.PI*2;WY.ang+=clamp(da,-3.2*dt,3.2*dt);
+  h.x=clamp(h.x+Math.cos(WY.ang)*sp*dt,3*TS,(WW-3)*TS);h.y=clamp(h.y+Math.sin(WY.ang)*sp*dt,(WY_Y-26)*TS,(WY_Y+12)*TS);
+  for(let i=1;i<WY.segs.length;i++){const p=WY.segs[i-1],s2=WY.segs[i];const dx=s2.x-p.x,dy=s2.y-p.y,d=Math.hypot(dx,dy)||1;s2.x=p.x+dx/d*6;s2.y=p.y+dy/d*6;}
+  for(let i=0;i<4;i++){const s2=WY.segs[i];for(const[ox,oy]of[[0,0],[5,0],[-5,0],[0,5],[0,-5]]){const cx=Math.floor((s2.x+ox)/TS),cy=Math.floor((s2.y+oy)/TS),t=tAt(cx,cy);if(TL[t].solid&&TL[t].hard<100&&!TL[t].heart&&t!==T.PAD&&cy>SURF+2){setT(cx,cy,T.AIR);if(Math.random()<0.5)debris(cx*TS+4,cy*TS+4,t,2);}}}
+  WY.spitT-=dt;if(WY.spitT<=0&&WY.mode==='circle'){WY.spitT=enr?2.1:3.1;const a0=Math.atan2(rig.y-h.y,rig.x-h.x);for(let k=-1;k<=1;k++)ent.shots.push({x:h.x,y:h.y,vx:Math.cos(a0+k*0.22)*120,vy:Math.sin(a0+k*0.22)*120,l:3});AU.tone(160,0.3,{to:60,v:0.12,type:'sawtooth',lp:600});}
+  const downD=rig.drill&&rig.drill.dir==='down';for(let i=0;i<WY.segs.length;i++){const s2=WY.segs[i],rad=i===0?7:Math.max(3,6-i*0.18);if(Math.hypot(rig.x-s2.x,rig.y-s2.y)<rad+4&&WY.hitCd<=0){const front=Math.sign(s2.x-rig.x)===rig.face||(downD&&s2.y>rig.y);
+    if(front){hurtWyrm(3,s2.x,s2.y);damage(3,'wyrm');}else damage(i===0?12:5,'wyrm');WY.hitCd=1.0;rig.vx+=Math.sign(rig.x-s2.x||1)*120;rig.vy-=60;break;}}
+  const down=rig.drill&&rig.drill.dir==='down',tipx=rig.x+(down?0:rig.face*9),tipy=rig.y+(down?9:0);
+  if(WY.ramCd<=0&&(rig.drill||INP.l||INP.r||INP.d))for(const s2 of WY.segs){if(Math.hypot(tipx-s2.x,tipy-s2.y)<12){hurtWyrm(3,s2.x,s2.y);WY.ramCd=0.32;rig.vx-=rig.face*50;break;}}}
+function hurtWyrm(n,x,y){if(!WY||S.wyrm.dead)return;WY.hp-=n;WY.flash=0.12;S.wyrm.hp=WY.hp;floatT(x,y-8,'-'+n,'#ffd04a');for(let k=0;k<8;k++)ent.parts.push({x,y,vx:rr(-90,90),vy:rr(-90,40),l:0.4,ml:0.4,c:pick(['#ffd04a','#ff7a2e','#fff']),s:1,g:0.5});SFX.hurt();
+  if(WY.hp<=0){S.wyrm.dead=true;S.wyrm.hp=0;const segs=WY.segs;segs.forEach((sg,i)=>setTimeout(()=>{SFX.boom();G.shake=6;for(let k=0;k<16;k++)ent.parts.push({x:sg.x,y:sg.y,vx:rr(-120,120),vy:rr(-140,40),l:0.8,ml:0.8,c:pick(['#ffd04a','#ff7a2e','#3a1e16','#fff2a0']),s:2,g:0.6});},i*110));
+    const reward=Math.round(7000*valueMul());S.money+=reward;gainXP(1500);setTimeout(()=>{banner('Wyrmslayer','The Magma Wyrm is dead · +'+fmt(reward),'violet');SFX.relic();$('bossBar').hidden=true;checkAch();},segs.length*110);setTimeout(()=>{WY=null;},segs.length*110+50);}}
+function shotsUpdate(dt){for(const s2 of ent.shots){s2.l-=dt;s2.x+=s2.vx*dt;s2.y+=s2.vy*dt;if(Math.random()<dt*30)ent.parts.push({x:s2.x,y:s2.y,vx:0,vy:-10,l:0.3,ml:0.3,c:'#ff7a2e',s:1});
+    if(Math.hypot(rig.x-s2.x,rig.y-s2.y)<6){damage(8,'wyrm');s2.l=0;}else if(solidPx(s2.x,s2.y)){s2.l=0;debris(s2.x,s2.y,T.BASALT,4);}}ent.shots=ent.shots.filter(s2=>s2.l>0);}
+function pcirc(x,y,r,c){ctx.fillStyle=c;for(let dy=-r;dy<=r;dy++){const w=Math.floor(Math.sqrt(r*r-dy*dy));ctx.fillRect(x-w,y+dy,w*2+1,1);}}
+function drawWyrm(ox,oy,glow){if(!WY)return;for(let i=WY.segs.length-1;i>=0;i--){const s2=WY.segs[i],x=Math.round(s2.x-ox),y=Math.round(s2.y-oy),r=i===0?7:Math.max(3,Math.round(6-i*0.18));
+    if(glow){ctx.fillStyle=i===0?'#ffd04a':'#ff7a2e';ctx.globalAlpha=0.7+0.3*Math.sin(G.t*6+i);ctx.fillRect(x-1,y-1,2,1);if(i===0){ctx.fillStyle='#fff2a0';ctx.fillRect(x+Math.round(Math.cos(WY.ang)*3)-2,y-3,2,2);ctx.fillRect(x+Math.round(Math.cos(WY.ang)*3)+1,y-3,2,2);}ctx.globalAlpha=1;continue;}
+    pcirc(x,y,r+1,'#120806');pcirc(x,y,r,WY.flash>0?'#fff':i===0?'#4a2418':'#3a1e16');ctx.fillStyle='#5a2e20';ctx.fillRect(x-r+1,y-r+1,r,1);
+    if(i===0){ctx.fillStyle='#120806';const jx=x+Math.round(Math.cos(WY.ang)*6),jy=y+Math.round(Math.sin(WY.ang)*6);ctx.fillRect(jx-2,jy-2,4,4);ctx.fillStyle='#e8dcc0';ctx.fillRect(jx-2,jy-2,1,1);ctx.fillRect(jx+1,jy+1,1,1);}}}
+function drawEncounters(ox,oy,glow){
+  for(const r of S.relays){const x=Math.round(r.x-ox),y=Math.round(r.y-oy);if(x<-20||x>VW+20||y<-30||y>VH+20)continue;
+    if(glow){ctx.fillStyle=(G.t%1.2<0.6)?'#7ee05a':'#1a3a12';ctx.fillRect(x,y-15,2,2);ctx.fillStyle='#3ee6d0';ctx.fillRect(x-3,y-3,6,1);continue;}
+    ctx.fillStyle='#2a2e38';ctx.fillRect(x-5,y-4,11,8);ctx.fillStyle='#5a6070';ctx.fillRect(x-5,y-4,11,1);ctx.fillStyle='#ffb636';ctx.fillRect(x-5,y+2,11,1);ctx.fillStyle='#8a8f9c';ctx.fillRect(x,y-14,1,10);ctx.fillRect(x-3,y-11,7,1);}
+  for(const w of ent.wrecks){const x=Math.round(w.x-ox),y=Math.round(w.y-oy);if(x<-20||x>VW+20||y<-20||y>VH+20)continue;const done=S.wrecks.includes(w.i);
+    if(glow){if(!done){ctx.fillStyle=(G.t%1.6<0.8)?'#ff5a4e':'#3a1210';ctx.fillRect(x+3,y-5,1,1);}continue;}
+    drawRig(ctx,x-7,y-6,{ch:w.i%3===0?'badger':w.i%3===1?'hornet':'mole',p:done?'#3a3e48':'#6a6f7c',s:'#2a2d35',a:'#4a4f5c',decal:0,dir:'side',flip:w.i%2===0,spin:0,tread:0,lampOn:false});ctx.fillStyle='#120806';ctx.fillRect(x-2,y-2,3,2);ctx.fillRect(x+2,y,2,1);}
+  for(const t of ent.traders){const x=Math.round(t.x-ox),y=Math.round(t.y-oy);if(x<-20||x>VW+20||y<-20||y>VH+20)continue;
+    if(glow){ctx.fillStyle='#ffd04a';ctx.globalAlpha=0.7+0.3*Math.sin(G.t*5);ctx.fillRect(x+5,y-1,2,2);ctx.globalAlpha=1;ctx.fillStyle='#000';ctx.fillRect(x-2,y-2,1,1);continue;}
+    const bob=Math.floor(t.t*2)%2;ctx.fillStyle='#5a3a24';ctx.fillRect(x-4,y-3+bob,8,7-bob);ctx.fillStyle='#7a5234';ctx.fillRect(x-3,y-4+bob,6,2);ctx.fillStyle='#ff9ab0';ctx.fillRect(x-5,y-1+bob,2,2);
+    ctx.fillStyle='#2a6a8a';ctx.fillRect(x-4,y+1,8,3);ctx.fillStyle='#8a8f9c';ctx.fillRect(x+5,y-4,1,3);ctx.fillStyle='#ffd04a';ctx.fillRect(x+4,y-1,3,3);}
+  for(const s2 of ent.shots){ctx.fillStyle='#ffd04a';ctx.fillRect(Math.round(s2.x-ox)-1,Math.round(s2.y-oy)-1,3,3);ctx.fillStyle='#fff';ctx.fillRect(Math.round(s2.x-ox),Math.round(s2.y-oy),1,1);}}
+
+/* =====================================================================
    LIGHTING
    ===================================================================== */
 let LR,LG,LB,LW=0,LH=0;
@@ -665,6 +827,8 @@ function computeLight(x0,y0,w,h,day){if(w*h!==LW*LH){LR=new Float32Array(w*h);LG
   for(const b of ent.bombs)put(b.x*TS+4,b.y*TS+4,0.8,0.6,0.2);
   if(G.flashL&&G.flashL.t>0)put(G.flashL.x*TS+4,G.flashL.y*TS+4,1.4,1.1,0.6);
   for(const c of ent.crea)if(c.type==='wisp')put(c.x,c.y,0.4,0.1,0.45);
+  for(const r of S?S.relays:[])put(r.x,r.y-6,0.35,0.75,0.6);for(const t of ent.traders)put(t.x+5,t.y,0.8,0.6,0.25);for(const s2 of ent.shots)put(s2.x,s2.y,0.9,0.45,0.1);
+  if(WY)for(let i=0;i<WY.segs.length;i+=3)put(WY.segs[i].x,WY.segs[i].y,0.6,0.22,0.05);
   const att=(i,j)=>TL[tAt(x0+i,y0+j)].solid?kSolid:kAir;
   for(let pass=0;pass<2;pass++){
     for(let j=0;j<h;j++)for(let i=0;i<w;i++){const k=j*w+i;const a=att(i,j);
@@ -744,6 +908,7 @@ function render(dt){const day=dayLight();
   for(const f of ent.falls)ctx.drawImage(ATLAS,0,T.GRAVEL*TS,TS,TS,Math.round(f.x-ox),Math.round(f.y-oy),TS,TS);
   for(const b of ent.bombs){const px=b.x*TS-ox,py=b.y*TS-oy;ctx.drawImage(itemImg(b.r>1?'mega':'tnt'),px,py,8,8);}
   for(const c of ent.crea)drawCrea(c,ox,oy,false);
+  if(S){drawEncounters(ox,oy,false);drawWyrm(ox,oy,false);}
   // lighting (smooth light map multiplied over the pixel scene)
   computeLight(tx0,ty0,tw,th,day);ctx.save();ctx.globalCompositeOperation='multiply';ctx.imageSmoothingEnabled=true;ctx.drawImage(LCV,0,0,tw,th,tx0*TS-ox-TS/2+4,ty0*TS-oy-TS/2+4,tw*TS,th*TS);ctx.restore();ctx.imageSmoothingEnabled=false;
   // emissive pass: lava, glowing ores stay bright in the dark
@@ -760,11 +925,12 @@ function render(dt){const day=dayLight();
       const a=Math.min(1,rig.scanT)*(0.6+0.4*Math.sin(G.t*8));ctx.globalAlpha=a;ctx.strokeStyle=D.relic?'#ffe08a':D.gas?'#9aff6a':D.chest?'#ffb636':D.speck[1];ctx.strokeRect(tx*TS-ox+0.5,ty*TS-oy+0.5,TS-1,TS-1);}ctx.globalAlpha=1;}
   // creature eyes (visible in the dark)
   for(const c of ent.crea)drawCrea(c,ox,oy,true);
+  if(S&&G.mode!=='title'){drawEncounters(ox,oy,true);drawWyrm(ox,oy,true);}
   // rig
   if(rig&&G.mode!=='title'){const P=PAINTS;const dir=rig.drill?(rig.drill.dir==='down'?'down':'side'):(INP.d&&rig.ground?'down':'side');
     const bx=Math.round(rig.x-ox-7),by=Math.round(rig.y-oy-6);
     if(rig.thr){ctx.fillStyle=Math.random()<0.5?'#ffd04a':'#ff7a2e';ctx.fillRect(bx+4,by+10,2,2+(Math.random()*3|0));ctx.fillRect(bx+9,by+10,2,2+(Math.random()*3|0));}
-    drawRig(ctx,bx,by,{p:P[S.paint.p],s:P[S.paint.s],a:P[S.paint.a],decal:S.decal,flip:rig.face<0,dir,spin:rig.drill||(INP.l||INP.r)?rig.spin:0,tread:Math.floor(rig.tread),lampOn:true,flash:rig.flash>0&&Math.floor(rig.flash*30)%2===0});
+    drawRig(ctx,bx,by,{ch:S.chassis,p:P[S.paint.p],s:P[S.paint.s],a:P[S.paint.a],decal:S.decal,flip:rig.face<0,dir,spin:rig.drill||(INP.l||INP.r)?rig.spin:0,tread:Math.floor(rig.tread),lampOn:true,flash:rig.flash>0&&Math.floor(rig.flash*30)%2===0});
     if(rig.heat>70&&Math.random()<0.3)ent.parts.push({x:rig.x+rr(-4,4),y:rig.y-6,vx:0,vy:-20,l:0.6,ml:0.6,c:'#8a8f9c',s:1,smoke:1});}
   // particles
   for(const p of ent.parts){const a=p.smoke?Math.min(0.6,p.l/p.ml):1;ctx.globalAlpha=a;ctx.fillStyle=p.c;ctx.fillRect(Math.round(p.x-ox),Math.round(p.y-oy),p.s,p.s);}ctx.globalAlpha=1;
@@ -794,11 +960,13 @@ function updHud(){if(!rig)return;const depth=Math.max(0,rig.deep);setTxt('depthN
   $('gHullB').style.setProperty('--c',rig.hull/hu<0.35?'#ff5a4e':'#7ee05a');setTxt('gHeatT',Math.round(rig.heat)+'%');setBar('gHeatB',rig.heat/100,rig.heat>75);
   setTxt('money',fmt(S.money));const cap=stat('cargo');setTxt('cargoT',rig.cargo.length+'/'+cap);setBar('cargoB',rig.cargo.length/cap,rig.cargo.length>=cap);
   const ck=rig.cargo.length+':'+cap;if(hc.ci!==ck){hc.ci=ck;$('cargoIcons').innerHTML=rig.cargo.slice(-40).map(o=>`<img class="pxicon" src="${oreIcon(o.t)}" alt="">`).join('');}
-  const show=onPad()&&!rig.drill;if(hc.pr!==show){hc.pr=show;$('prompt').hidden=!show;}
+  const ctxp=rig.drill?'':onPad()?'Open outpost terminal':nearRelay()?'Use relay station':nearTrader()?'Trade with the burrow trader':'';if(hc.pr!==ctxp){hc.pr=ctxp;$('prompt').hidden=!ctxp;$('prompt').innerHTML='<kbd>E</kbd> '+ctxp;}
+  setTxt('lvNum',String(S.level));setTxt('xpT',S.xp+'/'+xpNeed(S.level));setBar('xpB',S.xp/xpNeed(S.level),false);
+  if(WY&&WY.awake){setTxt('bossT',Math.max(0,Math.ceil(WY.hp))+'/'+WY.max);setBar('bossB',WY.hp/WY.max,WY.hp/WY.max<0.3);}
   // hotbar cooldown for scanner
   const sc=$('slotScan');if(sc){const cd=setsDone().includes('scan2')?3:6;sc.classList.toggle('cd',rig.scanCd>0);sc.style.setProperty('--cd',(100-rig.scanCd/cd*100)+'%');}
   if(MINI_DIRTY||Math.random()<0.1){drawMini();MINI_DIRTY=false;}}
-function buildHotbar(){const keys=['tnt','mega','fuelc','kit','flare','tele'];$('hotbar').innerHTML=keys.map((k,i)=>`<button class="slot ${S.items[k]?'':'empty'}" data-it="${k}" title="${ITEMS[i].name}"><span class="k">${i+1}</span><img class="pxicon" src="${itemIcon(k)}" alt="${ITEMS[i].name}"><span class="n">${S.items[k]||''}</span></button>`).join('')+
+function buildHotbar(){const keys=['tnt','mega','fuelc','kit','flare','tele','relay'];$('hotbar').innerHTML=keys.map((k,i)=>`<button class="slot ${S.items[k]?'':'empty'}" data-it="${k}" title="${ITEMS[i].name}"><span class="k">${i+1}</span><img class="pxicon" src="${itemIcon(k)}" alt="${ITEMS[i].name}"><span class="n">${S.items[k]||''}</span></button>`).join('')+
   `<button class="slot ${S.tiers.scan?'':'empty'}" id="slotScan" data-it="scan" title="Scanner"><span class="k">Q</span><img class="pxicon" src="${itemIcon('scan')}" alt="Scanner"></button>`;}
 $('hotbar').addEventListener('click',e=>{const b=e.target.closest('[data-it]');if(!b)return;if(b.dataset.it==='scan')scan();else useItem(b.dataset.it);});
 let banT=0;function banner(t,s,cls){const b=$('banner');$('banT').textContent=t;$('banS').textContent=s||'';b.className='';void b.offsetWidth;b.className='on '+(cls||'');}
@@ -807,31 +975,32 @@ function feed(img,html,rare){const el=document.createElement('div');el.className
 /* =====================================================================
    TERMINAL UI
    ===================================================================== */
-const TABS=[['trade','Trade'],['workshop','Workshop'],['hangar','Hangar'],['supply','Supply'],['contracts','Contracts'],['survey','Survey']];
-const TAB_ICON={trade:oreIcon(24),workshop:partIcon('drill'),hangar:partIcon('hull'),supply:itemIcon('tnt'),contracts:partIcon('cargo'),survey:relicIcon(10)};
+const ALLTABS=[['trade','Trade'],['workshop','Workshop'],['hangar','Hangar'],['supply','Supply'],['contracts','Contracts'],['survey','Survey'],['travel','Travel'],['logbook','Logbook']];let TABS=ALLTABS;
+const TAB_ICON={trade:oreIcon(24),workshop:partIcon('drill'),hangar:partIcon('hull'),supply:itemIcon('tnt'),contracts:partIcon('cargo'),survey:relicIcon(10),travel:itemIcon('relay'),logbook:relicIcon(18)};
 let curTab='trade';
-function openTerm(){if(G.mode!=='play')return;G.mode='term';$('term').hidden=false;$('hud').hidden=true;AU.set('drill',0);AU.set('thrust',0);AU.set('motor',0);S.stats.trips++;
+function openTerm(mode){if(G.mode!=='play')return;G.termRelay=mode==='relay'?nearRelay():null;TABS=G.termRelay?ALLTABS.filter(t=>t[0]==='trade'||t[0]==='travel'):ALLTABS;if(!TABS.some(t=>t[0]===curTab))curTab='trade';G.mode='term';$('term').hidden=false;$('hud').hidden=true;AU.set('drill',0);AU.set('thrust',0);AU.set('motor',0);S.stats.trips++;
   // auto-sell nothing; show trade first if cargo
   curTab=rig.cargo.length?'trade':curTab;renderTerm();SFX.click();save();}
 function closeTerm(){if(G.mode!=='term')return;G.mode='play';$('term').hidden=true;$('hud').hidden=false;SFX.click();buildHotbar();cv.focus();for(const k in hc)delete hc[k];}
 function renderNav(){$('tnav').innerHTML=TABS.map(([k,n],i)=>`<button class="tab ${k===curTab?'on':''}" data-tab="${k}"><img class="pxicon" src="${TAB_ICON[k]}" alt="">${n}${k==='contracts'&&S.contracts.some(c=>c.ready)?'<span class="dot"></span>':''}<span class="hk">${i+1}</span></button>`).join('');}
-function renderTerm(){renderNav();$('tCash').textContent=fmt(S.money);$('termSub').textContent=`TERMINAL · DAY ${S.day} · PILOT ${S.rigName}`;
+function renderTerm(){renderNav();$('tCash').textContent=fmt(S.money);$('termSub').textContent=G.termRelay?`RELAY STATION · ${G.termRelay.d} M · DAY ${S.day}`:`TERMINAL · DAY ${S.day} · PILOT ${S.rigName}`;
+  document.querySelector('.thead .co').firstChild.textContent=G.termRelay?'HOLLOWAY RELAY ':'HOLLOWAY OUTPOST 7';$('tMkt').innerHTML=S.hot?`HOT TODAY: <b style="color:var(--amber);font-weight:400">${TL[S.hot].name.toUpperCase()} ×1.6</b><br>MARKET DAY ${S.day}`:'';
   $('tfFuel').textContent=rig.fuel.toFixed(1)+' / '+stat('fuel')+' L';$('tfHull').textContent=Math.ceil(rig.hull)+' / '+stat('hull');$('tfCargo').textContent=rig.cargo.length+' / '+stat('cargo');
   const v=$('tview');v.innerHTML=VIEWS[curTab]();v.scrollTop=0;}
 const VIEWS={
-  trade(){const groups={};for(const o of rig.cargo){const g=groups[o.t]||(groups[o.t]={n:0,v:0});g.n++;g.v+=TL[o.t].val*o.m*valueMul();}const total=Object.values(groups).reduce((a,g)=>a+g.v,0);
-    const fuelNeed=stat('fuel')-rig.fuel,fuelCost=Math.ceil(fuelNeed*2),hullNeed=stat('hull')-rig.hull,hullCost=Math.ceil(hullNeed*1.5);
-    return`<h2>Refinery &amp; services</h2><p class="lead">Sell your haul, top up the tank, patch the hull.</p>
+  trade(){const groups={};for(const o of rig.cargo){const g=groups[o.t]||(groups[o.t]={n:0,v:0});g.n++;g.v+=price(o.t,o.m)*sellMul();}const svc=G.termRelay?1.5:1;const total=Object.values(groups).reduce((a,g)=>a+g.v,0);
+    const fuelNeed=stat('fuel')-rig.fuel,fuelCost=Math.ceil(fuelNeed*2*svc),hullNeed=stat('hull')-rig.hull,hullCost=Math.ceil(hullNeed*1.5*svc);
+    return`<h2>Refinery &amp; services</h2><p class="lead">${G.termRelay?'Remote relay: sells at 85%, services cost 50% more.':'Sell your haul, top up the tank, patch the hull.'}</p>
     <div class="grid" style="grid-template-columns:1.4fr 1fr">
-      <div class="card px flat"><h3>Cargo manifest</h3>${rig.cargo.length?`<table class="sell">${Object.entries(groups).sort((a,b)=>b[1].v-a[1].v).map(([t,g])=>`<tr><td><img class="pxicon" src="${oreIcon(+t)}" alt="">${TL[t].name}</td><td class="r">×${g.n}</td><td class="r" style="color:var(--green)">${fmt(g.v)}</td></tr>`).join('')}</table>
+      <div class="card px flat"><h3>Cargo manifest</h3>${rig.cargo.length?`<table class="sell">${Object.entries(groups).sort((a,b)=>b[1].v-a[1].v).map(([t,g])=>`<tr><td><img class="pxicon" src="${oreIcon(+t)}" alt="">${TL[t].name}${S.hot==t?' <span class="chip on" style="font-size:12px;padding:2px 6px">HOT</span>':''}</td><td class="r" style="color:${marketMul(+t)>=1?'var(--green)':'var(--red)'}">${marketMul(+t)>=1?'▲':'▼'}${Math.round(Math.abs(marketMul(+t)-1)*100)}%</td><td class="r">×${g.n}</td><td class="r" style="color:var(--green)">${fmt(g.v)}</td></tr>`).join('')}</table>
         <div class="rowx" style="justify-content:space-between;margin-top:16px"><div><div class="lab">Total value</div><div class="big" id="sellTotal">${fmt(total)}</div></div><button class="btn" data-act="sell">Sell all</button></div>`:`<p class="lead" style="margin-top:12px">The bay is empty. Ore is down there, waiting.</p>`}</div>
       <div class="grid">
-        <div class="card px flat"><h3>Fuel</h3><div class="statline" style="margin:6px 0">${rig.fuel.toFixed(1)} / ${stat('fuel')} L · $2 per litre</div><div class="bar" style="--c:#ffb636"><i style="width:${rig.fuel/stat('fuel')*100}%"></i></div>
+        <div class="card px flat"><h3>Fuel</h3><div class="statline" style="margin:6px 0">${rig.fuel.toFixed(1)} / ${stat('fuel')} L · $${2*svc} per litre</div><div class="bar" style="--c:#ffb636"><i style="width:${rig.fuel/stat('fuel')*100}%"></i></div>
           <div class="rowx" style="margin-top:12px;justify-content:space-between"><span class="price ${S.money<fuelCost?'no':''}">${fuelNeed<0.1?'Full':fmt(fuelCost)}</span><button class="btn teal" data-act="fuel" ${fuelNeed<0.1?'disabled':''}>Fill tank</button></div></div>
-        <div class="card px flat"><h3>Hull repair</h3><div class="statline" style="margin:6px 0">${Math.ceil(rig.hull)} / ${stat('hull')} · $1.50 per point</div><div class="bar" style="--c:#7ee05a"><i style="width:${rig.hull/stat('hull')*100}%"></i></div>
+        <div class="card px flat"><h3>Hull repair</h3><div class="statline" style="margin:6px 0">${Math.ceil(rig.hull)} / ${stat('hull')} · $${(1.5*svc).toFixed(2)} per point</div><div class="bar" style="--c:#7ee05a"><i style="width:${rig.hull/stat('hull')*100}%"></i></div>
           <div class="rowx" style="margin-top:12px;justify-content:space-between"><span class="price ${S.money<hullCost?'no':''}">${hullNeed<1?'Pristine':fmt(hullCost)}</span><button class="btn teal" data-act="repair" ${hullNeed<1?'disabled':''}>Repair</button></div></div>
       </div></div>`;},
-  workshop(){return`<h2>Workshop</h2><p class="lead">Every upgrade is permanent. Harder rock below demands better parts.</p><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(250px,1fr))">${PARTS.map(p=>{const t=S.tiers[p.k],max=t>=5,nx=max?null:p.tiers[t+1],cost=max?0:p.cost[t+1];const cur=p.tiers[t];
+  workshop(){return`<h2>Workshop</h2><p class="lead">Every upgrade is permanent. Harder rock below demands better parts.</p><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(250px,1fr))">${PARTS.map(p=>{const t=S.tiers[p.k],max=t>=5,nx=max?null:p.tiers[t+1],cost=max?0:Math.round(p.cost[t+1]*costMul());const cur=p.tiers[t];
     return`<div class="card px flat"><div class="rowx"><img class="pxicon" src="${partIcon(p.k)}" style="width:40px;height:40px" alt=""><div><h3>${p.name}</h3><div class="lab">Mk ${['I','II','III','IV','V','VI'][t]}</div></div></div>
     <div class="pips">${[0,1,2,3,4,5].map(i=>`<i class="${i<=t?'on':''}"></i>`).join('')}</div><div class="statline">${p.k==='scan'&&cur===0?'<b>Not installed</b>':`<b>${cur}</b> ${p.unit}`}${max?'':` → <em>${nx} ${p.unit}</em>`}</div>
     <div class="statline" style="font-size:18px;margin:4px 0 10px;min-height:38px">${p.desc}</div>
@@ -842,42 +1011,53 @@ const VIEWS={
       <div class="card px flat"><div class="rig-stage"><canvas id="rigPreview"></canvas><div class="floor"></div></div>
         <div class="rowx" style="margin-top:14px;justify-content:space-between;flex-wrap:wrap"><div><div class="lab">Callsign</div><input class="name" id="rigName" maxlength="10" value="${S.rigName}"></div>
         <div style="text-align:right"><div class="lab">Deepest dive</div><div class="statline"><b>${S.stats.maxDepth} m</b></div></div></div></div>
-      <div class="card px flat"><h3>Body paint</h3><div class="rowx" style="flex-wrap:wrap;gap:10px;margin:10px 0 16px">${sw('p')}</div>
+      <div class="card px flat"><h3>Chassis</h3><div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 16px">${Object.entries(CHASSIS).map(([k,c])=>{const own=S.owned[k],cur=S.chassis===k,cost=Math.round(c.cost*costMul());return`<button class="chip ${cur?'on':''}" data-act="chassis" data-k="${k}" title="${c.d}" style="padding:8px 6px;display:flex;flex-direction:column;gap:4px;align-items:center"><span>${c.name}</span><span style="font:16px var(--mono);color:${cur?'#5a3a06':own?'var(--dim)':S.money>=cost?'var(--green)':'var(--red)'}">${cur?'In use':own?'Owned':fmt(cost)}</span></button>`;}).join('')}</div>
+        <div class="statline" style="font-size:18px;margin:-6px 0 14px">${CHASSIS[S.chassis].d}</div>
+        <h3>Body paint</h3><div class="rowx" style="flex-wrap:wrap;gap:10px;margin:10px 0 16px">${sw('p')}</div>
         <h3>Trim</h3><div class="rowx" style="flex-wrap:wrap;gap:10px;margin:10px 0 16px">${sw('s')}</div>
         <h3>Decal colour</h3><div class="rowx" style="flex-wrap:wrap;gap:10px;margin:10px 0 16px">${sw('a')}</div>
         <h3>Decal</h3><div class="rowx" style="flex-wrap:wrap;gap:8px;margin-top:10px">${DECALS.map((d,i)=>{const lock=DECAL_LOCK[i]&&!unlocked('d'+i);return`<button class="chip ${S.decal===i?'on':''} ${lock?'lock':''}" data-act="decal" data-i="${i}" title="${lock?'Locked: '+DECAL_LOCK[i]:''}">${d}</button>`;}).join('')}</div></div></div>`;},
   supply(){return`<h2>Supply depot</h2><p class="lead">Consumables go on your hotbar (keys 1–6).</p><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${ITEMS.map(it=>`<div class="card px flat"><div class="rowx"><img class="pxicon" src="${itemIcon(it.k)}" style="width:40px;height:40px" alt=""><div><h3>${it.name}</h3><div class="lab">Carrying ${S.items[it.k]}</div></div></div>
-    <div class="statline" style="font-size:18px;margin:10px 0;min-height:38px">${it.desc}</div><div class="rowx" style="justify-content:space-between"><span class="price ${S.money<it.cost?'no':''}">${fmt(it.cost)}</span><span class="rowx" style="gap:8px"><button class="btn ghost" data-act="buy" data-k="${it.k}" data-n="1" ${S.money<it.cost?'disabled':''}>+1</button><button class="btn" data-act="buy" data-k="${it.k}" data-n="5" ${S.money<it.cost*5?'disabled':''}>+5</button></span></div></div>`).join('')}</div>`;},
+    <div class="statline" style="font-size:18px;margin:10px 0;min-height:38px">${it.desc}</div><div class="rowx" style="justify-content:space-between"><span class="price ${S.money<Math.round(it.cost*costMul())?'no':''}">${fmt(Math.round(it.cost*costMul()))}</span><span class="rowx" style="gap:8px"><button class="btn ghost" data-act="buy" data-k="${it.k}" data-n="1" ${S.money<Math.round(it.cost*costMul())?'disabled':''}>+1</button><button class="btn" data-act="buy" data-k="${it.k}" data-n="5" ${S.money<Math.round(it.cost*costMul())*5?'disabled':''}>+5</button></span></div></div>`).join('')}</div>`;},
   contracts(){fillContracts();const ic={sell:'cargo',depth:'drill',relic:'scan',trip:'fuel',hunt:'hull',blast:'engine'};return`<h2>Contract board</h2><p class="lead">Holloway pays a premium for jobs done. ${S.done} completed so far.</p><div class="grid">${S.contracts.map((c,i)=>{const goal=c.k==='depth'?c.d:c.k==='trip'?c.a:c.n;const p=Math.min(goal,c.p);
     return`<div class="contract px flat"><div class="ic"><img class="pxicon" src="${c.k==='sell'?oreIcon(c.ore):partIcon(ic[c.k])}" alt=""></div><div><h3>${c.txt}</h3><div class="statline">${c.k==='trip'?fmt(p)+' / '+fmt(goal):p+' / '+goal} · reward <em>${fmt(c.reward)}</em></div><div class="prog"><i style="width:${p/goal*100}%"></i></div></div>
     <div>${c.ready?`<button class="btn teal" data-act="claim" data-i="${i}">Claim</button>`:c.k==='sell'&&rig.cargo.some(o=>o.t===c.ore)?`<button class="btn ghost" data-act="deliver" data-i="${i}">Deliver</button>`:`<button class="btn ghost" data-act="drop" data-i="${i}" title="Swap for a new contract">Swap</button>`}</div></div>`;}).join('')}</div>`;},
+  travel(){const here=G.termRelay;const dests=[{i:-1,name:'Outpost 7',d:0,sub:'Surface · refinery, workshop, hangar'}].concat(S.relays.map((r,i)=>({i,name:'Relay '+String.fromCharCode(65+i),d:r.d,sub:biomeAt(r.d+SURF).name})));
+    return`<h2>Relay network</h2><p class="lead">Fast travel between the outpost and your relay stations. Buy relay beacons at the Supply depot, then deploy them deep underground (key 7).</p><div class="grid">${dests.filter(x=>!(here?S.relays[x.i]===here:x.i===-1)).map(x=>`<div class="contract px flat"><div class="ic"><img class="pxicon" src="${x.i<0?partIcon('hull'):itemIcon('relay')}" alt=""></div><div><h3>${x.name}</h3><div class="statline">${x.d} m · ${x.sub}</div></div><button class="btn teal" data-act="travel" data-i="${x.i}">Travel</button></div>`).join('')||'<p class="lead">No relays yet.</p>'}</div>`;},
+  logbook(){const got=ACH.filter(a=>S.ach[a[0]]).length;const perks=PERKS.filter(p=>S.perks[p.k]);return`<h2>Pilot logbook</h2><p class="lead">Level ${S.level} pilot · ${S.xp}/${xpNeed(S.level)} XP to the next level · ${got}/${ACH.length} achievements</p>
+    <div class="card px flat" style="margin-bottom:14px"><h3>Perks</h3><div class="rowx" style="flex-wrap:wrap;gap:8px;margin-top:10px">${perks.length?perks.map(p=>`<span class="chip on" title="${p.d}">${p.name}${p.max>1?' '+S.perks[p.k]+'/'+p.max:''}</span>`).join(''):'<span class="statline">Level up to earn your first perk. Mining, discoveries and contracts all give XP.</span>'}</div></div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:8px">${ACH.map(a=>`<div class="ach ${S.ach[a[0]]?'got':'no'}"><span class="nm">${S.ach[a[0]]?'★ ':''}${a[1]}</span><span class="price" style="font-size:18px;${S.ach[a[0]]?'':'color:var(--dimmer)'}">${fmt(a[4])}</span><span class="statline" style="font-size:17px;grid-column:1/-1">${a[2]}</span></div>`).join('')}</div>`;},
   survey(){const sets=setsDone();return`<h2>Geological survey</h2><p class="lead">Every mineral you mine and relic you recover is catalogued. Complete a museum set for a permanent bonus.</p>
     <h3 style="font:22px var(--disp);margin:8px 0 10px">Minerals · ${ORE_IDS.filter(id=>S.found[id]).length}/${ORE_IDS.length}</h3><div class="cx">${ORE_IDS.map(id=>`<div class="it ${S.found[id]?'':'no'}"><img class="pxicon" src="${oreIcon(id)}" alt=""><div class="nm">${S.found[id]?TL[id].name:'???'}</div><div class="statline" style="font-size:18px">${S.found[id]?fmt(TL[id].val)+' · ×'+S.found[id]:BIOMES.find(b=>b.ores.some(o=>o[0]===id)).name}</div></div>`).join('')}</div>
     <h3 style="font:22px var(--disp);margin:20px 0 10px">Relic museum · ${S.relics.length}/21</h3><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">${SETS.map((st,si)=>`<div class="card px flat"><div class="rowx" style="justify-content:space-between"><h3>${BIOMES[si].name}</h3>${sets.includes(st.k)?'<span class="chip on">Complete</span>':''}</div>
       <div class="rowx" style="gap:10px;margin:10px 0">${[0,1,2].map(j=>{const id=si*3+j,has=S.relics.includes(id);return`<div class="it" style="flex:1;text-align:center;padding:8px;background:#0f1117" title="${has?RELICS[id][1]:'Undiscovered'}"><img class="pxicon" src="${relicIcon(id)}" style="width:40px;height:40px;margin:0 auto;${has?'':'filter:brightness(0) opacity(.5)'}" alt=""><div class="lab" style="margin-top:4px;color:${has?'var(--text)':'var(--dimmer)'}">${has?RELICS[id][0]:'? ? ?'}</div></div>`;}).join('')}</div>
-      <div class="statline" style="font-size:18px">Set bonus: <b style="color:${sets.includes(st.k)?'var(--violet)':'var(--dim)'}">${st.bonus}</b></div></div>`).join('')}</div>`;}
+      <div class="statline" style="font-size:18px">Set bonus: <b style="color:${sets.includes(st.k)?'var(--violet)':'var(--dim)'}">${st.bonus}</b></div></div>`).join('')}</div>
+    <h3 style="font:22px var(--disp);margin:20px 0 10px">Recovered pilot logs · ${S.logs.length}/${LOGS.length}</h3><div class="grid">${S.logs.length?S.logs.map(i=>`<div class="card px flat"><div class="lab">${BIOMES[Math.floor(i/2)+1].name}</div><div class="statline" style="color:var(--text);margin-top:4px">"${LOGS[i]}"</div></div>`).join(''):'<p class="lead">Abandoned rigs lie in the caves below. Their logs tell the planet\'s story.</p>'}</div>`;}
 };
 function unlocked(k){const s=S.stats;switch(k){case'p6':return s.maxDepth>=200;case'p8':return S.done>=3;case'p10':return S.relics.length>=6;case'd2':return s.maxDepth>=320;case'd4':return s.kills>=10;case'd6':return S.done>=5;}return true;}
-function drawPreview(){const c=$('rigPreview');if(!c)return;const P=PAINTS;const big=rigIconCanvas(10,{p:P[S.paint.p],s:P[S.paint.s],a:P[S.paint.a],decal:S.decal,spin:Math.floor(G.t*20)});c.width=big.width;c.height=big.height;c.getContext('2d').drawImage(big,0,0);}
+function drawPreview(){const c=$('rigPreview');if(!c)return;const P=PAINTS;const big=rigIconCanvas(10,{ch:S.chassis,p:P[S.paint.p],s:P[S.paint.s],a:P[S.paint.a],decal:S.decal,spin:Math.floor(G.t*20)});c.width=big.width;c.height=big.height;c.getContext('2d').drawImage(big,0,0);}
 $('tnav').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;curTab=b.dataset.tab;SFX.ui();renderTerm();});
 $('tview').addEventListener('input',e=>{if(e.target.id==='rigName'){S.rigName=(e.target.value||'MOLE-1').toUpperCase().slice(0,10);}});
 $('tview').addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b||b.disabled)return;const a=b.dataset.act;
   switch(a){
-    case'sell':{const total=Math.round(rig.cargo.reduce((s,o)=>s+TL[o.t].val*o.m*valueMul(),0));for(const c of S.contracts)if(c.k==='trip'&&!c.ready)c.p=Math.max(c.p,total);
+    case'sell':{const total=Math.round(rig.cargo.reduce((s,o)=>s+price(o.t,o.m)*sellMul(),0));for(const c of S.contracts)if(c.k==='trip'&&!c.ready)c.p=Math.max(c.p,total);
       for(const o of rig.cargo)for(const c of S.contracts)if(c.k==='sell'&&!c.ready&&c.ore===o.t)c.p++;rig.cargo=[];const start=S.money;S.stats.earned+=total;S.money+=total;contractTick();
       // counting animation
       const el=$('sellTotal');let k=0;const steps=24;const iv=setInterval(()=>{k++;$('tCash').textContent=fmt(start+total*k/steps);if(el)el.textContent=fmt(total*(1-k/steps));SFX.coin(k);if(k>=steps){clearInterval(iv);SFX.register();renderTerm();}},35);return;}
-    case'fuel':{const need=stat('fuel')-rig.fuel,cost=Math.ceil(need*2);if(S.money>=cost){S.money-=cost;rig.fuel=stat('fuel');SFX.buy();}else{const l=S.money/2;rig.fuel+=l;S.money=0;SFX.buy();}rig.stranded=false;break;}
-    case'repair':{const need=stat('hull')-rig.hull,cost=Math.ceil(need*1.5);if(S.money>=cost){S.money-=cost;rig.hull=stat('hull');}else{rig.hull+=S.money/1.5;S.money=0;}SFX.buy();break;}
-    case'up':{const p=PARTS.find(q=>q.k===b.dataset.k),t=S.tiers[p.k],cost=p.cost[t+1];if(S.money<cost){SFX.deny();return;}S.money-=cost;S.tiers[p.k]++;if(p.k==='hull')rig.hull=stat('hull');if(p.k==='fuel')rig.fuel=stat('fuel');SFX.buy();buildHotbar();banner(p.name+' upgraded','Mk '+['I','II','III','IV','V','VI'][t+1]+' installed','teal');break;}
+    case'fuel':{const sv=G.termRelay?1.5:1,need=stat('fuel')-rig.fuel,cost=Math.ceil(need*2*sv);if(S.money>=cost){S.money-=cost;rig.fuel=stat('fuel');SFX.buy();}else{const l=S.money/2/sv;rig.fuel+=l;S.money=0;SFX.buy();}rig.stranded=false;break;}
+    case'repair':{const sv=G.termRelay?1.5:1,need=stat('hull')-rig.hull,cost=Math.ceil(need*1.5*sv);if(S.money>=cost){S.money-=cost;rig.hull=stat('hull');}else{rig.hull+=S.money/1.5/sv;S.money=0;}SFX.buy();break;}
+    case'up':{const p=PARTS.find(q=>q.k===b.dataset.k),t=S.tiers[p.k],cost=Math.round(p.cost[t+1]*costMul());if(S.money<cost){SFX.deny();return;}S.money-=cost;S.tiers[p.k]++;if(p.k==='hull')rig.hull=stat('hull');if(p.k==='fuel')rig.fuel=stat('fuel');SFX.buy();buildHotbar();banner(p.name+' upgraded','Mk '+['I','II','III','IV','V','VI'][t+1]+' installed','teal');break;}
     case'paint':{const i=+b.dataset.i;if(PAINT_LOCK[i]&&!unlocked('p'+i)){SFX.deny();return;}S.paint[b.dataset.s]=i;SFX.ui();break;}
+    case'chassis':{const k=b.dataset.k,c=CHASSIS[k],cost=Math.round(c.cost*costMul());if(!S.owned[k]){if(S.money<cost){SFX.deny();return;}S.money-=cost;S.owned[k]=1;banner(c.name+' chassis','Bought and fitted','teal');}S.chassis=k;rig.hull=Math.min(rig.hull,stat('hull'));rig.fuel=Math.min(rig.fuel,stat('fuel'));SFX.buy();break;}
+    case'travel':{const i=+b.dataset.i;travel(i);return;}
     case'decal':{const i=+b.dataset.i;if(DECAL_LOCK[i]&&!unlocked('d'+i)){SFX.deny();return;}S.decal=i;SFX.ui();break;}
-    case'buy':{const it=ITEMS.find(q=>q.k===b.dataset.k),n=+b.dataset.n;if(S.money<it.cost*n){SFX.deny();return;}S.money-=it.cost*n;S.items[it.k]+=n;SFX.buy();break;}
-    case'claim':{const i=+b.dataset.i,c=S.contracts[i];S.money+=c.reward;S.done++;S.contracts.splice(i,1);fillContracts();SFX.register();banner('Contract complete','+'+fmt(c.reward),'teal');break;}
+    case'buy':{const it=ITEMS.find(q=>q.k===b.dataset.k),n=+b.dataset.n,c1=Math.round(it.cost*costMul());if(S.money<c1*n){SFX.deny();return;}S.money-=c1*n;S.items[it.k]+=n;SFX.buy();break;}
+    case'claim':{const i=+b.dataset.i,c=S.contracts[i];S.money+=c.reward;gainXP(100+c.reward/10);S.done++;S.contracts.splice(i,1);fillContracts();SFX.register();banner('Contract complete','+'+fmt(c.reward),'teal');break;}
     case'deliver':{const i=+b.dataset.i,c=S.contracts[i];let n=0;rig.cargo=rig.cargo.filter(o=>{if(o.t===c.ore&&c.p<c.n&&n<c.n){c.p++;n++;return false;}return true;});contractTick();SFX.buy();break;}
     case'drop':{const i=+b.dataset.i;S.contracts.splice(i,1);fillContracts();SFX.ui();break;}}
-  renderTerm();});
+  renderTerm();checkAch();});
 $('launch').addEventListener('click',closeTerm);
+$('perkCards').addEventListener('click',e=>{const b=e.target.closest('[data-perk]');if(b)pickPerk(+b.dataset.perk);});
 setInterval(()=>{if(G.mode==='term'&&curTab==='hangar')drawPreview();},90);
 
 /* =====================================================================
@@ -891,18 +1071,18 @@ function load(){const d=store.get('dd.save',null);if(!d)return false;S=d.S;fillD
   RELIC_AT.clear();for(const[k,v]of S.relicMap||[])RELIC_AT.set(k,v);ent.crea=(S.crea||[]).map(([type,x,y])=>({type,x,y,vx:0,vy:0,hp:1,t:Math.random()*9,home:[x,y],dead:false}));
   rig=newRig();if(S.rig){Object.assign(rig,{x:S.rig.x,y:S.rig.y,fuel:S.rig.fuel,hull:S.rig.hull,cargo:S.rig.cargo||[]});}G.maxBiomeSeen=S.maxBiomeSeen||0;return true;}
 function fillDefaults(){const f=freshSave(S.seed);for(const k in f)if(S[k]===undefined)S[k]=f[k];for(const k in f.tiers)if(S.tiers[k]===undefined)S.tiers[k]=0;for(const k in f.items)if(S.items[k]===undefined)S.items[k]=0;}
-function startPlay(){G.mode='play';$('title').hidden=true;$('hud').hidden=false;for(const k in hc)delete hc[k];fillContracts();buildHotbar();cam.x=rig.x-VW/2;cam.y=rig.y-VH*0.45;cv.focus();MINI_DIRTY=true;}
+function startPlay(){ent.shots=[];if(!S.hot)shiftMarket();initWyrm();$('bossBar').hidden=true;G.perkQ=0;G.mode='play';$('title').hidden=true;$('hud').hidden=false;for(const k in hc)delete hc[k];fillContracts();buildHotbar();cam.x=rig.x-VW/2;cam.y=rig.y-VH*0.45;cv.focus();MINI_DIRTY=true;}
 function newGame(){AU.init();const seed=(Math.random()*1e9)|0;S=freshSave(seed);RELIC_AT.clear();world=genWorld(seed);rig=newRig();G.maxBiomeSeen=0;ent.parts=[];ent.floats=[];ent.falls=[];ent.bombs=[];ent.flares=[];startPlay();
   setTimeout(()=>banner('Welcome, pilot','Dig right of the pad. Fly back up to sell.','teal'),400);save();}
 function continueGame(){AU.init();if(!load()){newGame();return;}ent.parts=[];ent.floats=[];ent.falls=[];ent.bombs=[];ent.flares=[];startPlay();banner('Back on shift',S.rigName+' is ready','teal');}
 function strand(){G.mode='lost';$('lostT').textContent='Out of fuel';$('lostT').style.color='var(--amber)';
   const fee=Math.min(S.money,Math.round(60+rig.deep*0.8));$('lostTxt').innerHTML=`${S.rigName} is dead in the rock at ${rig.deep} m. Holloway's recovery tug can haul you up for <b style="color:var(--text)">${fmt(fee)}</b>. Your cargo comes with you.`;
   G.lostFee=fee;G.lostKeepCargo=true;$('mLost').hidden=false;SFX.alarm();}
-function lost(src){G.mode='lost';S.stats.lost++;const fee=Math.min(S.money,Math.round(100+rig.deep*1.2));$('lostT').textContent='Rig lost';$('lostT').style.color='var(--red)';
-  const why={heat:'cooked by the heat',lava:'swallowed by lava',fall:'crushed by a long fall',creature:'torn apart by something in the dark',blast:'caught in your own blast',rock:'buried under falling rock'}[src]||'destroyed';
-  $('lostTxt').innerHTML=`${S.rigName} was ${why} at ${rig.deep} m. The cargo is gone. Salvage and a rebuilt rig cost <b style="color:var(--text)">${fmt(fee)}</b>. Your upgrades survive.`;G.lostFee=fee;G.lostKeepCargo=false;$('mLost').hidden=false;SFX.boom();}
-$('lostOk').addEventListener('click',()=>{S.money-=G.lostFee;const cargo=G.lostKeepCargo?rig.cargo:[];rig=newRig();rig.cargo=cargo;rig.fuel=Math.max(rig.fuel*0.5,4);$('mLost').hidden=true;G.mode='play';S.day++;save();SFX.click();cv.focus();});
-$('winNext').addEventListener('click',()=>{const keep={tiers:S.tiers,items:S.items,paint:S.paint,decal:S.decal,rigName:S.rigName,relics:[],stats:S.stats,done:S.done,money:S.money,planet:S.planet+1};
+function lost(src){G.mode='lost';S.stats.lost++;const salv=(S.perks||{}).salv;const fee=Math.min(S.money,Math.round((100+rig.deep*1.2)*(salv?0.5:1)));$('lostT').textContent='Rig lost';$('lostT').style.color='var(--red)';
+  const why={heat:'cooked by the heat',lava:'swallowed by lava',fall:'crushed by a long fall',creature:'torn apart by something in the dark',blast:'caught in your own blast',rock:'buried under falling rock',wyrm:'devoured by the Magma Wyrm'}[src]||'destroyed';
+  $('lostTxt').innerHTML=`${S.rigName} was ${why} at ${rig.deep} m. The cargo is gone. Salvage and a rebuilt rig cost <b style="color:var(--text)">${fmt(fee)}</b>. Your upgrades survive.`;G.lostFee=fee;G.lostKeepCargo=false;G.lostHalf=!!salv;$('mLost').hidden=false;SFX.boom();}
+$('lostOk').addEventListener('click',()=>{S.money-=G.lostFee;const cargo=G.lostKeepCargo?rig.cargo:G.lostHalf?rig.cargo.slice(0,Math.floor(rig.cargo.length/2)):[];G.lostHalf=false;rig=newRig();rig.cargo=cargo;rig.fuel=Math.max(rig.fuel*0.5,4);$('mLost').hidden=true;G.mode='play';S.day++;save();SFX.click();cv.focus();});
+$('winNext').addEventListener('click',()=>{const keep={tiers:S.tiers,items:S.items,paint:S.paint,decal:S.decal,rigName:S.rigName,relics:[],stats:S.stats,done:S.done,money:S.money,planet:S.planet+1,xp:S.xp,level:S.level,perks:S.perks,ach:S.ach,owned:S.owned,chassis:S.chassis,logs:[]};
   const seed=(Math.random()*1e9)|0;S=Object.assign(freshSave(seed),keep);S.valueMul=1+0.25*(S.planet-1);S.contracts=[];S.found={};RELIC_AT.clear();world=genWorld(seed);rig=newRig();G.maxBiomeSeen=0;$('mWin').hidden=true;startPlay();banner('Planet '+S.planet,'Ore here is worth '+Math.round(S.valueMul*100)+'%','violet');save();});
 $('winStay').addEventListener('click',()=>{$('mWin').hidden=true;G.mode='play';cv.focus();});
 function toTitle(){if(S&&G.mode!=='title')save();G.mode='title';$('hud').hidden=true;$('term').hidden=true;$('mPause').hidden=true;$('title').hidden=false;const d=store.get('dd.save',null);$('mContinue').hidden=!d;
@@ -934,13 +1114,15 @@ window.addEventListener('keydown',e=>{AU.init();const k=e.code;
     if(k==='ArrowDown'||k==='KeyS'){menuSel=(menuSel+1)%menuItems().length;markMenu();SFX.ui();e.preventDefault();}if(k==='ArrowUp'||k==='KeyW'){menuSel=(menuSel-1+menuItems().length)%menuItems().length;markMenu();SFX.ui();e.preventDefault();}
     if(k==='Enter'||k==='Space'){e.preventDefault();menuItems()[menuSel]&&menuItems()[menuSel].click();}return;}
   if(G.mode==='term'){if(k==='Escape'||k==='KeyE'){if(document.activeElement&&document.activeElement.id==='rigName'&&k==='KeyE')return;closeTerm();}const n=parseInt(e.key,10);if(n>=1&&n<=6&&document.activeElement.id!=='rigName'){curTab=TABS[n-1][0];renderTerm();SFX.ui();}return;}
+  if(G.mode==='perk'){const n=parseInt(e.key,10);if(n>=1&&n<=3)pickPerk(n-1);return;}
+  if(G.mode==='trader'){if(k==='Escape'||k==='KeyE')closeTrader();return;}
   if(G.mode==='pause'){if(k==='Escape')unpause();return;}
   if(G.mode!=='play')return;
   if(KM[k]){INP[KM[k]]=1;e.preventDefault();}
   if(k==='Escape')pause();
-  if(k==='KeyE'&&onPad())openTerm();
+  if(k==='KeyE'){if(onPad())openTerm('outpost');else if(nearRelay())openTerm('relay');else if(nearTrader())openTrader();}
   if(k==='KeyQ')scan();
-  const n=parseInt(e.key,10);if(n>=1&&n<=6)useItem(['tnt','mega','fuelc','kit','flare','tele'][n-1]);});
+  const n=parseInt(e.key,10);if(n>=1&&n<=7)useItem(['tnt','mega','fuelc','kit','flare','tele','relay'][n-1]);});
 window.addEventListener('keyup',e=>{if(KM[e.code])INP[KM[e.code]]=0;});
 window.addEventListener('blur',()=>{INP={l:0,r:0,u:0,d:0};if(G.mode==='play')pause();});
 document.addEventListener('pointerdown',()=>AU.init(),{once:true});
@@ -972,7 +1154,10 @@ function renderTitle(dt){ctx.globalCompositeOperation='source-over';ctx.fillStyl
 let last=performance.now(),saveT=0;
 function frame(now){requestAnimationFrame(frame);let dt=(now-last)/1000;last=now;if(dt>0.05)dt=0.05;G.t+=dt;G.shake*=Math.exp(-dt*10);if(G.flashL)G.flashL.t-=dt;
   if(G.mode==='title'){partsUpdate(dt);renderTitle(dt);return;}
-  if(G.mode==='play'){rigUpdate(dt);creaUpdate(dt);fallsUpdate(dt);bombsUpdate(dt);
+  if(G.perkQ>0&&(G.mode==='play'||G.mode==='term')){G.perkDelay=(G.perkDelay||0)-dt;if(G.perkDelay<=0)showPerk();}
+  if(G.mode==='play'){rigUpdate(dt);creaUpdate(dt);fallsUpdate(dt);bombsUpdate(dt);encountersUpdate(dt);wyrmUpdate(dt);shotsUpdate(dt);
+    S.dayT+=dt;if(S.dayT>=240){S.dayT=0;S.day++;shiftMarket();banner('Day '+S.day,'Market shift · hot today: '+TL[S.hot].name,'teal');}
+    G.achT=(G.achT||0)-dt;if(G.achT<=0){G.achT=1;checkAch();}
     const drilling=!!rig.drill;AU.set('drill',drilling?0.18:0,drilling?220+TL[rig.drill.tile].hard*25:300);AU.set('thrust',rig.thr?0.12:0);AU.set('motor',(INP.l||INP.r||drilling)?0.025:0.008,drilling?70:55);
     AU.set('amb',rig.deep>5?Math.min(0.08,0.02+rig.deep/8000):0.01);saveT+=dt;if(saveT>45){saveT=0;save();}}
   else{AU.set('drill',0);AU.set('thrust',0);AU.set('motor',0);}
