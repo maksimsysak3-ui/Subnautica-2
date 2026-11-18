@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+</head>
+<body>
+<!--BEGIN-->
+<title>Saltwind</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&family=Alegreya+Sans:wght@400;500;700&display=swap">
+<style>
+/* Layout: full-screen 3D island; UI is a captain's kit — lacquered teak panels, engraved brass rules, parchment slips — pinned to screen edges. */
+:root{
+  --teak:#1f1712; --teak2:#2c211a; --lacq:rgba(24,18,14,.92); --brass:#cfa856; --brass2:#8f6e2c; --brassHi:#f3dc9a;
+  --parch:#efe2c4; --parch2:#e2d0a8; --ink:#2b2016; --inkSoft:#5b4a36; --sea:#2f7f8f; --wax:#a3271f; --good:#5f8f3f; --bad:#b4442f;
+  --serif:'IM Fell English','Iowan Old Style','Palatino Linotype',Georgia,serif;
+  --sc:'IM Fell English SC','IM Fell English',Georgia,serif;
+  --sans:'Alegreya Sans','Gill Sans','Segoe UI',system-ui,sans-serif;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;overflow:hidden;background:#0d1a20;color:var(--parch);font-family:var(--sans);-webkit-user-select:none;user-select:none}
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block;outline:none;touch-action:none}
+button{font:inherit;color:inherit;cursor:pointer}
+/* --- shared kit --- */
+.panel{position:relative;background:linear-gradient(180deg,rgba(44,33,26,.94),rgba(24,18,14,.95));border:1px solid #000;border-radius:3px;
+  box-shadow:0 0 0 1px var(--brass2),0 0 0 3px #120d0a,0 0 0 4px rgba(207,168,86,.55),0 14px 34px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,230,180,.08)}
+.panel::before,.panel::after{content:"";position:absolute;width:7px;height:7px;border-radius:50%;background:radial-gradient(circle at 35% 30%,var(--brassHi),var(--brass) 45%,#5a4116 100%);box-shadow:0 1px 1px #000;top:5px;left:5px}
+.panel::after{left:auto;right:5px}
+.rule{height:9px;margin:4px 0;background:radial-gradient(circle,var(--brass) 1.5px,transparent 2px) center/9px 9px repeat-x;opacity:.7}
+.parch{background:radial-gradient(ellipse at 30% 20%,#f6ecd2,transparent 60%),linear-gradient(180deg,var(--parch),var(--parch2));color:var(--ink);
+  border-radius:2px;box-shadow:0 8px 24px rgba(0,0,0,.45),inset 0 0 30px rgba(120,80,30,.25);
+  -webkit-mask:radial-gradient(4px at 4px 50%,#0000 98%,#000) -4px 0/100% 11px repeat-y,linear-gradient(#000 0 0) 4px 0/calc(100% - 8px) 100% no-repeat;
+          mask:radial-gradient(4px at 4px 50%,#0000 98%,#000) -4px 0/100% 11px repeat-y,linear-gradient(#000 0 0) 4px 0/calc(100% - 8px) 100% no-repeat}
+.sc{font-family:var(--sc);letter-spacing:.06em}
+.brassBtn{background:linear-gradient(180deg,#3a2b20,#241a13);border:1px solid #000;box-shadow:0 0 0 1px var(--brass2),inset 0 1px 0 rgba(255,220,160,.12);color:var(--brassHi);
+  font:17px var(--sc);letter-spacing:.06em;padding:7px 14px 6px;border-radius:2px;transition:background .15s,box-shadow .15s,color .15s}
+.brassBtn:hover,.brassBtn:focus-visible{background:linear-gradient(180deg,#4a382a,#2e2219);box-shadow:0 0 0 1px var(--brass),0 0 14px rgba(207,168,86,.25);outline:none;color:#fff2c8}
+.brassBtn.on{background:linear-gradient(180deg,#8f6e2c,#5a4116);color:#fff4d6;box-shadow:0 0 0 1px var(--brassHi)}
+.brassBtn[disabled]{opacity:.45;cursor:not-allowed}
+.seal{width:62px;height:62px;border-radius:50%;border:0;background:radial-gradient(circle at 38% 32%,#d0473a,var(--wax) 55%,#5e110d);color:#f6d7c8;
+  font:14px/1 var(--sc);box-shadow:0 3px 8px rgba(0,0,0,.5),inset 0 -3px 6px rgba(0,0,0,.35),inset 0 2px 3px rgba(255,180,160,.3);
+  clip-path:polygon(50% 0,62% 5%,75% 3%,82% 13%,95% 20%,94% 34%,100% 47%,95% 60%,98% 74%,86% 82%,80% 95%,66% 95%,53% 100%,40% 95%,26% 97%,18% 86%,5% 78%,6% 63%,0 50%,5% 36%,3% 22%,16% 14%,24% 3%,38% 5%)}
+.ico{width:18px;height:18px;flex:none;display:inline-block;vertical-align:-3px}
+/* --- HUD --- */
+#hud{position:fixed;inset:0;pointer-events:none}
+#hud>*{pointer-events:auto}
+#crest{position:absolute;left:max(14px,env(safe-area-inset-left));top:max(12px,env(safe-area-inset-top));padding:12px 16px 10px 16px;display:flex;gap:12px;align-items:center;min-width:220px}
+#crest .ring{width:52px;height:52px;flex:none}
+#crest h1{margin:0;font:400 22px/1 var(--serif);color:var(--brassHi)}
+#crest .tt{font:13px var(--sc);color:var(--brass);letter-spacing:.12em}
+#crest .pp{font:14px var(--sans);color:var(--parch);margin-top:3px;display:flex;gap:10px}
+#res{position:absolute;left:50%;transform:translateX(-50%);top:max(12px,env(safe-area-inset-top));padding:7px 16px;display:flex;gap:4px;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 600px)}
+.rs{display:flex;align-items:center;gap:5px;padding:3px 7px;border-radius:2px;font:500 15px var(--sans);font-variant-numeric:tabular-nums;color:var(--parch);position:relative}
+.rs:hover{background:rgba(207,168,86,.12)}
+.rs .d{font-size:11px;margin-left:1px}
+.rs .d.up{color:#9fcf7a}.rs .d.dn{color:#ef8f74}
+.rs.sep{width:1px;height:20px;background:var(--brass2);padding:0;margin:0 4px}
+#cal{position:absolute;right:max(14px,env(safe-area-inset-right));top:max(12px,env(safe-area-inset-top));padding:10px 14px;display:flex;gap:12px;align-items:center}
+#cal canvas{width:58px;height:58px}
+#cal .when{font:20px/1.05 var(--serif);color:var(--brassHi)}
+#cal .sub{font:13px var(--sc);color:var(--brass);letter-spacing:.1em}
+#speeds{display:flex;gap:4px;margin-top:6px}
+#speeds .brassBtn{padding:3px 8px 2px;font-size:14px;min-width:30px}
+#goal{position:absolute;left:max(14px,env(safe-area-inset-left));top:calc(max(12px,env(safe-area-inset-top)) + 92px);width:250px;padding:10px 14px 12px}
+#goal .k{font:12px var(--sc);color:var(--brass);letter-spacing:.14em}
+#goal .g{font:italic 17px/1.25 var(--serif);color:var(--parch);margin-top:3px}
+#goal .bar{height:3px;background:rgba(207,168,86,.18);margin-top:8px}
+#goal .bar i{display:block;height:100%;background:var(--brass);transition:width .4s}
+#log{position:absolute;right:max(14px,env(safe-area-inset-right));top:calc(max(12px,env(safe-area-inset-top)) + 100px);width:290px;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.lg{padding:7px 12px 7px 12px;font:15px/1.3 var(--sans);animation:lgIn .4s ease backwards;display:flex;gap:8px;align-items:flex-start}
+.lg b{font:400 15px var(--serif);color:var(--wax)}
+.lg.fade{transition:opacity 1.2s;opacity:0}
+@keyframes lgIn{from{opacity:0;transform:translateX(20px)}}
+#build{position:absolute;left:50%;transform:translateX(-50%);bottom:max(12px,env(safe-area-inset-bottom));padding:10px 12px 12px;max-width:calc(100vw - 24px)}
+#tabs{display:flex;gap:4px;justify-content:center;margin-bottom:8px;flex-wrap:wrap}
+#tabs .brassBtn{font-size:15px;padding:4px 12px 3px}
+#tiles{display:flex;gap:8px;overflow-x:auto;padding:2px;scrollbar-width:thin}
+.tile{position:relative;flex:none;width:92px;padding:6px 4px 5px;border:1px solid #000;background:linear-gradient(180deg,#30241b,#1d1610);box-shadow:0 0 0 1px rgba(143,110,44,.6);border-radius:2px;text-align:center;transition:transform .12s,box-shadow .12s}
+.tile:hover,.tile:focus-visible,.tile.on{transform:translateY(-3px);box-shadow:0 0 0 1px var(--brassHi),0 6px 16px rgba(0,0,0,.5);outline:none}
+.tile img{width:76px;height:62px;object-fit:contain;display:block;margin:0 auto;filter:drop-shadow(0 3px 4px rgba(0,0,0,.5))}
+.tile .n{font:14px/1.1 var(--serif);color:var(--parch);margin-top:2px}
+.tile .lock{position:absolute;inset:0;background:rgba(15,11,8,.72);display:flex;align-items:center;justify-content:center;font:12px/1.2 var(--sc);color:var(--brass);padding:6px;letter-spacing:.06em}
+.tile .k{position:absolute;top:3px;left:5px;font:11px var(--sans);color:var(--brass2)}
+/* tooltip slip */
+#tip{position:fixed;z-index:20;width:270px;padding:12px 16px 12px 18px;pointer-events:none;font:15px/1.35 var(--sans)}
+#tip h3{margin:0 0 2px;font:400 21px var(--serif);color:var(--ink)}
+#tip .sub{font:12px var(--sc);color:var(--inkSoft);letter-spacing:.12em}
+#tip p{margin:6px 0}
+#tip .costs{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;font-weight:700}
+#tip .costs span{display:flex;align-items:center;gap:3px}
+#tip .costs .no{color:var(--bad)}
+#tip .chain{font:italic 15px var(--serif);color:var(--inkSoft)}
+/* inspector */
+#insp{position:absolute;left:max(14px,env(safe-area-inset-left));bottom:max(150px,calc(env(safe-area-inset-bottom) + 150px));width:300px;padding:0}
+#insp .hd{padding:12px 16px 8px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+#insp h2{margin:0;font:400 25px/1 var(--serif);color:var(--brassHi)}
+#insp .ty{font:12px var(--sc);color:var(--brass);letter-spacing:.14em;margin-top:3px}
+#insp .x{background:none;border:0;color:var(--brass);font:22px var(--serif);padding:0 4px}
+#insp .bd{padding:0 16px 14px;display:flex;flex-direction:column;gap:9px;font:15px/1.35 var(--sans)}
+#insp .st{font:italic 16px var(--serif);color:var(--parch)}
+#insp .st.warn{color:#f0a37f}
+#insp .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+#insp .dots{display:flex;gap:4px}
+#insp .dots i{width:11px;height:11px;border-radius:50%;border:1px solid var(--brass);display:block}
+#insp .dots i.on{background:radial-gradient(circle at 35% 30%,var(--brassHi),var(--brass))}
+#insp .dots i.want{border-style:dashed}
+#insp .mini{padding:2px 9px 1px;font-size:16px}
+#insp .io{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-weight:500}
+#insp .bar{height:4px;background:rgba(207,168,86,.18)}#insp .bar i{display:block;height:100%;background:var(--brass)}
+/* raid banner */
+#banner{position:fixed;left:50%;top:18%;transform:translateX(-50%);text-align:center;pointer-events:none;z-index:5}
+#banner .a{font:400 clamp(30px,4.4vw,52px)/1 var(--sc);color:#f6e6c8;letter-spacing:.1em;text-shadow:0 2px 0 #000,0 0 30px rgba(163,39,31,.8)}
+#banner .b{margin-top:8px;font:italic 20px var(--serif);color:#f0d6b0;text-shadow:0 1px 0 #000}
+#banner.show{animation:ban 5s ease forwards}
+@keyframes ban{0%{opacity:0;letter-spacing:.3em}12%{opacity:1;letter-spacing:.1em}80%{opacity:1}100%{opacity:0}}
+/* modals */
+.modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(8,12,14,.35),rgba(8,12,14,.75));z-index:10;padding:20px}
+.book{width:min(860px,100%);max-height:calc(100vh - 40px);overflow:auto;padding:26px 30px 24px}
+.book h2{margin:0;font:400 36px/1 var(--serif);color:var(--brassHi)}
+.book .kick{font:13px var(--sc);color:var(--brass);letter-spacing:.2em}
+.cols{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px}
+.leaf{padding:14px 16px 14px 18px;font:15px/1.45 var(--sans)}
+.leaf h4{margin:0 0 6px;font:400 19px var(--serif)}
+.leaf .ln{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dotted rgba(43,32,22,.3);padding:2px 0}
+.leaf .ln b{font-variant-numeric:tabular-nums}
+.pos{color:var(--good)}.neg{color:var(--bad)}
+.trade{display:grid;grid-template-columns:1.4fr .7fr .7fr 1.6fr;gap:6px 12px;align-items:center;margin-top:14px;font:15px var(--sans)}
+.trade .h{font:12px var(--sc);color:var(--brass);letter-spacing:.14em}
+.trade .q{display:flex;gap:4px;align-items:center;justify-content:flex-end}
+.trade .q b{min-width:42px;text-align:center;font-variant-numeric:tabular-nums}
+/* title */
+#title{position:fixed;inset:0;z-index:8;display:flex;align-items:center;padding:0 max(24px,6vw);pointer-events:none}
+#title .book{pointer-events:auto;width:min(470px,100%);padding:30px 34px 26px}
+.mast{display:flex;align-items:center;gap:16px}
+.mast svg{width:84px;height:84px;flex:none}
+.logo{margin:0;font:400 64px/.9 var(--sc);letter-spacing:.08em;color:var(--brassHi);text-shadow:0 2px 0 #000}
+.byline{font:italic 19px/1.3 var(--serif);color:var(--parch);margin:10px 0 18px}
+.tmenu{display:flex;flex-direction:column;gap:8px}
+.tmenu .brassBtn{text-align:left;font-size:20px;padding:10px 16px 8px}
+.opt{display:flex;flex-direction:column;gap:10px;padding:14px 16px;margin-top:4px}
+.opt .ln{display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--ink);font:15px var(--sans)}
+.opt .seg{display:flex;gap:4px}
+.opt .seg button{background:none;border:1px solid var(--inkSoft);color:var(--ink);font:14px var(--sc);padding:3px 9px 2px;border-radius:2px}
+.opt .seg button.on{background:var(--ink);color:var(--parch)}
+.opt input{width:110px;font:15px var(--sans);background:rgba(255,255,255,.4);border:1px solid var(--inkSoft);color:var(--ink);padding:3px 6px;border-radius:2px}
+.foot{margin-top:14px;font:13px var(--sans);color:rgba(239,226,196,.55);line-height:1.5}
+.keys kbd{font:12px var(--sans);border:1px solid var(--brass2);border-radius:2px;padding:0 4px;color:var(--brassHi)}
+#cursorTip{position:fixed;z-index:6;pointer-events:none;padding:6px 10px;font:14px/1.3 var(--sans);transform:translate(16px,16px)}
+#fps{position:fixed;left:6px;bottom:4px;font:11px monospace;color:#9aa;opacity:.5;pointer-events:none}
+@media (max-width:1100px){#res{max-width:calc(100vw - 30px);top:calc(max(12px,env(safe-area-inset-top)) + 96px)}#insp{bottom:auto;top:calc(max(12px,env(safe-area-inset-top)) + 150px)}#log{display:none}#goal{display:none}.cols{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.lg,#banner.show{animation:none}}
+</style>
+
+<canvas id="gl" tabindex="0" aria-label="Saltwind island view"></canvas>
+
+<div id="hud" hidden>
+  <div id="crest" class="panel">
+    <svg class="ring" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="23" fill="none" stroke="#5a4116" stroke-width="5"/><circle id="happyArc" cx="26" cy="26" r="23" fill="none" stroke="#cfa856" stroke-width="5" stroke-dasharray="144.5" stroke-dashoffset="50" transform="rotate(-90 26 26)" stroke-linecap="round"/><text id="happyNum" x="26" y="31" text-anchor="middle" font-family="IM Fell English" font-size="16" fill="#f3dc9a">60</text></svg>
+    <div><h1 id="townName">Saltwind</h1><div class="tt" id="townTitle">Camp</div><div class="pp"><span id="popTxt">8 settlers</span><span id="homeTxt">8 beds</span></div></div>
+  </div>
+  <div id="goal" class="panel"><div class="k">The Charter</div><div class="g" id="goalTxt">Build a woodcutter</div><div class="bar"><i id="goalBar" style="width:0"></i></div></div>
+  <div id="res" class="panel"></div>
+  <div id="cal" class="panel"><canvas id="dial" width="116" height="116"></canvas><div><div class="when" id="calWhen">Spring</div><div class="sub" id="calSub">Day 1 · Year 1</div>
+    <div id="speeds"><button class="brassBtn" data-s="0" title="Pause (Space)">❚❚</button><button class="brassBtn on" data-s="1" title="Normal (1)">›</button><button class="brassBtn" data-s="2" title="Fast (2)">››</button><button class="brassBtn" data-s="4" title="Fastest (3)">›››</button></div></div></div>
+  <div id="log"></div>
+  <div id="insp" class="panel" hidden></div>
+  <div id="build" class="panel"><div id="tabs"></div><div id="tiles"></div></div>
+</div>
+<div id="tip" class="parch" hidden></div>
+<div id="cursorTip" class="parch" hidden></div>
+<div id="banner"><div class="a" id="banA"></div><div class="b" id="banB"></div></div>
+
+<div id="title">
+  <div class="book panel">
+    <div class="mast"><svg viewBox="0 0 100 100" aria-hidden="true"><g fill="none" stroke="#cfa856"><circle cx="50" cy="50" r="46" stroke-width="1.5"/><circle cx="50" cy="50" r="40" stroke-width=".8"/></g>
+      <g fill="#cfa856"><path d="M50 6 56 44 50 50 44 44Z"/><path d="M50 94 44 56 50 50 56 56Z" opacity=".55"/><path d="M6 50 44 44 50 50 44 56Z" opacity=".55"/><path d="M94 50 56 56 50 50 56 44Z" opacity=".55"/>
+      <path d="M22 22 46 46 50 50 44 48Z" opacity=".35"/><path d="M78 78 54 54 50 50 56 52Z" opacity=".35"/><path d="M78 22 54 46 50 50 52 44Z" opacity=".35"/><path d="M22 78 46 54 50 50 48 56Z" opacity=".35"/></g>
+      <text x="50" y="16" text-anchor="middle" font-family="IM Fell English SC" font-size="9" fill="#f3dc9a">N</text></svg>
+      <div><h1 class="logo">Saltwind</h1></div></div>
+    <p class="byline">An island at the edge of the chart. Raise a village, feed it through the winters, and keep the sea raiders from your shore.</p>
+    <div class="tmenu" id="tmenu">
+      <button class="brassBtn" id="bContinue" hidden>Continue the voyage</button>
+      <button class="brassBtn" id="bNew">Begin a new settlement</button>
+      <div class="opt parch" id="newOpts" hidden>
+        <div class="ln"><span>Island chart</span><span><input id="seedIn" aria-label="Island seed"> <button class="brassBtn" id="bReroll" style="padding:2px 8px;font-size:14px">New chart</button></span></div>
+        <div class="ln"><span>Raiders</span><span class="seg" id="diffSeg"><button data-d="peaceful">Peaceful</button><button data-d="normal" class="on">Raiders</button><button data-d="brutal">Brutal</button></span></div>
+        <button class="brassBtn" id="bStart" style="align-self:flex-end">Make landfall</button>
+      </div>
+      <button class="brassBtn" id="bGuide">Field guide</button>
+      <button class="brassBtn" id="bSound">Sound: on</button>
+    </div>
+    <div class="foot keys"><kbd>Right-drag</kbd> turn · <kbd>Wheel</kbd> zoom · <kbd>WASD</kbd> pan · <kbd>R</kbd> rotate building · <kbd>L</kbd> ledger · <kbd>Esc</kbd> menu</div>
+  </div>
+</div>
+
+<div id="mGuide" class="modal" hidden><div class="book panel"><div class="kick">Field guide</div><h2>Keeping a settlement</h2>
+  <div class="cols">
+    <div class="leaf parch"><h4>Hands &amp; homes</h4>Settlers sleep in houses and work where you place them. Anyone without a post becomes a <b>labourer</b>, who carries materials and raises new buildings. Keep a few spare or nothing gets built.</div>
+    <div class="leaf parch"><h4>Bread &amp; firewood</h4>Each settler eats once a day: fish, berries or bread. More kinds of food make happier people. Winter halts the farms and every house burns wood to keep warm.</div>
+    <div class="leaf parch"><h4>Chains of trade</h4>Logs become planks at the sawmill. Planks and stone become tools at the workshop. Wheat goes to the windmill, flour to the bakery. Workers without tools work slowly.</div>
+    <div class="leaf parch"><h4>Growth</h4>Spare beds, full larders and a happy village bring new settlers, and settler ships come each spring. New buildings unlock as the village grows.</div>
+    <div class="leaf parch"><h4>The merchant</h4>Build a dock and a merchant calls at the start of every season. Sell your surplus for gold and buy what the island lacks.</div>
+    <div class="leaf parch"><h4>Raiders</h4>Longships come from the open sea. Watchtowers shoot from range, and a barracks trains a militia. When the horn sounds, settlers run for the town hall and work stops.</div>
+  </div><div style="text-align:right;margin-top:16px"><button class="brassBtn" data-close>Close the guide</button></div></div></div>
+
+<div id="mPause" class="modal" hidden><div class="book panel" style="width:min(420px,100%)"><div class="kick">The voyage pauses</div><h2>Ship's log</h2><div class="rule"></div>
+  <div class="tmenu"><button class="brassBtn" id="pResume">Return to the island</button><button class="brassBtn" id="pSave">Save the settlement</button><button class="brassBtn" id="pGuide">Field guide</button><button class="brassBtn" id="pSound">Sound: on</button><button class="brassBtn" id="pGfx">Graphics: high</button><button class="brassBtn" id="pQuit">Return to the harbour (title)</button></div></div></div>
+
+<div id="mLedger" class="modal" hidden><div class="book panel"><div class="kick">The ledger</div><h2 id="ldTitle">Saltwind</h2><div class="cols" id="ldCols"></div><div style="text-align:right;margin-top:16px"><button class="brassBtn" data-close>Close the ledger</button></div></div></div>
+
+<div id="mTrade" class="modal" hidden><div class="book panel"><div class="kick">A merchant at the dock</div><h2>The trader's manifest</h2>
+  <div class="trade" id="tradeRows"></div><div class="rule" style="margin-top:12px"></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font:17px var(--serif)"><span id="tradeSum">Gold after trade: 0</span><span><button class="brassBtn" data-close>Leave</button> <button class="brassBtn" id="tDeal">Strike the deal</button></span></div></div></div>
+
+<div id="mEnd" class="modal" hidden><div class="book panel" style="width:min(520px,100%)"><div class="kick">The last entry</div><h2>The settlement is lost</h2><p class="byline" id="endTxt"></p><div class="tmenu"><button class="brassBtn" id="eTitle">Return to the harbour</button></div></div></div>
+<div id="fps"></div>
+
+<script>
+window.addEventListener('error',function(e){var m=document.getElementById('bootErr');if(!m){m=document.createElement('div');m.id='bootErr';m.className='parch';m.style.cssText='position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:50;padding:12px 18px;max-width:560px;font:15px/1.4 sans-serif';document.body.appendChild(m);}
+m.textContent='Saltwind hit a problem: '+(e.message||'unknown error')+'. Try a recent Chrome, Edge or Firefox with hardware acceleration on.';});
+</script>
+<script>
+/*GAME*/
+</script>
+<!--END-->
+</body>
+</html>
