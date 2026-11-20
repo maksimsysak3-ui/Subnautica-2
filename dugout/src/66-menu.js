@@ -37,6 +37,7 @@ function viewMenu(){
    <ul class="mm-list">
     ${item('menu-load','Continue',lm?`${esc(lm.club.short)} · ${esc(lm.season)} · MD ${Math.min(lm.md+1,MDAYS)}`:'No saved career yet',!lm,last)}
     ${item('menu-new','New career',full?'All slots in use: choose one to overwrite':`Into slot ${firstFree()||1} · clubs from ${COUNTRIES.length} countries`,false,full?'':firstFree()||1)}
+    ${item('menu-settings','Settings',`Match length: ${(LENGTHS.find(l=>l[0]===PREF.len)||LENGTHS[1])[1]}`,false)}
     ${item('menu-help','How to play','Matchdays, tactics, transfers',false)}
    </ul>
    <p class="mm-note">Careers are saved automatically to this browser after every action.</p>

@@ -3708,6 +3708,7 @@ function viewMenu(){
    <ul class="mm-list">
     ${item('menu-load','Continue',lm?`${esc(lm.club.short)} · ${esc(lm.season)} · MD ${Math.min(lm.md+1,MDAYS)}`:'No saved career yet',!lm,last)}
     ${item('menu-new','New career',full?'All slots in use: choose one to overwrite':`Into slot ${firstFree()||1} · clubs from ${COUNTRIES.length} countries`,false,full?'':firstFree()||1)}
+    ${item('menu-settings','Settings',`Match length: ${(LENGTHS.find(l=>l[0]===PREF.len)||LENGTHS[1])[1]}`,false)}
     ${item('menu-help','How to play','Matchdays, tactics, transfers',false)}
    </ul>
    <p class="mm-note">Careers are saved automatically to this browser after every action.</p>
@@ -4076,11 +4077,25 @@ function viewAchievements(){
 }
 /* ================= match day ================= */
 let M=null;
+/* Match speed. One multiplier applies to every viewing mode (highlights, fast-forward and full match), and the
+   default comes from the Match length setting, saved in this browser. */
+const LENGTHS=[['quick','Quick',3,'about 1–2 min'],['std','Standard',2,'about 3 min'],['long','Long',1,'about 6 min']];
+const SPEEDS=[1,2,3,5];
+const PREF=(()=>{try{return Object.assign({len:'std',mode:'key'},JSON.parse(localStorage.getItem('dg-pref')||'{}'))}catch(e){return{len:'std',mode:'key'}}})();
+const savePref=()=>{try{localStorage.setItem('dg-pref',JSON.stringify(PREF))}catch(e){}};
+const lenMult=()=>(LENGTHS.find(l=>l[0]===PREF.len)||LENGTHS[1])[2];
+function settingsHTML(){
+ return`<div class="setg"><div class="eyebrow">Settings</div><h2 style="margin:4px 0 14px">Match settings</h2>
+ <div class="neg-lbl">Match length</div><div class="seg" role="group" aria-label="Match length">${LENGTHS.map(([k,l,,d])=>`<button data-act="pref-len" data-v="${k}" aria-pressed="${PREF.len===k}">${l}<small style="display:block;font-size:10.5px;opacity:.7;text-transform:none;letter-spacing:0">${d}</small></button>`).join('')}</div>
+ <div class="neg-lbl" style="margin-top:14px">Default viewing mode</div><div class="seg" role="group" aria-label="Viewing mode">${Object.entries(MODES).map(([k,v])=>`<button data-act="pref-mode" data-v="${k}" aria-pressed="${PREF.mode===k}">${v.label}</button>`).join('')}</div>
+ <p class="muted" style="font-size:12.5px;margin:14px 0 0">Times are for Key highlights. Extended adds more chances; Full match shows every minute. You can also change the speed during a match.</p>
+ <div style="text-align:right;margin-top:16px"><button class="btn pri" data-act="close">Done</button></div></div>`;
+}
 const MODES={key:{label:'Key highlights',ff:120},ext:{label:'Extended',ff:70},full:{label:'Full match',ff:0}};
 // Pre-match ceremony timeline in seconds (3D), and the shorter overlay-only version for the 2D view.
 const INTRO3D={walk:3,anthem:13.5,shake:22.5,disperse:27,end:32.5,l3:[.6,6.4],lu:[6.9,13.3],music:3};
 const INTRO2D={end:9.5,l3:[.3,3.6],lu:[3.6,9],music:.3};
-function newMatchDay(){const t=curTie();if(!t)return null;const fx=[t.h,t.a];return{fx,tie:t,wx:forecast(S.md,fx[0]),phase:'pre',mode:'key',hs:1,fs:12,viewMode:'3d',camMode:'tv',paused:false,pt:0,shown:0,scan:0,wins:[],score:[0,0],sel:null,tab:'feed',ss:{sh:[0,0],sot:[0,0],xg:[0,0],cor:[0,0],fo:[0,0],yc:[0,0],off:[0,0]}}}
+function newMatchDay(){const t=curTie();if(!t)return null;const fx=[t.h,t.a];return{fx,tie:t,wx:forecast(S.md,fx[0]),phase:'pre',mode:PREF.mode||'key',hs:1,fs:4,mult:lenMult(),viewMode:'3d',camMode:'tv',paused:false,pt:0,shown:0,scan:0,wins:[],score:[0,0],sel:null,tab:'feed',ss:{sh:[0,0],sot:[0,0],xg:[0,0],cor:[0,0],fo:[0,0],yc:[0,0],off:[0,0]}}}
 function kickOff(){
  const[h,a]=M.fx;prepAI(h,a);prepAI(a,h);ensureLineup(S.user);
  const team=c=>({club:c,tac:clubOf(c).tac,bench:clubOf(c).tac.bench.slice(),ai:c!==S.user});
@@ -4189,7 +4204,7 @@ function viewMatch(){
   <button class="ov-skip" id="m-skip" data-act="mskip" ${M.intro?'':'hidden'}>Skip to kick-off ›</button>
   <div class="flash" id="m-flash"><b>GOAL</b></div></div>
  <div class="mctl">${ctl('Viewing mode',0,Object.entries(MODES).map(([k,v])=>[k,v.label]),M.mode,'mmode')}
- ${ctl('Speed',0,(M.mode==='full'?[6,12,24,48]:[1,2,4]).map(v=>[v,v+'×']),M.mode==='full'?M.fs:M.hs,'mspeed')}
+ ${ctl('Speed',0,SPEEDS.map(v=>[v,v+'×']),M.mult||1,'mspeed')}
  ${ctl('View',0,[['3d','3D'],['2d','2D']],M.viewMode,'mview')}
  ${ctl('Camera',0,[['tv','TV'],['high','Tactical'],['near','Close']],M.camMode,'mcam',M.viewMode!=='3d')}
  <span class="grow"></span>
@@ -4254,10 +4269,11 @@ function mountMatch(){
 function leaveMatch(){cancelAnimationFrame(RAF);if(VIEW){VIEW.dispose();VIEW=null}if(M&&M.phase==='live')M.paused=true;SND.stop()}
 // Playback speed: highlight speed inside windows, fast-forward between them, braking smoothly as the next window nears.
 function targetRate(){
- if(M.mode==='full')return M.fs;
- if(inWindow(M.pt))return M.hs;
- const ff=MODES[M.mode].ff,gap=nextWin(M.pt)-M.pt;
- return clamp(gap/.3,M.hs,ff);
+ const k=M.mult||1;
+ if(M.mode==='full')return M.fs*k*3;
+ if(inWindow(M.pt))return M.hs*k;
+ const ff=MODES[M.mode].ff*Math.sqrt(k),gap=nextWin(M.pt)-M.pt;
+ return clamp(gap/.3,M.hs*k,ff);
 }
 function setOv(id,on){const el=document.getElementById(id);if(el&&el.classList.contains('on')!==on)el.classList.toggle('on',on)}
 function endIntro(){if(!M||!M.intro)return;M.intro=null;{const st=$('#stage');if(st)st.classList.remove('intro')}['m-l3','m-lu'].forEach(id=>setOv(id,false));const sk=$('#m-skip');if(sk)sk.hidden=true;SND.whistle(1);SND.setCrowd(.42);M.capAt=0;caption('Kick-off! We are under way.','whistle')}
@@ -5164,7 +5180,10 @@ document.addEventListener('click',e=>{
   case'instant':instantResult();break;
   case'match-finish':finishMatchday();break;
   case'mmode':M.mode=v;M.scan=0;M.wins=[];scanEvents();render();break;
-  case'mspeed':if(M.mode==='full')M.fs=+v;else M.hs=+v;pressOne(t);break;
+  case'mspeed':M.mult=+v;{const l=LENGTHS.find(x=>x[2]===+v);if(l){PREF.len=l[0];savePref()}}pressOne(t);break;
+  case'pref-len':PREF.len=v;savePref();if(M&&M.phase!=='done')M.mult=lenMult();openModal(settingsHTML());break;
+  case'pref-mode':PREF.mode=v;savePref();openModal(settingsHTML());break;
+  case'menu-settings':openModal(settingsHTML());break;
   case'mview':M.viewMode=v;render();break;
   case'mcam':M.camMode=v;if(VIEW)VIEW.setCam(v);pressOne(t);break;
   case'mpause':M.paused=!M.paused;t.textContent=M.paused?'Resume':'Pause';M.paused?SND.stop():SND.resume();break;
