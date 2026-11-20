@@ -1491,7 +1491,7 @@ let opSel=PROF.op&&opOwned(PROF.op)?PROF.op:0;
 /* MAIN MENU — five sections with expandable subtabs (arrow), a contextual detail panel and a section action button,
    over a cinematic deck scene rendered on the game canvas. */
 const ICO={target:'<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>',skull:'<path d="M5 11a7 7 0 1 1 14 0v4h-3v4h-8v-4H5z"/><circle cx="9" cy="11" r="1.6"/><circle cx="15" cy="11" r="1.6"/><path d="M11 19v-2M13 19v-2"/>',
-  gun:'<path d="M3 9h15l2-2h2v4h-5l-1 2h-4l-1 5H7l1-5H3z"/>',trophy:'<path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4M12 14v4M8 20h8"/>',gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>',
+  gun:'<path fill="currentColor" stroke="none" d="M2 7.5h15.5l1-1.5h3.5v4h-3.2l-.8 1.2H12.6l-.7 1.3h-1.6l-1.4 6H4.6l1.6-6.7-1-.7H2z"/><path fill="none" d="M10.4 12.5c.4 1.6 1.6 2 3 1.6"/><rect x="4" y="8.6" width="9" height="1.2" fill="#07080c" stroke="none"/>',trophy:'<path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4M12 14v4M8 20h8"/>',gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>',
   flag:'<path d="M5 21V4h12l-2 4 2 4H5"/>',cup:'<path d="M8 4h8v4a4 4 0 0 1-8 0zM12 12v4M9 20h6"/>',bolt:'<path d="M13 2 5 13h6l-1 9 8-11h-6z"/>',box:'<path d="M3 7h18v13H3zM3 7l3-4h12l3 4M9 11h6"/>',users:'<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15 14a5 5 0 0 1 6 6"/>',cal:'<path d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4"/>'};
 const ico=(k,sz)=>`<svg viewBox="0 0 24 24" width="${sz||26}" height="${sz||26}" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">${ICO[k]}</svg>`;
 const MSEC=[{k:'campaign',n:'CAMPAIGN',d:'Board the station and fight through six sectors',ic:'target',sub:[['deploy','Deploy'],['daily','Daily Breach'],['coop','Co-op campaign']],go:'deploy',act:'DEPLOY'},
@@ -1537,11 +1537,28 @@ function drawMenuBg(){const t=G.t,F=(c,x,y,w,h)=>{ctx.fillStyle=c;ctx.fillRect(M
     for(let k=0;k<5;k++){const w=10+k*3,y=cy-R*0.8+k*R*0.32;F('#0e1018',cx-w/2,y,w,R*0.22);F('#2a2e3c',cx-w/2,y,w,1);for(let q=0;q<w-2;q+=3)if(hash(q,k*7)>0.55)F(Math.floor(t*1.5+q+k)%5?'#ffb04a':'#5a3a12',cx-w/2+1+q,y+3,1,1);}
     ctx.strokeStyle='#141720';ctx.lineWidth=5;ctx.beginPath();ctx.ellipse(cx,cy,R,R*0.3,0,0,TAU);ctx.stroke();ctx.strokeStyle='#2c3346';ctx.lineWidth=1.5;ctx.stroke();ctx.lineWidth=1;
     for(let k=0;k<10;k++){const a=t*0.07+k*TAU/10,x=cx+Math.cos(a)*R,y=cy+Math.sin(a)*R*0.3;F('#0b0d14',x-3,y-2,7,5);if(Math.sin(a)>0)F(Math.floor(t*2+k)%3?'#ff8a1f':'#3a1a08',x,y,1,1);}}
-  const dk=VH*0.72;{const g=ctx.createLinearGradient(0,dk,0,VH);g.addColorStop(0,'#141821');g.addColorStop(1,'#07080d');ctx.fillStyle=g;ctx.fillRect(0,dk,VW,VH-dk);for(let i=-12;i<=12;i++){ctx.strokeStyle='rgba(90,98,118,.18)';ctx.beginPath();ctx.moveTo(VW*0.55+i*10,dk);ctx.lineTo(VW*0.55+i*VW*0.07,VH);ctx.stroke();}
-    for(let i=1;i<8;i++){const p=i/8,y=dk+Math.pow(p,1.8)*(VH-dk);F('rgba(90,98,118,.16)',0,y,VW,1);}F('rgba(255,138,31,.25)',0,dk,VW,1);
-    for(let x=VW*0.3;x<VW;x+=18)F('#22262f',x,dk-14,2,14);F('#2c3240',VW*0.3,dk-14,VW*0.7,2);F('#1a1d26',VW*0.3,dk-8,VW*0.7,1);
-    for(const[x,w]of[[VW*0.82,26],[VW*0.92,18]]){F('#000',x-1,dk-3,w+2,16);F('#2a2e38',x,dk-2,w,14);F('#3b4252',x,dk-2,w,2);F(Math.floor(t*2)%2?'#ff8a1f':'#7a3a0a',x+3,dk+6,w-6,2);}
-    const o=OPS[opSel],S=getSpr(o,PROF.skin[o.k]||0),sx=Math.round(VW*0.44),sy=Math.round(dk+VH*0.04),bob=Math.floor(t*1.2)%2;ctx.fillStyle='rgba(0,0,0,.45)';ctx.beginPath();ctx.ellipse(sx+24,sy+54,20,4,0,0,TAU);ctx.fill();ctx.imageSmoothingEnabled=false;ctx.drawImage(S.r[0],sx,sy+bob,48,54);}
+  const dk=VH*0.72,vx=VW*0.5,vy=dk-VH*0.3,rowY=p=>dk+Math.pow(p,1.6)*(VH-dk),colX=(c,y)=>vx+(c*14-vx)*((y-vy)/(dk-vy));
+  {const g=ctx.createLinearGradient(0,dk,0,VH);g.addColorStop(0,'#161a23');g.addColorStop(1,'#08090e');ctx.fillStyle=g;ctx.fillRect(0,dk,VW,VH-dk);
+    const R=9,C=Math.ceil(VW/14)+30;for(let r=0;r<R;r++){const y0=rowY(r/R),y1=rowY((r+1)/R);for(let c=-15;c<C;c++){const a0=colX(c,y0),a1=colX(c+1,y0),b0=colX(c,y1),b1=colX(c+1,y1);if(b1<0||b0>VW)continue;const h=hash(c*3+r*17,r+5);
+      ctx.fillStyle=h>0.82?'rgba(255,255,255,.05)':h<0.2?'rgba(0,0,0,.25)':'rgba(255,255,255,.015)';ctx.beginPath();ctx.moveTo(a0,y0);ctx.lineTo(a1,y0);ctx.lineTo(b1,y1);ctx.lineTo(b0,y1);ctx.fill();
+      ctx.strokeStyle='rgba(0,0,0,.55)';ctx.stroke();if(h>0.6){ctx.fillStyle='rgba(140,150,170,.35)';ctx.fillRect(Math.round(b0+2),Math.round(y1-2),1,1);ctx.fillRect(Math.round(b1-3),Math.round(y1-2),1,1);}}
+      F('rgba(150,160,180,.06)',0,y0+1,VW,1);}
+    // glowing floor light strips running toward the viewer and along the edge
+    ctx.globalCompositeOperation='lighter';for(const c of[-6,8]){for(let r=0;r<9;r++){const y0=rowY(r/9),y1=rowY((r+0.55)/9),x0=colX(c,y0),x1=colX(c,y1),on=(Math.floor(t*3)+r)%9!==0;ctx.strokeStyle=on?'rgba(255,138,31,.75)':'rgba(255,138,31,.2)';ctx.lineWidth=1+r*0.35;ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();}}ctx.lineWidth=1;
+    for(let x=VW*0.3;x<VW;x+=34){const g2=ctx.createLinearGradient(0,dk+1,0,dk+12);g2.addColorStop(0,'rgba(255,138,31,.45)');g2.addColorStop(1,'rgba(255,138,31,0)');ctx.fillStyle=g2;ctx.fillRect(x+4,dk+1,12,11);F('#ff8a1f',x+4,dk+1,12,1);}
+    // reflections of the station lights
+    for(let k=0;k<6;k++){const x=VW*0.46+k*9+Math.sin(t+k)*0.5,g3=ctx.createLinearGradient(0,dk,0,VH);g3.addColorStop(0,`rgba(255,170,90,${0.08+0.04*Math.sin(t*2+k)})`);g3.addColorStop(1,'rgba(255,170,90,0)');ctx.fillStyle=g3;ctx.fillRect(x,dk,2,VH-dk);}
+    ctx.globalCompositeOperation='source-over';F('rgba(255,138,31,.35)',0,dk,VW,1);}
+  // railing: posts with lamps, two rails
+  {const y=dk-15;F('#1c2029',VW*0.28,y,VW*0.72,3);F('#3b4252',VW*0.28,y,VW*0.72,1);F('#161a22',VW*0.28,y+8,VW*0.72,2);for(let x=VW*0.28;x<VW;x+=22){F('#000',x-1,y-1,4,16);F('#2a2e38',x,y,2,15);F('#4a5162',x,y,1,15);F(Math.floor(t*1.5+x)%4?'#ff3b3b':'#5a1010',x,y-2,2,1);}}
+  // bulkheads framing the deck
+  for(const sd of[0,1]){const x=sd?VW-22:0;F('#0b0d13',x,dk-60,22,VH-dk+60);F('#1a1d26',sd?x:x+20,dk-60,2,VH-dk+60);for(let k=0;k<4;k++){F('#000',x+6,dk-52+k*16,10,10);F(Math.floor(t*2+k+sd)%5?'#ff8a1f':'#6a3008',x+8,dk-50+k*16,6,6);}}
+  // cargo crates with light strips
+  for(const[x,w,hh]of[[VW*0.79,28,16],[VW*0.88,20,12],[VW*0.08,24,14]]){const y=dk-hh+6;F('rgba(0,0,0,.4)',x-2,dk+6,w+6,3);F('#000',x-1,y-1,w+2,hh+2);F('#2a2e38',x,y,w,hh);F('#3b4252',x,y,w,2);F('#1a1d26',x,y+hh/2,w,1);F('#1a1d26',x+w/2,y,1,hh);F(Math.floor(t*2)%2?'#ff8a1f':'#7a3a0a',x+3,y+hh-4,w-6,2);F('#ffd23f',x+2,y+3,2,2);}
+  // operative standing on the deck, with a soft floor reflection
+  {const o=OPS[opSel],S=getSpr(o,PROF.skin[o.k]||0),sx=Math.round(VW*0.44),sy=Math.round(dk+VH*0.04),bob=Math.floor(t*1.2)%2;ctx.imageSmoothingEnabled=false;
+    ctx.save();ctx.globalAlpha=0.16;ctx.translate(sx,sy+108);ctx.scale(1,-1);ctx.drawImage(S.r[0],0,0,48,54);ctx.restore();
+    ctx.fillStyle='rgba(0,0,0,.5)';ctx.beginPath();ctx.ellipse(sx+24,sy+54,20,4,0,0,TAU);ctx.fill();ctx.drawImage(S.r[0],sx,sy+bob,48,54);}
   {const lg=ctx.createLinearGradient(0,0,VW*0.42,0);lg.addColorStop(0,'rgba(0,0,0,.6)');lg.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=lg;ctx.fillRect(0,0,VW*0.42,VH);}
   const v=ctx.createRadialGradient(VW*0.5,VH*0.5,VH*0.4,VW*0.5,VH*0.5,VH);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(0,0,0,.55)');ctx.fillStyle=v;ctx.fillRect(0,0,VW,VH);}
 function opCanvas(o,z){const c=document.createElement('canvas');c.width=16;c.height=18;c.getContext('2d').drawImage(getSpr(o,PROF.skin[o.k]||0).r[0],0,0);if(z){c.style.width=16*z+'px';c.style.height=18*z+'px';}return c;}
