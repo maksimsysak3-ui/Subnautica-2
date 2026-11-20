@@ -140,7 +140,10 @@ document.addEventListener('click',e=>{
   case'instant':instantResult();break;
   case'match-finish':finishMatchday();break;
   case'mmode':M.mode=v;M.scan=0;M.wins=[];scanEvents();render();break;
-  case'mspeed':if(M.mode==='full')M.fs=+v;else M.hs=+v;pressOne(t);break;
+  case'mspeed':M.mult=+v;{const l=LENGTHS.find(x=>x[2]===+v);if(l){PREF.len=l[0];savePref()}}pressOne(t);break;
+  case'pref-len':PREF.len=v;savePref();if(M&&M.phase!=='done')M.mult=lenMult();openModal(settingsHTML());break;
+  case'pref-mode':PREF.mode=v;savePref();openModal(settingsHTML());break;
+  case'menu-settings':openModal(settingsHTML());break;
   case'mview':M.viewMode=v;render();break;
   case'mcam':M.camMode=v;if(VIEW)VIEW.setCam(v);pressOne(t);break;
   case'mpause':M.paused=!M.paused;t.textContent=M.paused?'Resume':'Pause';M.paused?SND.stop():SND.resume();break;
