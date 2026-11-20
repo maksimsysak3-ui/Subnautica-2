@@ -578,7 +578,7 @@ POOLS.push(['splitter','splitter','medic','leaper','shotgunner','mimic','pod','s
 const G={mode:'title',t:0,sec:0,camX:0,camY:0,slow:0,flashFx:0,hb:0};let RUN=null,ROOM=null,PL=null;
 const E={turrets:[],en:[],bul:[],eb:[],parts:[],fx:[],props:[],pick:[],casings:[],mines:[],texts:[],beams:[]};
 function genFloor(sec){const map=new Map(),key=(x,y)=>x+','+y;const rooms=[];const add=(x,y,type)=>{const r={x,y,type,cleared:type!=='fight'&&type!=='boss',visited:false,seen:false,grid:null,decals:null,props:null,loot:null,id:rooms.length};map.set(key(x,y),r);rooms.push(r);return r;};
-  add(0,0,'start');const target=8+sec*2;let guard=0;while(rooms.length<target&&guard++<2000){const r=pick(rooms);const d=pick([[1,0],[-1,0],[0,1],[0,-1]]);const nx=r.x+d[0],ny=r.y+d[1];if(map.has(key(nx,ny))||Math.abs(nx)>4||Math.abs(ny)>4)continue;
+  add(0,0,'start');const target=12+sec*2;let guard=0;while(rooms.length<target&&guard++<2000){const r=pick(rooms);const d=pick([[1,0],[-1,0],[0,1],[0,-1]]);const nx=r.x+d[0],ny=r.y+d[1];if(map.has(key(nx,ny))||Math.abs(nx)>5||Math.abs(ny)>5)continue;
     let nb=0;for(const e of[[1,0],[-1,0],[0,1],[0,-1]])if(map.has(key(nx+e[0],ny+e[1])))nb++;if(nb>1)continue;add(nx,ny,'fight');}
   const dist=new Map([[key(0,0),0]]);const q=[[0,0]];while(q.length){const[x,y]=q.shift();for(const e of[[1,0],[-1,0],[0,1],[0,-1]]){const k=key(x+e[0],y+e[1]);if(map.has(k)&&!dist.has(k)){dist.set(k,dist.get(key(x,y))+1);q.push([x+e[0],y+e[1]]);}}}
   const ends=rooms.filter(r=>r.type==='fight'&&[[1,0],[-1,0],[0,1],[0,-1]].filter(e=>map.has(key(r.x+e[0],r.y+e[1]))).length===1).sort((a,b)=>dist.get(key(b.x,b.y))-dist.get(key(a.x,a.y)));
@@ -587,8 +587,8 @@ function genFloor(sec){const map=new Map(),key=(x,y)=>x+','+y;const rooms=[];con
   const fights=rooms.filter(r=>r.type==='fight');
   if(fights.length>3){const ev=fights.splice(ri(0,fights.length-1),1)[0];ev.type=sec===0||Math.random()<0.55?'cache':'altar';ev.cleared=true;}
   if(fights.length>3)fights[ri(0,fights.length-1)].ambush=true;
-  for(const f of fights)f.waves=f.ambush?3:(Math.random()<0.3+0.1*sec?2:1);
-  {const pool=fights.filter(f=>!f.ambush);for(const m of(sec>=1?['vault','hack','gen','bomb','tctl','crane']:['vault','hack','bomb','crane']).sort(()=>Math.random()-0.5).slice(0,sec>=1?4:3)){const fr=pool.filter(f=>!f.mini);if(fr.length)pick(fr).mini=m;}}
+  for(const f of fights)f.waves=f.ambush?4:2+(Math.random()<0.35+0.1*sec?1:0)+(sec>=3&&Math.random()<0.25?1:0);
+  {const pool=fights.filter(f=>!f.ambush);for(const m of(sec>=1?['vault','hack','gen','bomb','tctl','crane']:['vault','hack','bomb','crane']).sort(()=>Math.random()-0.5).slice(0,sec>=1?5:4)){const fr=pool.filter(f=>!f.mini);if(fr.length)pick(fr).mini=m;}}
   return{rooms,map,key};}
 const SHAPES=['rect','oct','cross','ring','hall','twin','L','islands','oct','cross','ring','L','pillars','courtyard','zigzag','bunker','gauntlet','pillars','bunker'];
 const tIdx=(x,y)=>Math.floor(y/TS)*TW+Math.floor(x/TS);
@@ -1040,9 +1040,9 @@ function update(dt){RUN.time+=dt;G.jamT=Math.max(0,(G.jamT||0)-dt);const S=stat(
   for(const m of E.mines){m.t-=dt;if(m.t<=0&&E.en.some(e=>Math.hypot(e.x-m.x,e.y-m.y)<18)){m.gone=true;explode(m.x,m.y,26,false,0,10);}}E.mines=E.mines.filter(m=>!m.gone);
   // pickups
   let near=null;for(const p of E.pick){if(p.kind==='scrap'){if(p.vx){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=0.9;p.vy*=0.9;if(Math.abs(p.vx)<2)p.vx=0;}const d=Math.hypot(PL.x-p.x,PL.y-p.y);if(d<40||ROOM.cleared&&!p.vx){const k=Math.min(1,dt*(d<40?6:3)+dt*80/Math.max(d,1));p.x+=(PL.x-p.x)*k;p.y+=(PL.y-p.y)*k;}if(d<6){p.gone=true;RUN.scrap++;SFX.scrap();conEv('scrap');}continue;}
-    const d=Math.hypot(PL.x-p.x,PL.y-p.y);if(p.kind==='heart'&&d<8){if(PL.hp<PL.maxhp){p.gone=true;PL.hp=Math.min(PL.maxhp,PL.hp+2);SFX.pick();floatT(PL.x,PL.y-18,'+♥','#ff3b3b');}continue;}
-    if(p.kind==='nade'&&d<8){if(PL.nades<maxN()){p.gone=true;PL.nades++;SFX.pick();floatT(PL.x,PL.y-18,'+GRENADE','#8ae05a');}continue;}
-    if(p.kind==='ammo'&&d<8){p.gone=true;for(const w of PL.weap)if(w.ammo!==Infinity)w.ammo=Math.min(maxAmmo(w),w.ammo+Math.ceil(maxAmmo(w)*0.35));SFX.pick();floatT(PL.x,PL.y-18,'+AMMO','#ffd23f');continue;}
+    const d=Math.hypot(PL.x-p.x,PL.y-p.y);if(p.kind==='heart'){const dh=Math.hypot(PL.x-p.x,PL.y-4-p.y);if(PL.hp<PL.maxhp&&dh<44&&dh>2){p.x+=(PL.x-p.x)*Math.min(1,dt*5);p.y+=(PL.y-4-p.y)*Math.min(1,dt*5);}if(dh<14){if(PL.hp<PL.maxhp){p.gone=true;PL.hp=Math.min(PL.maxhp,PL.hp+2);SFX.pick();floatT(PL.x,PL.y-18,'+♥','#ff3b3b');}else if(AU.ok('hpfull',1500))floatT(PL.x,PL.y-18,'FULL HP','#8a90a0');}continue;}
+    if(p.kind==='nade'&&d<13){if(PL.nades<maxN()){p.gone=true;PL.nades++;SFX.pick();floatT(PL.x,PL.y-18,'+GRENADE','#8ae05a');}continue;}
+    if(p.kind==='ammo'&&d<13){p.gone=true;for(const w of PL.weap)if(w.ammo!==Infinity)w.ammo=Math.min(maxAmmo(w),w.ammo+Math.ceil(maxAmmo(w)*0.35));SFX.pick();floatT(PL.x,PL.y-18,'+AMMO','#ffd23f');continue;}
     if(d<14&&!p.done&&(!near||d<near.d))near={p,d};}
   E.pick=E.pick.filter(p=>!p.gone);ROOM.picks=E.pick;G.near=near?near.p:null;
   // particles etc
